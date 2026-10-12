@@ -137,14 +137,15 @@ func (a *App) decorateHosts(ctx context.Context, hosts []Host) {
 // HostDetail is the full host view.
 type HostDetail struct {
 	Host
-	Inventory    *InventoryStatus `json:"inventory"`
-	Connection   map[string]any   `json:"connection"`
-	AgentConfig  any              `json:"agent_config"`
-	SNMPConfig   map[string]any   `json:"snmp_config,omitempty"`
-	LatestAgent  string           `json:"latest_agent_version"`
-	CheckCount   int              `json:"check_count"`
-	OpenFindings map[string]int   `json:"open_findings"`
-	VulnEnabled  bool             `json:"vuln_enabled"`
+	Inventory        *InventoryStatus `json:"inventory"`
+	Connection       map[string]any   `json:"connection"`
+	AgentConfig      any              `json:"agent_config"`
+	SNMPConfig       map[string]any   `json:"snmp_config,omitempty"`
+	LatestAgent      string           `json:"latest_agent_version"`
+	CheckCount       int              `json:"check_count"`
+	OpenFindings     map[string]int   `json:"open_findings"`
+	InactiveFindings int              `json:"inactive_findings"`
+	VulnEnabled      bool             `json:"vuln_enabled"`
 }
 
 func (a *App) apiGetHost(c *Ctx) (any, error) {
@@ -186,6 +187,9 @@ func (a *App) apiGetHost(c *Ctx) (any, error) {
 	for _, s := range scs {
 		d.OpenFindings[strings.ToLower(s.Severity)] = s.N
 	}
+	if d.VulnEnabled {
+		d.InactiveFindings = a.inactiveCount(c.ctx(), h)
+	}
 	return d, nil
 }
 
@@ -221,23 +225,24 @@ func mergeSecrets(newRaw, oldRaw []byte, secrets []string) []byte {
 }
 
 type hostUpdate struct {
-	Name              *string       `json:"name"`
-	Address           *string       `json:"address"`
-	GroupID           *int64        `json:"group_id"`
-	Tags              *[]string     `json:"tags"`
-	Notes             *string       `json:"notes"`
-	IntervalSeconds   *int          `json:"interval_seconds"`
-	InventoryInterval *int          `json:"inventory_interval"`
-	RetentionDays     *int          `json:"retention_days"`
-	AgentOptions      *AgentOptions `json:"agent_options"`
-	AllowUpgrades     *bool         `json:"allow_upgrades"`
-	AllowIPBlock      *bool         `json:"allow_ip_block"`
-	AllowScripts      *bool         `json:"allow_scripts"`
-	AllowCleanup      *bool         `json:"allow_cleanup"`
-	AutoBlock         *bool         `json:"auto_block"`
-	TenantID          *int64        `json:"tenant_id"`
-	ClearInterval     bool          `json:"clear_interval"`
-	ClearRetention    bool          `json:"clear_retention"`
+	Name                 *string       `json:"name"`
+	Address              *string       `json:"address"`
+	GroupID              *int64        `json:"group_id"`
+	Tags                 *[]string     `json:"tags"`
+	Notes                *string       `json:"notes"`
+	IntervalSeconds      *int          `json:"interval_seconds"`
+	InventoryInterval    *int          `json:"inventory_interval"`
+	RetentionDays        *int          `json:"retention_days"`
+	AgentOptions         *AgentOptions `json:"agent_options"`
+	AllowUpgrades        *bool         `json:"allow_upgrades"`
+	AllowIPBlock         *bool         `json:"allow_ip_block"`
+	AllowScripts         *bool         `json:"allow_scripts"`
+	AllowCleanup         *bool         `json:"allow_cleanup"`
+	AutoRemoveOldKernels *bool         `json:"auto_remove_old_kernels"`
+	AutoBlock            *bool         `json:"auto_block"`
+	TenantID             *int64        `json:"tenant_id"`
+	ClearInterval        bool          `json:"clear_interval"`
+	ClearRetention       bool          `json:"clear_retention"`
 }
 
 func (a *App) apiUpdateHost(c *Ctx) (any, error) {
@@ -338,6 +343,10 @@ func (a *App) apiUpdateHost(c *Ctx) (any, error) {
 	if req.AllowCleanup != nil {
 		set("allow_cleanup", *req.AllowCleanup)
 		changes["allow_cleanup"] = *req.AllowCleanup
+	}
+	if req.AutoRemoveOldKernels != nil {
+		set("auto_remove_old_kernels", *req.AutoRemoveOldKernels)
+		changes["auto_remove_old_kernels"] = *req.AutoRemoveOldKernels
 	}
 	if len(sets) > 0 {
 		set("updated_at", db.Now())

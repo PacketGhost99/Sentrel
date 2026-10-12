@@ -158,6 +158,29 @@ R=$(api POST /jobs "{\"host_id\":$HID,\"type\":\"upgrade\",\"confirm\":true}")
 expect "real upgrade refused without host opt-in" '.code == "forbidden"' "$R"
 api PUT "/hosts/$HID" "{\"allow_upgrades\":$PREV_UPG}" >/dev/null
 
+step "kernels (old kernel detection and remove_kernel dry run)"
+K=$(api GET "/hosts/$HID/kernels")
+expect "kernels endpoint reports the running kernel and installed kernels" '(.running | length) > 0 and (.installed | type) == "array"' "$K"
+expect "the running and newest kernels are never removable" '([.installed[] | select((.running or .newest) and .removable)] | length) == 0' "$K"
+FK=$(api GET /vulnerabilities/kernels)
+expect "fleet kernels endpoint answers with a list" 'type == "array"' "$FK"
+RUNABI=$(echo "$K" | jq -r '[.installed[] | select(.running)][0].abi // empty')
+if [ -n "$RUNABI" ]; then
+  R=$(api POST /jobs "{\"host_id\":$HID,\"type\":\"remove_kernel\",\"params\":{\"abi\":\"$RUNABI\"},\"dry_run\":true}")
+  expect "removing the running kernel is refused" '.code != null' "$R"
+fi
+R=$(api POST /jobs "{\"host_id\":$HID,\"type\":\"remove_kernel\",\"params\":{\"abi\":\"1.0; id\"},\"dry_run\":true}")
+expect "a malformed kernel ABI is refused" '.code != null' "$R"
+OLDK=$(echo "$K" | jq -r '[.installed[] | select(.removable)][0].abi // empty')
+if [ -n "$OLDK" ]; then
+  KJ=$(api POST /jobs "{\"host_id\":$HID,\"type\":\"remove_kernel\",\"params\":{\"abi\":\"$OLDK\"},\"dry_run\":true}" | jq -r .id)
+  wait_for "remove_kernel dry run succeeded" 120 job_done "$KJ" succeeded
+  KR=$(api GET "/jobs/$KJ")
+  expect "dry run lists only the packages of kernel $OLDK" "(.result_json | fromjson | .packages | length) > 0 and ([.result_json | fromjson | .packages[] | select(contains(\"$OLDK\") | not)] | length) == 0" "$KR"
+else
+  ok "no old kernel installed on this host; dry run skipped"
+fi
+
 step "notification muting, beats, disk analysis and cleanup"
 R=$(api PUT "/hosts/$HID/notify" '{"metric":"bruteforce","notify":false}')
 expect "failed-login notifications can be muted" '.notify == false' "$R"

@@ -372,6 +372,7 @@ type dashboard struct {
 	SecurityUpdates int            `json:"security_updates"`
 	RebootRequired  int            `json:"reboot_required"`
 	Vulns           map[string]int `json:"vulnerabilities"`
+	VulnsInactive   int            `json:"vulnerabilities_inactive"`
 	RecentEvents    []AlertEvent   `json:"recent_events"`
 	FiringAlerts    []Alert        `json:"firing_alerts"`
 }
@@ -451,6 +452,15 @@ func (a *App) apiDashboard(c *Ctx) (any, error) {
 			break
 		}
 		d.Vulns[strings.ToLower(r.K)] = r.N
+	}
+	if d.VulnEnabled {
+		var hids []int64
+		_ = a.db.SelectContext(ctx, &hids, `SELECT id FROM hosts WHERE kind='agent' AND revoked=0 AND `+tw, targs...)
+		for _, id := range hids {
+			if h, err := a.getHost(ctx, id); err == nil {
+				d.VulnsInactive += a.inactiveCount(ctx, h)
+			}
+		}
 	}
 	d.RecentEvents = []AlertEvent{}
 	ew, eargs := c.tenantWhere("e.tenant_id")

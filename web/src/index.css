@@ -8,7 +8,7 @@
  * Light is the default theme; the `.dark` class switches to the navy palette.
  */
 :root {
-  --accent: #4f46e5;
+  --accent: #1f6bf5;
   --accent-fg: #ffffff;
   --bg: #f4f6fb;
   --panel: #ffffff;
@@ -39,6 +39,7 @@
   color-scheme: light;
 }
 .dark {
+  --accent: #3d82ff;
   --accent-fg: #ffffff;
   --bg: #0c111d;
   --panel: #131a2a;

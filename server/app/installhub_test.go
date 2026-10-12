@@ -143,11 +143,11 @@ func TestAgentPackageDownload(t *testing.T) {
 		t.Fatalf("msi content type %q", resp.Header.Get("Content-Type"))
 	}
 	for _, bad := range []string{
-		"/download/agent/pkg/secret.txt",            // present on disk, not in the manifest
-		"/download/agent/pkg/nope.deb",              // unknown
-		"/download/agent/pkg/packages.json",         // the manifest itself
-		"/download/agent/pkg/..%2f..%2fVERSION",     // encoded traversal
-		"/download/agent/pkg/%2e%2e%2fVERSION",      // encoded traversal
+		"/download/agent/pkg/secret.txt",             // present on disk, not in the manifest
+		"/download/agent/pkg/nope.deb",               // unknown
+		"/download/agent/pkg/packages.json",          // the manifest itself
+		"/download/agent/pkg/..%2f..%2fVERSION",      // encoded traversal
+		"/download/agent/pkg/%2e%2e%2fVERSION",       // encoded traversal
 		"/download/agent/pkg/..%5csentrel-agent.deb", // backslash
 		"/download/agent/pkg/.hidden",
 	} {

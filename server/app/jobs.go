@@ -18,6 +18,7 @@ import (
 
 	pb "sentrel/gen/sentrelv1"
 	"sentrel/internal/jobpolicy"
+	"sentrel/internal/kernelpkg"
 	"sentrel/internal/sigs"
 	"sentrel/server/db"
 )
@@ -53,7 +54,7 @@ type JobRequest struct {
 var (
 	pkgNameRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9.+_:~-]{0,127}$`)
 	jobTypes  = map[string]bool{"upgrade": true, "refresh_inventory": true, "block_ip": true, "unblock_ip": true, "self_update": true, "script": true, "collect_now": true,
-		"disk_usage": true, "disk_cleanup": true}
+		"disk_usage": true, "disk_cleanup": true, "remove_kernel": true}
 )
 
 // ErrConfirmation is returned when a destructive job lacks confirmation.
@@ -114,6 +115,34 @@ func (m *JobManager) Create(ctx context.Context, p *Principal, req JobRequest) (
 		}
 		if timeout == 0 {
 			timeout = 3600
+		}
+	case "remove_kernel":
+		if hostInfo(h).Os == "windows" {
+			return nil, badRequest("kernel removal is not applicable to Windows hosts")
+		}
+		abi := strings.TrimSpace(req.Params["abi"])
+		if !kernelpkg.ValidABI(abi) {
+			return nil, badRequest("a valid kernel ABI is required (for example 6.8.0-45)")
+		}
+		req.Params = map[string]string{"abi": abi}
+		if !h.AllowUpgrades && !req.DryRun {
+			return nil, forbidden("remote upgrades are not enabled for this host (host settings → allow upgrades)")
+		}
+		if !req.DryRun && !req.Confirm {
+			return nil, ErrConfirmation
+		}
+		// The agent re-checks this against the live system; refusing here gives a
+		// clear error from the inventory the server already has.
+		if k := a.loadKernels(ctx, h); len(k.Groups) > 0 {
+			if k.Running != "" && kernelpkg.MatchesRunning(abi, k.Running) {
+				return nil, badRequest("kernel %s is the running kernel and cannot be removed", abi)
+			}
+			if abi == k.Newest {
+				return nil, badRequest("kernel %s is the newest installed kernel and is always kept", abi)
+			}
+		}
+		if timeout == 0 {
+			timeout = 1800
 		}
 	case "block_ip", "unblock_ip":
 		if !h.AllowIPBlock {

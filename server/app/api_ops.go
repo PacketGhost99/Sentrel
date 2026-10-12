@@ -172,13 +172,30 @@ func (a *App) apiListFindings(c *Ctx) (any, error) {
 	}
 	q += ` GROUP BY f.host_id, f.vuln_id ORDER BY CASE MIN(f.severity) WHEN 'Critical' THEN 5 WHEN 'High' THEN 4 WHEN 'Medium' THEN 3 WHEN 'Low' THEN 2 ELSE 1 END DESC,
 		MAX(f.kev) DESC, MAX(f.cvss) DESC, f.vuln_id LIMIT ?`
-	args = append(args, limit)
+	skipInactive := c.Q("inactive") == "0"
+	sqlLimit := limit
+	if skipInactive {
+		sqlLimit = 5000 // inactive findings are only known after decoration
+	}
+	args = append(args, sqlLimit)
 	out := []VulnFinding{}
 	err := a.db.SelectContext(c.ctx(), &out, q, args...)
 	if err != nil {
 		return nil, err
 	}
 	a.decorateFindings(c, out)
+	if skipInactive {
+		kept := out[:0]
+		for _, f := range out {
+			if !f.Inactive {
+				kept = append(kept, f)
+			}
+		}
+		out = kept
+		if int64(len(out)) > int64(limit) {
+			out = out[:limit]
+		}
+	}
 	return out, nil
 }
 
@@ -192,6 +209,7 @@ func (a *App) apiVulnSummary(c *Ctx) (any, error) {
 		Medium     int    `db:"medium" json:"medium"`
 		Low        int    `db:"low" json:"low"`
 		Fixable    int    `db:"fixable" json:"fixable"`
+		Inactive   int    `db:"-" json:"inactive"`
 		KEV        int    `db:"kev" json:"kev"`
 		LastScan   int64  `db:"last_scan" json:"last_scan"`
 		LastStatus string `db:"last_status" json:"last_status"`
@@ -211,6 +229,11 @@ func (a *App) apiVulnSummary(c *Ctx) (any, error) {
 		WHERE h.kind='agent' AND `+tw+` GROUP BY h.id ORDER BY critical DESC, high DESC, h.name`, args...)
 	if err != nil {
 		return nil, err
+	}
+	for i := range out {
+		if h, err := a.getHost(c.ctx(), out[i].HostID); err == nil && out[i].Critical+out[i].High+out[i].Medium+out[i].Low > 0 {
+			out[i].Inactive = a.inactiveCount(c.ctx(), h)
+		}
 	}
 	return map[string]any{"hosts": out, "db": a.vuln.Status(), "queue": a.vuln.QueueLength(), "enabled": a.settings.Vuln().Enabled}, nil
 }

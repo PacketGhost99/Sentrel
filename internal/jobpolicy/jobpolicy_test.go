@@ -13,7 +13,7 @@ func TestClasses(t *testing.T) {
 			t.Errorf("%s should be safe", s)
 		}
 	}
-	for _, w := range []string{"upgrade", "script", "block_ip", "disk_cleanup", "self_update", "", "whatever"} {
+	for _, w := range []string{"upgrade", "script", "block_ip", "disk_cleanup", "self_update", "remove_kernel", "", "whatever"} {
 		if IsSafe(w) || !IsWrite(w) {
 			t.Errorf("%q should be write", w)
 		}

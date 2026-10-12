@@ -38,7 +38,7 @@ Scans run one at a time from a queue with a 10 minute limit each. The scan histo
 
 ## Alerts
 
-After each scan the server evaluates one alert per host. It counts distinct open CVEs at or above `alert_severity` (`Critical` default, `High`, `Medium`, or `none` to disable) and, when `only_fixable` is on (default), only those that have a fixed version. The alert is critical when any Critical finding is counted, otherwise warning, and clears when the count reaches zero. Notification channels, maintenance windows and acknowledgement behave as for any alert ([alerting.md](alerting.md)).
+After each scan the server evaluates one alert per host. It counts distinct open CVEs at or above `alert_severity` (`Critical` default, `High`, `Medium`, or `none` to disable) and, when `only_fixable` is on (default), only those that have a fixed version. Findings that only affect a kernel that is installed but not running (see [Kernels](#kernels)) are not counted unless `alert_on_inactive_kernels` is on (default off). The alert is critical when any Critical finding is counted, otherwise warning, and clears when the count reaches zero. Notification channels, maintenance windows and acknowledgement behave as for any alert ([alerting.md](alerting.md)).
 
 ## Fixing findings with upgrades
 
@@ -52,7 +52,36 @@ Mark a finding `ignored` (UI, or `PUT /api/v1/vulnerabilities/{id}` with `{"stat
 
 ## Settings
 
-**Settings, Vulnerabilities** (`vuln` section): `enabled` (default on), `db_url`, `sync_hour` (2), `scan_after_inventory` (on), `alert_severity` (Critical), `only_fixable` (on).
+**Settings, Vulnerabilities** (`vuln` section): `enabled` (default on), `db_url`, `sync_hour` (2), `scan_after_inventory` (on), `alert_severity` (Critical), `only_fixable` (on), `alert_on_inactive_kernels` (off).
+
+## Kernels
+
+On Debian and Ubuntu the kernel ABI is part of the package name (`linux-image-7.0.0-28-generic`, `linux-headers-7.0.0-28`, `linux-modules-...`), so a newer kernel is a different package and an old kernel never shows an available upgrade. On RPM distributions the installonly packages (`kernel`, `kernel-core`, `kernel-modules`, `kernel-modules-core`, `kernel-modules-extra`, `kernel-devel`) are installed side by side, with the version-release as the ABI. Sentrel groups these packages by ABI, compares the ABI with the running kernel (`uname -r`, reported as `kernel_version` in the host info) and reports one `remediation` per finding:
+
+| `remediation` | Meaning | Action |
+|---|---|---|
+| `remove_old_kernel` | the finding only affects a kernel that is neither running nor the newest installed | remove that kernel (`kernel_abi`) |
+| `reboot` | the running kernel is affected, but a newer kernel is already installed | reboot the host |
+| `upgrade_kernel` | the running (or newest) kernel is affected, no newer kernel is installed and the kernel meta-package (`linux-generic`, `linux-image-virtual`, `kernel`, ...) has an update pending | upgrade `kernel_meta`, then reboot |
+| `upgrade` | a normal package with the fix available | upgrade it |
+| `wait` | the fix is not in the repositories yet | wait |
+| `none` | no fix is known | none |
+
+Findings also carry `kernel_abi` and `inactive` (true when every affected package belongs to a kernel that is not running). `remediation` is empty for Windows and non-agent hosts. `GET /vulnerabilities?inactive=0` leaves inactive findings out (the UI's "Include inactive kernels" filter, on by default). `GET /vulnerabilities/summary` and the dashboard add `inactive` counts next to the totals, which are unchanged.
+
+`GET /hosts/{id}/kernels` returns `{running, installed: [{abi, packages, running, newest, removable, cve_count, critical, high}], reboot_required, reboot_pending, allow_upgrades, write_policy, removable_cves, removable_critical}`. `cve_count` is the number of CVEs that exist only in that kernel, that is, the ones removing it resolves. `GET /vulnerabilities/kernels` returns the same fleet-wide (tenant scoped): `[{host_id, host_name, running, removable: [{abi, cve_count, critical}], reboot_pending, ...}]` for hosts with removable kernels or a pending reboot.
+
+### Removing an old kernel
+
+The `remove_kernel` job (`params: {abi}`) is a write job: it needs `allow_upgrades` on the host (a dry run does not) and `confirm`, follows the agent's write policy (read-only agents refuse it, operator-signed hosts wait in `awaiting_signature`) and is not available for Windows. A dry run lists the exact packages. The agent's privileged helper (`priv remove-kernel [--dry-run] ABI`) validates the ABI against a strict pattern, refuses the running kernel and the newest installed kernel (the running and newest kernels are always kept), looks up the installed packages of that ABI with `dpkg-query` or `rpm -qa` and purges exactly those (`apt-get purge -y`, or `dnf remove -y`) in a systemd scope, without a shell. When it finishes the agent resends its inventory so the host is rescanned. The disk-cleanup task `old_kernels` uses the same logic for every old kernel.
+
+The UI offers this on a finding ("Remove kernel 7.0.0-28"), in a card at the top of the host CVE tab, and fleet-wide on the Vulnerabilities page, where "Remove on all eligible hosts" runs dry runs first and then one confirmation. There is no remote reboot action.
+
+### Metrics and automatic removal
+
+The server records `old_kernels_installed` (removable kernels) and `kernel_reboot_pending` (1 when the newest installed kernel is not the running one) on every inventory. Both are in the threshold catalog (`old_kernels`, `kernel_reboot_pending`) and disabled by default.
+
+The per-host setting `auto_remove_old_kernels` (default off) queues a `remove_kernel` job for each removable kernel at the host's next maintenance window that allows jobs. It only works with `allow_upgrades`, never for read-only or operator-signed hosts, and runs at most once a day per host.
 
 ## Air-gapped and mirrored databases
 

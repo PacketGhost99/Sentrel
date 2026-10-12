@@ -165,6 +165,9 @@ type VulnSettings struct {
 	ScanAfterInventory bool   `json:"scan_after_inventory"`
 	AlertSeverity      string `json:"alert_severity"` // Critical, High, Medium, none
 	OnlyFixable        bool   `json:"only_fixable"`
+	// AlertOnInactiveKernels counts findings in kernels that are installed but
+	// not running toward the per-host vulnerability alert.
+	AlertOnInactiveKernels bool `json:"alert_on_inactive_kernels"`
 }
 
 type Branding struct {
@@ -221,7 +224,7 @@ func defaultFor(key string) any {
 	case keyVuln:
 		return &VulnSettings{Enabled: false, SyncHour: 2, ScanAfterInventory: true, AlertSeverity: "Critical", OnlyFixable: true}
 	case keyBranding:
-		return &Branding{ProductName: "Sentrel", AccentColor: "#e11d48"}
+		return &Branding{ProductName: "Sentrel", AccentColor: "#1f6bf5"}
 	}
 	return nil
 }

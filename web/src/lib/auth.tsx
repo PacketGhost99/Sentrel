@@ -32,8 +32,9 @@ export const useAuth = () => useContext(Ctx)
 export function applyBranding(b?: Branding | null) {
   if (!b) return
   const root = document.documentElement
-  // The legacy default accent (#e11d48) is ignored so the refreshed palette applies unless a custom colour was chosen.
-  if (b.accent_color && b.accent_color.toLowerCase() !== '#e11d48') root.style.setProperty('--accent', b.accent_color)
+  // Earlier default accents are ignored so the brand palette applies unless a custom colour was chosen.
+  const legacy = ['#e11d48', '#4f46e5', '#1f6bf5']
+  if (b.accent_color && !legacy.includes(b.accent_color.toLowerCase())) root.style.setProperty('--accent', b.accent_color)
   else root.style.removeProperty('--accent')
   document.title = b.product_name || 'Sentrel'
   const fav = document.getElementById('favicon') as HTMLLinkElement | null

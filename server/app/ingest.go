@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"net"
+	"sentrel/internal/kernelpkg"
 	"sort"
 	"strings"
 	"sync"
@@ -141,7 +142,13 @@ func (a *App) ingestInventory(ctx context.Context, hostID int64, inv *pb.Invento
 	type key struct{ name, arch, kb string }
 	rows := map[key]*pb.Package{}
 	for _, p := range inv.Installed {
-		rows[key{p.Name, p.Arch, p.Kb}] = proto.Clone(p).(*pb.Package)
+		cp := proto.Clone(p).(*pb.Package)
+		if cp.Type == "rpm" && kernelpkg.IsRPMName(cp.Name) && cp.Kb == "" {
+			// Installonly kernels are installed in several versions at once; the
+			// packages key has no version, so the version goes into kb.
+			cp.Kb = "kver:" + cp.Version
+		}
+		rows[key{cp.Name, cp.Arch, cp.Kb}] = cp
 	}
 	for _, p := range inv.Upgradable {
 		k := key{p.Name, p.Arch, p.Kb}
@@ -218,6 +225,7 @@ func (a *App) ingestInventory(ctx context.Context, hostID int64, inv *pb.Invento
 		{Name: "packages_security_updates", Value: float64(security)},
 	})
 	a.events.publish(Event{Type: "host.inventory", TenantID: tenant, HostID: hostID})
+	a.afterInventory(ctx, hostID)
 	if newHash != prevHash && len(inv.Installed) > 0 && a.settings.Vuln().ScanAfterInventory {
 		a.vuln.enqueue(hostID, "inventory")
 	}

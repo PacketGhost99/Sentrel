@@ -1,11 +1,12 @@
 <div align="center">
 
-<img src="docs/assets/logo.svg" width="96" alt="Sentrel logo">
-
-# Sentrel
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/banner-dark.png">
+  <img src="docs/assets/banner-light.png" alt="Sentrel: monitor everything, own your data" width="760">
+</picture>
 
 **Self-hosted monitoring for your servers, sites and network.**<br>
-Agents, uptime checks, patching and CVEs in one place.
+Agents, uptime checks, security, patching and CVEs in one place.
 
 [![CI](https://github.com/notspark1999/Sentrel/actions/workflows/ci.yml/badge.svg)](https://github.com/notspark1999/Sentrel/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/notspark1999/Sentrel)](https://github.com/notspark1999/Sentrel/releases/latest)
@@ -22,10 +23,12 @@ Agents, uptime checks, patching and CVEs in one place.
 ## Why Sentrel
 
 - 🎨 **Beautiful dashboard and status pages.** Light and dark themes, live beat bars, public or secret-link status pages.
-- 🖥️ **Agents for Linux and Windows.** One line from the Agents page installs and registers a host.
-- 🌐 **Uptime checks.** HTTP, TCP, ping, DNS and TLS certificate expiry, plus SNMP devices.
+- 🖥️ **Agents for Linux and Windows.** Copy one line from the Agents page and the host appears.
+- 🌐 **Uptime checks.** HTTP, TCP, ping, DNS and TLS certificate expiry, plus SNMP switches, firewalls and printers.
+- 🛡️ **Intrusion detection built in.** Spots SSH and RDP brute-force attempts, shows fail2ban jails, and blocks attacking IPs from the UI or automatically.
+- 🩹 **One-click patching and CVE scanning.** Pending updates per host, remote upgrades, and CVE matching that tells you exactly what fixes each finding.
+- 💽 **Disk full? See why.** When a disk alert fires, Sentrel shows the biggest folders and files and can clean up caches, old logs and old kernels.
 - 🔔 **Alerts where you already are.** Email, Slack, Discord, Teams, Telegram, ntfy, Pushover, Gotify and webhooks.
-- 🩹 **One-click patching and CVE scanning.** Pending updates per host, remote upgrades, and optional CVE matching for Linux.
 - 🏢 **Multi-tenant for MSPs.** Isolated customers, branding, roles and single sign-on (OIDC, LDAP, RADIUS).
 - 🔒 **Secure by design.** Unprivileged agent, signed jobs, and read-only agents that a compromised server cannot command.
 - 🪶 **Lightweight.** One server binary (about 120 MB RAM idle), agent about 15 MB. State lives in a single data directory.

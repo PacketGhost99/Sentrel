@@ -49,6 +49,7 @@ func (a *App) registerRoutes(r *apiRouter) {
 	r.add(routeDef{Method: POST, Path: "/hosts/{id}/revoke", Summary: "Revoke the agent certificate", Tag: "hosts", Perm: PermHosts}, a.apiRevokeHost)
 	r.add(routeDef{Method: GET, Path: "/hosts/{id}/metrics", Summary: "Standard metric series for graphs", Tag: "hosts", Perm: PermRead, Query: []string{"panel", "start", "end", "step"}}, a.apiHostMetrics)
 	r.add(routeDef{Method: GET, Path: "/hosts/{id}/packages", Summary: "Installed / upgradable packages", Tag: "hosts", Perm: PermRead, Resp: []Package{}, Query: []string{"upgradable", "q"}}, a.apiHostPackages)
+	r.add(routeDef{Method: GET, Path: "/hosts/{id}/kernels", Summary: "Installed kernels, the running one and removable old kernels", Tag: "hosts", Perm: PermRead, Resp: kernelsResp{}}, a.apiHostKernels)
 	r.add(routeDef{Method: PUT, Path: "/hosts/{id}/notify", Summary: "Mute or unmute notifications for one metric on a host", Tag: "hosts", Perm: PermHostSettings, Req: hostNotifyReq{}}, a.apiHostNotify)
 	r.add(routeDef{Method: GET, Path: "/hosts/{id}/security", Summary: "Failed logins, IP blocks and fail2ban", Tag: "hosts", Perm: PermRead}, a.apiHostSecurity)
 	r.add(routeDef{Method: POST, Path: "/hosts/{id}/block", Summary: "Block an IP on the host firewall", Tag: "hosts", Perm: PermJobs, Req: blockReq{}}, a.apiBlockIP)
@@ -133,7 +134,8 @@ func (a *App) registerRoutes(r *apiRouter) {
 	r.add(routeDef{Method: POST, Path: "/jobs/{id}/cancel", Summary: "Cancel a job that has not started", Tag: "jobs", Perm: PermJobs}, a.apiCancelJob)
 
 	// Vulnerabilities.
-	r.add(routeDef{Method: GET, Path: "/vulnerabilities", Summary: "List vulnerability findings", Tag: "vulnerabilities", Perm: PermRead, Resp: []VulnFinding{}, Query: []string{"host_id", "severity", "status", "q", "fixable", "limit"}}, a.apiListFindings)
+	r.add(routeDef{Method: GET, Path: "/vulnerabilities", Summary: "List vulnerability findings", Tag: "vulnerabilities", Perm: PermRead, Resp: []VulnFinding{}, Query: []string{"host_id", "severity", "status", "q", "fixable", "limit", "inactive"}}, a.apiListFindings)
+	r.add(routeDef{Method: GET, Path: "/vulnerabilities/kernels", Summary: "Hosts with removable old kernels", Tag: "vulnerabilities", Perm: PermRead, Resp: []fleetKernelHost{}}, a.apiFleetKernels)
 	r.add(routeDef{Method: GET, Path: "/vulnerabilities/summary", Summary: "Findings per host and severity", Tag: "vulnerabilities", Perm: PermRead}, a.apiVulnSummary)
 	r.add(routeDef{Method: PUT, Path: "/vulnerabilities/{id}", Summary: "Ignore or reopen a finding", Tag: "vulnerabilities", Perm: PermMonitoring, Req: findingUpdate{}}, a.apiUpdateFinding)
 	r.add(routeDef{Method: POST, Path: "/vulnerabilities/scan-all", Summary: "Queue scans for all visible hosts", Tag: "vulnerabilities", Perm: PermJobs}, a.apiScanAll)

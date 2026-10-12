@@ -348,6 +348,7 @@ function Vuln({ data }: { data: any }) {
           )}
           <Toggle checked={!!v.scan_after_inventory} onChange={(x) => set({ scan_after_inventory: x })} label="Rescan a host whenever its packages change" />
           <Toggle checked={!!v.only_fixable} onChange={(x) => set({ only_fixable: x })} label="Alert only on vulnerabilities with a fix available" />
+          <Toggle checked={!!v.alert_on_inactive_kernels} onChange={(x) => set({ alert_on_inactive_kernels: x })} label="Alert on vulnerabilities in kernels that are not running" hint="Off by default: an old kernel that is installed but not booted is not exploitable. The findings stay visible in the list either way." />
         </div>
         <Field label="Alert at severity"><Select value={v.alert_severity} onChange={(e) => set({ alert_severity: e.target.value })}><option value="Critical">Critical</option><option value="High">High and above</option><option value="Medium">Medium and above</option><option value="none">Never alert</option></Select></Field>
         <Field label="Daily DB update hour (server time)"><Input type="number" min={0} max={23} value={v.sync_hour} onChange={(e) => set({ sync_hour: num(e.target.value) })} /></Field>
@@ -455,7 +456,7 @@ export function BrandingPage() {
         <Card title="Appearance">
           <div className="space-y-3">
             <Field label="Product name"><Input value={v.product_name} onChange={(e) => setV({ ...v, product_name: e.target.value })} placeholder={tid ? 'inherit' : 'Sentrel'} /></Field>
-            <Field label="Accent colour"><div className="flex items-center gap-2"><input type="color" value={v.accent_color || '#e11d48'} onChange={(e) => setV({ ...v, accent_color: e.target.value })} className="h-9 w-14 rounded border border-line bg-panel" /><Input className="w-32 mono" value={v.accent_color} onChange={(e) => setV({ ...v, accent_color: e.target.value })} /></div></Field>
+            <Field label="Accent colour"><div className="flex items-center gap-2"><input type="color" value={v.accent_color || '#1f6bf5'} onChange={(e) => setV({ ...v, accent_color: e.target.value })} className="h-9 w-14 rounded border border-line bg-panel" /><Input className="w-32 mono" value={v.accent_color} onChange={(e) => setV({ ...v, accent_color: e.target.value })} /></div></Field>
             <Field label="Logo (PNG/SVG/JPEG, max 500 KB)"><div className="flex items-center gap-2"><input type="file" accept="image/*" onChange={file('logo_data_url')} className="text-sm" />{v.logo_data_url && <Button size="sm" variant="ghost" onClick={() => setV({ ...v, logo_data_url: '' })}>Remove</Button>}</div></Field>
             <Field label="Favicon"><div className="flex items-center gap-2"><input type="file" accept="image/*" onChange={file('favicon_data_url')} className="text-sm" />{v.favicon_data_url && <Button size="sm" variant="ghost" onClick={() => setV({ ...v, favicon_data_url: '' })}>Remove</Button>}</div></Field>
             <Field label="Login page text"><Textarea value={v.login_text} onChange={(e) => setV({ ...v, login_text: e.target.value })} placeholder="Authorised use only." /></Field>

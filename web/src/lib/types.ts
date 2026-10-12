@@ -103,6 +103,7 @@ export interface Host {
   agent_options: AgentOptions | null
   allow_upgrades: boolean
   allow_cleanup?: boolean
+  auto_remove_old_kernels?: boolean
   allow_ip_block: boolean
   allow_scripts: boolean
   auto_block: boolean
@@ -145,6 +146,7 @@ export interface HostDetail extends Host {
   check_count: number
   open_findings: Record<string, number>
   vuln_enabled?: boolean
+  inactive_findings?: number
 }
 
 export interface InventoryStatus {
@@ -403,6 +405,8 @@ export interface Package {
   publisher: string
 }
 
+export type Remediation = 'upgrade' | 'wait' | 'none' | 'remove_old_kernel' | 'reboot' | 'upgrade_kernel'
+
 export interface Finding {
   id: number
   host_id: number
@@ -413,6 +417,10 @@ export interface Finding {
   available_version?: string
   upgradable?: boolean
   os?: 'linux' | 'windows' | string
+  kernel_abi?: string
+  remediation?: Remediation
+  inactive?: boolean
+  kernel_meta?: string[]
   fix_state: string
   severity: string
   cvss: number
@@ -570,4 +578,39 @@ export interface EnrolmentToken {
   spki_sha256?: string
   tls_mode: string
   commands: Record<string, string>
+}
+
+export interface KernelInfo {
+  abi: string
+  packages: string[]
+  running: boolean
+  newest: boolean
+  removable: boolean
+  /** CVEs that exist only in this kernel: removing it resolves them. */
+  cve_count: number
+  critical: number
+  high: number
+}
+
+export interface HostKernels {
+  running: string
+  installed: KernelInfo[]
+  reboot_required: boolean
+  reboot_pending: boolean
+  allow_upgrades: boolean
+  write_policy: string
+  removable_cves: number
+  removable_critical: number
+}
+
+export interface FleetKernelHost {
+  host_id: number
+  host_name: string
+  running: string
+  removable: { abi: string; cve_count: number; critical: number }[]
+  reboot_pending: boolean
+  allow_upgrades: boolean
+  write_policy: string
+  resolves: number
+  resolves_critical: number
 }

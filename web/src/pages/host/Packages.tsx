@@ -42,7 +42,7 @@ export function HostPackages({ host }: { host: HostDetail }) {
               {pk.data.map((p) => (
                 <tr key={p.name + p.arch + p.kb}>
                   {view === 'upgradable' && can('jobs') && <Td><Checkbox checked={sel.has(keyOf(p))} onChange={(v) => { const s = new Set(sel); if (v) s.add(keyOf(p)); else s.delete(keyOf(p)); setSel(s) }} /></Td>}
-                  <Td><span className="mono text-xs">{p.name}</span> {p.security && <Badge tone="crit">security</Badge>} {p.kb && <Badge>{p.kb}</Badge>}</Td>
+                  <Td><span className="mono text-xs">{p.name}</span> {p.security && <Badge tone="crit">security</Badge>} {p.kb && !p.kb.startsWith('kver:') && <Badge>{p.kb}</Badge>}</Td>
                   <Td className="mono text-xs">{p.version}</Td>
                   {view === 'upgradable' && <Td className="mono text-xs text-ok">{p.new_version}</Td>}
                   <Td className="hidden text-xs text-muted md:table-cell">{win ? p.publisher : [p.arch, p.source].filter(Boolean).join(' · ')}</Td>

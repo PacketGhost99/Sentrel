@@ -23,7 +23,7 @@ type CleanupTask struct {
 var linuxCleanupTasks = []CleanupTask{
 	{"pkg_cache", "Package cache", "Downloaded package files (apt clean, dnf clean all, ...)."},
 	{"journal", "Systemd journal", "Vacuum the journal to 200 MB and 14 days."},
-	{"old_kernels", "Unused packages and old kernels", "Remove packages no longer needed (apt autoremove --purge, dnf autoremove)."},
+	{"old_kernels", "Old kernels", "Remove every installed kernel except the running one and the newest."},
 	{"tmp", "Temporary files", "Files in /tmp and /var/tmp not modified for 10 days."},
 	{"docker", "Docker unused data", "Stopped containers, dangling images and build cache. Volumes are never removed."},
 	{"logs", "Rotated logs", "Rotated or compressed logs in /var/log (*.gz, *.1, *.old) older than 7 days."},

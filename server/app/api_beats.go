@@ -202,6 +202,8 @@ func (a *App) decorateFindings(c *Ctx, list []VulnFinding) {
 		linux   bool
 		updates map[string]pkgUpdate
 		fixed   map[string]string // vuln_id|package -> fixed version
+		ks      *hostKernels
+		cves    map[string]*cveSummary
 	}
 	hosts := map[int64]*hostData{}
 	load := func(id int64) *hostData {
@@ -220,6 +222,13 @@ func (a *App) decorateFindings(c *Ctx, list []VulnFinding) {
 		d.linux = h.Kind == "agent" && d.os == "linux"
 		if !d.linux {
 			return d
+		}
+		d.ks = a.loadKernels(c.ctx(), h)
+		if len(d.ks.Groups) > 0 {
+			d.cves = map[string]*cveSummary{}
+			for _, s := range a.hostCVEs(c.ctx(), h, d.ks) {
+				d.cves[s.VulnID] = s
+			}
 		}
 		var pk []struct {
 			Name       string `db:"name"`
@@ -267,6 +276,7 @@ func (a *App) decorateFindings(c *Ctx, list []VulnFinding) {
 				f.AvailableVersion = up.newVer
 			}
 		}
+		finishRemediation(f, d.ks, d.cves[f.VulnID])
 	}
 }
 

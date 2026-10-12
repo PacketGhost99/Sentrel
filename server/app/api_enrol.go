@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"sentrel/server/agentdist"
 	"sentrel/internal/version"
+	"sentrel/server/agentdist"
 	"sentrel/server/db"
 )
 
@@ -131,7 +131,6 @@ func (a *App) apiDeleteToken(c *Ctx) (any, error) {
 	c.audit("enrollment_token.deleted", "token", itoa(c.ID()), nil)
 	return nil, nil
 }
-
 
 func (a *App) apiAgentBinaries(c *Ctx) (any, error) {
 	out := agentdist.List(a.cfg.AgentBinDir)

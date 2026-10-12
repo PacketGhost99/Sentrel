@@ -25,7 +25,7 @@ Cleanup is off for every host until `allow_cleanup` is enabled in the host setti
 |---|---|
 | `pkg_cache` | `apt-get clean`, `dnf clean all` and equivalents |
 | `journal` | `journalctl --vacuum-size=200M --vacuum-time=14d` |
-| `old_kernels` | `apt-get autoremove --purge`, `dnf autoremove` |
+| `old_kernels` | removes every installed kernel except the running one and the newest (`apt-get purge` of the exact packages of each old kernel, `dnf remove`); a dry run reports the packages and sizes. See [vulnerabilities.md](vulnerabilities.md#kernels) |
 | `tmp` | files in `/tmp` and `/var/tmp` not modified for 10 days |
 | `docker` | `docker system prune -f` (dangling images, stopped containers, build cache; never volumes) |
 | `logs` | rotated or compressed logs in `/var/log` (`*.gz`, `*.1`, `*.old`) older than 7 days |

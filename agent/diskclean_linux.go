@@ -3,9 +3,7 @@
 package agent
 
 import (
-	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -36,7 +34,7 @@ func runCleanupTask(ctx context.Context, w io.Writer, task string, dry bool) (in
 	case "journal":
 		return cleanJournal(ctx, w, dry)
 	case "old_kernels":
-		return cleanAutoremove(ctx, w, dry)
+		return cleanOldKernels(ctx, w, dry)
 	case "tmp":
 		var total int64
 		for _, d := range []string{"/tmp", "/var/tmp"} {
@@ -117,60 +115,15 @@ func cleanJournal(ctx context.Context, w io.Writer, dry bool) (int64, error) {
 	return before - dirBytes(ctx, dirs...), nil
 }
 
-var (
-	aptRemvRe = regexp.MustCompile(`(?m)^Remv (\S+)`)
-	aptEnv    = []string{"DEBIAN_FRONTEND=noninteractive", "NEEDRESTART_MODE=a", "APT_LISTCHANGES_FRONTEND=none"}
-)
-
-func cleanAutoremove(ctx context.Context, w io.Writer, dry bool) (int64, error) {
-	mgr := packageManager()
-	switch mgr {
-	case "apt":
-		if dry {
-			var buf bytes.Buffer
-			cmd := exec.CommandContext(ctx, "apt-get", "-s", "autoremove", "--purge")
-			cmd.Env = append(os.Environ(), "LANG=C", "LC_ALL=C")
-			cmd.Stdout = &buf
-			if err := cmd.Run(); err != nil {
-				return 0, err
-			}
-			var kib int64
-			var names []string
-			for _, m := range aptRemvRe.FindAllStringSubmatch(buf.String(), -1) {
-				if !pkgNameRe.MatchString(m[1]) {
-					continue
-				}
-				names = append(names, m[1])
-				out, _ := exec.CommandContext(ctx, "dpkg-query", "-W", "-f=${Installed-Size}", m[1]).Output()
-				var n int64
-				fmt.Sscan(strings.TrimSpace(string(out)), &n)
-				kib += n
-			}
-			fmt.Fprintf(w, "%d package(s) would be removed: %s\n", len(names), strings.Join(names, " "))
-			return kib * 1024, nil
-		}
-		before := freeBytes("/")
-		if err := runLogged(ctx, w, aptEnv, "apt-get", "-q", "-y", "autoremove", "--purge"); err != nil {
-			return 0, err
-		}
-		return freeBytes("/") - before, nil
-	case "dnf", "yum":
-		if dry {
-			fmt.Fprintf(w, "previewing with %s autoremove --assumeno\n", mgr)
-			err := runLogged(ctx, w, nil, mgr, "autoremove", "--assumeno")
-			var ee *exec.ExitError
-			if errors.As(err, &ee) && ee.ExitCode() == 1 {
-				err = nil // --assumeno exits 1 when it would have made changes
-			}
-			return 0, err
-		}
-		before := freeBytes("/")
-		if err := runLogged(ctx, w, nil, mgr, "-y", "autoremove"); err != nil {
-			return 0, err
-		}
-		return freeBytes("/") - before, nil
+// cleanOldKernels removes every installed kernel except the running one and
+// the newest, so a fallback always remains. Dry runs report the sizes.
+func cleanOldKernels(ctx context.Context, w io.Writer, dry bool) (int64, error) {
+	switch mgr := packageManager(); mgr {
+	case "apt", "dnf", "yum":
+		return removeOldKernels(ctx, w, realKernelDeps(), dry)
+	default:
+		return 0, fmt.Errorf("%w: not supported with %q", errSkipTask, mgr)
 	}
-	return 0, fmt.Errorf("%w: not supported with %q", errSkipTask, mgr)
 }
 
 func cleanDocker(ctx context.Context, w io.Writer, dry bool) (int64, error) {

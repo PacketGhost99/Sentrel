@@ -91,6 +91,8 @@ func privExec(ctx context.Context, w io.Writer, verb string, rest []string) erro
 		b, _ := protojson.Marshal(&pb.Fail2Ban{})
 		_, err := w.Write(b)
 		return err
+	case "remove-kernel":
+		return errors.New("kernel removal is not applicable on Windows")
 	case "disk-usage":
 		return privDiskUsage(ctx, w, rest)
 	case "disk-cleanup":

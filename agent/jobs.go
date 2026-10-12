@@ -24,6 +24,7 @@ import (
 
 	pb "sentrel/gen/sentrelv1"
 	"sentrel/internal/jobpolicy"
+	"sentrel/internal/kernelpkg"
 )
 
 func slogDiscard() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
@@ -202,6 +203,11 @@ func (a *Agent) runJob(ctx context.Context, sj *pb.SignedJob) {
 		err = a.jobUpgrade(jctx, spec, w)
 		if spec.DryRun && err == nil {
 			resJSON = dryRunSummary(w)
+		}
+	case "remove_kernel":
+		err = a.jobRemoveKernel(jctx, timeout, spec, w)
+		if spec.DryRun && err == nil {
+			resJSON = kernelDryRunResult(w.String())
 		}
 	case "block_ip":
 		err = a.privOut(jctx, timeout, w, "block-ip", spec.Params["ip"], spec.Params["minutes"])
@@ -424,4 +430,38 @@ func (a *Agent) selfUpdate(ctx context.Context, spec *pb.JobSpec, w *jobWriter) 
 func jsonMarshal(v any) []byte {
 	b, _ := json.Marshal(v)
 	return b
+}
+
+// String returns everything written so far.
+func (w *jobWriter) String() string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return string(w.all)
+}
+
+// jobRemoveKernel removes one old kernel ABI through the privileged helper.
+// The helper refuses the running and the newest installed kernel.
+func (a *Agent) jobRemoveKernel(ctx context.Context, timeout time.Duration, spec *pb.JobSpec, w *jobWriter) error {
+	if runtime.GOOS != "linux" {
+		return errors.New("kernel removal is not applicable on this operating system")
+	}
+	abi := strings.TrimSpace(spec.Params["abi"])
+	if !kernelpkg.ValidABI(abi) {
+		return fmt.Errorf("invalid kernel ABI %q", abi)
+	}
+	args := []string{abi}
+	if spec.DryRun {
+		w.Printf("DRY RUN: no changes will be made")
+		args = append([]string{"--dry-run"}, args...)
+	}
+	if timeout <= 0 {
+		timeout = 30 * time.Minute
+	}
+	err := a.privOut(ctx, timeout, w, "remove-kernel", args...)
+	if !spec.DryRun {
+		a.collector.InvalidateReboot()
+		kick(a.invNow) // sends the inventory so the server rescans for CVEs
+		kick(a.collectNow)
+	}
+	return err
 }

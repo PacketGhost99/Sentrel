@@ -355,20 +355,19 @@ func (v *VulnService) evaluate(ctx context.Context, h *Host) {
 	cond := condition{Key: "vuln:" + itoa(h.ID), TenantID: h.TenantID, HostID: &hid, Source: "vuln", Metric: "vulnerabilities", Severity: "ok", ForCount: 1}
 	if s.AlertSeverity != "" && s.AlertSeverity != "none" {
 		min := vuln.SeverityRank(s.AlertSeverity)
-		q := `SELECT severity, COUNT(DISTINCT vuln_id) AS n FROM vuln_findings WHERE host_id=? AND status='open'`
-		if s.OnlyFixable {
-			q += ` AND fixed_version<>''`
-		}
-		q += ` GROUP BY severity`
-		var fc []cnt
-		_ = a.db.SelectContext(ctx, &fc, q, h.ID)
 		total, crit := 0, 0
-		for _, c := range fc {
-			if vuln.SeverityRank(c.Severity) >= min {
-				total += c.N
+		for _, cv := range a.hostCVEs(ctx, h, a.loadKernels(ctx, h)) {
+			if cv.Inactive && !s.AlertOnInactiveKernels {
+				continue // a kernel that is installed but not running is not exploitable
 			}
-			if c.Severity == "Critical" {
-				crit += c.N
+			if s.OnlyFixable && !cv.Fixable {
+				continue
+			}
+			if vuln.SeverityRank(cv.Severity) >= min {
+				total++
+			}
+			if cv.Severity == "Critical" {
+				crit++
 			}
 		}
 		if total > 0 {

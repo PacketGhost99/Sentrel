@@ -190,10 +190,10 @@ export function Layout() {
 
 export function Logo({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 32 32" className={cx('size-7 shrink-0', className)} aria-hidden>
-      <rect width="32" height="32" rx="9" fill="var(--accent)" />
-      <path d="M4 17h6l3-7 5 13 3-6h7" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+    <>
+      <img src="/logo-light.svg" alt="" aria-hidden className={cx('size-8 shrink-0 dark:hidden', className)} />
+      <img src="/logo.svg" alt="" aria-hidden className={cx('hidden size-8 shrink-0 dark:block', className)} />
+    </>
   )
 }
 

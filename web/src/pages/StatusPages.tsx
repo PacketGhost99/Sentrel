@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/auth'
 import type { Branding, Check, Host, StatusPage, StatusPageItem } from '@/lib/types'
 import { useTenantFilter, Logo } from '@/components/Layout'
 import { Badge, Button, Card, CodeBlock, Empty, ErrorBox, Field, Input, Loading, Modal, PageHeader, Select, Table, Td, Textarea, Th, Toggle, cx, useConfirm, useToast } from '@/components/ui'
+import { LOCALE } from '@/lib/format'
 import { UptimeBars } from './Checks'
 
 export function StatusPages() {
@@ -169,7 +170,7 @@ export function PublicStatus() {
             ))}
           </ul>
         </Card>
-        <p className="mt-6 text-center text-xs text-muted">Updated {new Date(x.updated_at * 1000).toLocaleString()} · {b.footer_text || `Powered by ${b.product_name || 'Sentrel'}`}</p>
+        <p className="mt-6 text-center text-xs text-muted">Updated {new Date(x.updated_at * 1000).toLocaleString(LOCALE)} · {b.footer_text || `Powered by ${b.product_name || 'Sentrel'}`}</p>
       </div>
     </div>
   )

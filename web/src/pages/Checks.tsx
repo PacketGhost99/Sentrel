@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Activity, ArrowLeft, Pencil, Play, Plus, Trash2 } from 'lucide-react'
 import { del, errorMessage, get, post, put } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
-import { ago, dateTime } from '@/lib/format'
+import { ago, dateTime, LOCALE } from '@/lib/format'
 import type { Check, Host } from '@/lib/types'
 import { BeatBar, type Beat, checkBeatsToBeats, checkSuccessRate, useCheckBeats } from '@/components/BeatBar'
 import { Chart, RangePicker, rangeSeconds, type RangeId } from '@/components/Chart'
@@ -223,7 +223,7 @@ export function UptimeBars({ days, total = 90 }: { days: { day: string; percent:
     const p = v ? v.percent : -1
     return {
       status: p < 0 ? 'none' : p >= 99 ? 'up' : p >= 90 ? 'warn' : 'down',
-      label: new Date(day + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }),
+      label: new Date(day + 'T00:00:00').toLocaleDateString(LOCALE, { weekday: 'short', day: 'numeric', month: 'short' }),
       detail: p < 0 ? 'No data' : `${p.toFixed(2)}% uptime`,
     }
   })

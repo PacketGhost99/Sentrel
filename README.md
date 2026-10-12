@@ -6,9 +6,6 @@ Sentrel is for homelabs, small businesses and MSPs who want agent-based monitori
 
 ## Screenshots
 
-Screenshots are coming soon.
-
-<!-- Uncomment once docs/screenshots/ exists:
 
 ![Dashboard](docs/screenshots/dashboard-light.png)
 ![Hosts](docs/screenshots/hosts-light.png)
@@ -16,7 +13,7 @@ Screenshots are coming soon.
 ![Checks](docs/screenshots/checks-light.png)
 ![Vulnerabilities](docs/screenshots/vulnerabilities-light.png)
 ![Dashboard, dark theme](docs/screenshots/dashboard-dark.png)
--->
+![Host detail, dark theme](docs/screenshots/host-dark.png)
 
 ## Features
 

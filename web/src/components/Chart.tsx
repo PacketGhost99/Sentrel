@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import uPlot from 'uplot'
 import type { Series } from '@/lib/types'
-import { bits, bytes } from '@/lib/format'
+import { bits, bytes, LOCALE } from '@/lib/format'
 import { Segmented } from './ui'
 
 const palette = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#a855f7', '#14b8a6', '#ec4899', '#84cc16', '#f97316', '#06b6d4', '#8b5cf6', '#eab308']
@@ -108,7 +108,7 @@ export function Chart({ series, unit = 'number', height = 220, max, min }: { ser
         { stroke: muted, font: axisFont, grid: { stroke: grid, width: 1, dash: [3, 4] }, ticks: { show: false }, size: 64, values: (_u, vals) => vals.map((v) => formatUnit(v, unit)) },
       ],
       series: [
-        { value: (_u, v) => (v ? new Date(v * 1000).toLocaleString() : '') },
+        { value: (_u, v) => (v ? new Date(v * 1000).toLocaleString(LOCALE) : '') },
         ...series.map((s, i) => {
           const color = colorOf(i)
           return {
@@ -117,7 +117,11 @@ export function Chart({ series, unit = 'number', height = 220, max, min }: { ser
             width: 1.5,
             fill: series.length === 1
               ? (u: uPlot) => {
-                const g = u.ctx.createLinearGradient(0, u.bbox.top, 0, u.bbox.top + u.bbox.height)
+                // bbox is NaN before the first layout pass (e.g. a hidden or
+                // zero-size container); a solid fill avoids a canvas exception.
+                const { top, height } = u.bbox
+                if (!Number.isFinite(top) || !Number.isFinite(height)) return withAlpha(color, 0.15)
+                const g = u.ctx.createLinearGradient(0, top, 0, top + height)
                 g.addColorStop(0, withAlpha(color, 0.28))
                 g.addColorStop(1, withAlpha(color, 0))
                 return g

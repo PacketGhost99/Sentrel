@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Plus, RefreshCcw, ScanSearch, Server } from 'lucide-react'
 import { errorMessage, get, post } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
-import { ago, osLabel } from '@/lib/format'
+import { ago, osLabel, plural } from '@/lib/format'
 import type { Host, HostBeat, HostGroup } from '@/lib/types'
 import { BeatBar, averageUptime, hostBeatsToBeats, useHostBeats } from '@/components/BeatBar'
 import { useTenantFilter } from '@/components/Layout'
@@ -184,7 +184,7 @@ function HostRow({ h, selected, onToggle, days }: { h: Host; selected: boolean; 
   const avg = averageUptime(days)
   const system = h.kind === 'agent' ? osLabel(h.host_info) : h.kind === 'snmp' ? (h.snmp_info?.profile ? `SNMP · ${h.snmp_info.profile}` : 'SNMP device') : 'Target'
   return (
-    <li className={cx('flex flex-wrap items-center gap-x-5 gap-y-3 px-5 py-4 transition-colors hover:bg-panel-2/50', selected && 'bg-accent/5')}>
+    <li className={cx('flex flex-wrap lg:flex-nowrap items-center gap-x-5 gap-y-3 px-5 py-4 transition-colors hover:bg-panel-2/50', selected && 'bg-accent/5')}>
       <Checkbox checked={selected} onChange={onToggle} />
       <div className="flex min-w-0 basis-60 flex-1 items-center gap-3">
         <StatusPill tone={st.tone} label={st.label} className="shrink-0" />
@@ -204,12 +204,15 @@ function HostRow({ h, selected, onToggle, days }: { h: Host; selected: boolean; 
         <MiniMeter label="Mem" value={h.summary?.memory} />
         <MiniMeter label="Disk" value={h.summary?.disk} />
       </div>
-      <div className="hidden min-w-24 flex-wrap items-center gap-1 xl:flex">
+      <div className="hidden min-w-24 max-w-64 flex-wrap items-center gap-1 xl:flex">
         {h.kind === 'agent' && h.security_count > 0 && <Badge tone="crit">{h.security_count} security</Badge>}
-        {h.kind === 'agent' && h.upgrade_count > 0 && <Badge tone="warn">{h.upgrade_count} updates</Badge>}
+        {h.kind === 'agent' && h.upgrade_count > 0 && <Badge tone="warn">{plural(h.upgrade_count, 'update')}</Badge>}
         {h.kind === 'agent' && h.reboot_required && <Badge tone="warn">reboot</Badge>}
-        {h.vuln_critical > 0 && <Badge tone="crit">{h.vuln_critical} crit CVE</Badge>}
-        {h.vuln_high > 0 && <Badge tone="warn">{h.vuln_high} high CVE</Badge>}
+        {h.vuln_critical + h.vuln_high > 0 && (
+          <Badge tone={h.vuln_critical > 0 ? 'crit' : 'warn'} title={`${h.vuln_critical} critical, ${h.vuln_high} high`}>
+            {plural(h.vuln_critical + h.vuln_high, 'CVE')}
+          </Badge>
+        )}
       </div>
       <div className="flex w-full items-center gap-3 lg:w-[330px]">
         <BeatBar beats={hostBeatsToBeats(days)} count={30} className="flex-1" />

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { get } from '@/lib/api'
 import type { CheckBeat, HostBeat } from '@/lib/types'
+import { LOCALE } from '@/lib/format'
 import { cx } from './ui'
 
 export type BeatStatus = 'up' | 'warn' | 'down' | 'maint' | 'none'
@@ -60,7 +61,7 @@ export function hostBeatsToBeats(days: HostBeat[] | undefined): Beat[] {
   return (days || []).map((d) => {
     const u = d.uptime
     const status: BeatStatus = u === null || u === undefined ? 'none' : u >= 99 ? 'up' : u >= 90 ? 'warn' : 'down'
-    const day = new Date(d.day + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
+    const day = new Date(d.day + 'T00:00:00').toLocaleDateString(LOCALE, { weekday: 'short', day: 'numeric', month: 'short' })
     return { status, label: day, detail: u === null || u === undefined ? 'No data' : `${u.toFixed(2)}% uptime` }
   })
 }
@@ -68,7 +69,7 @@ export function hostBeatsToBeats(days: HostBeat[] | undefined): Beat[] {
 export function checkBeatsToBeats(results: CheckBeat[] | undefined): Beat[] {
   return (results || []).map((r) => ({
     status: r.ok ? 'up' : 'down',
-    label: new Date(r.t * 1000).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    label: new Date(r.t * 1000).toLocaleString(LOCALE, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' }),
     detail: `${r.ok ? 'OK' : 'Failed'}${r.latency_ms !== null && r.latency_ms !== undefined ? ` · ${r.latency_ms.toFixed(r.latency_ms < 10 ? 1 : 0)} ms` : ''}`,
   }))
 }

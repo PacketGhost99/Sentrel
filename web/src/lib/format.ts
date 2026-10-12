@@ -1,3 +1,15 @@
+// Browser locale, sanitised: some systems report tags such as "en-US@posix"
+// that Intl rejects, which would otherwise crash every date format call.
+export const LOCALE: string = (() => {
+  const cands = [...(typeof navigator !== 'undefined' ? navigator.languages || [] : []), typeof navigator !== 'undefined' ? navigator.language : '']
+  for (const raw of cands) {
+    const tag = (raw || '').split('@')[0].replace('_', '-')
+    if (!tag) continue
+    try { new Intl.DateTimeFormat(tag); return tag } catch { /* try the next one */ }
+  }
+  return 'en-US'
+})()
+
 // Formatting helpers.
 
 export function num(v: unknown): number {
@@ -65,12 +77,12 @@ export function until(unix: number | null | undefined): string {
 
 export function dateTime(unix: number | null | undefined): string {
   if (!unix) return '–'
-  return new Date(unix * 1000).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+  return new Date(unix * 1000).toLocaleString(LOCALE, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
 export function shortDate(unix: number | null | undefined): string {
   if (!unix) return '–'
-  return new Date(unix * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  return new Date(unix * 1000).toLocaleDateString(LOCALE, { month: 'short', day: 'numeric' })
 }
 
 export function plural(n: number, word: string, pluralWord?: string): string {
@@ -96,7 +108,7 @@ export function timezones(): string[] {
 }
 
 export function localZone(): string {
-  const z = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+  const z = Intl.DateTimeFormat(LOCALE).resolvedOptions().timeZone || 'UTC'
   return z === 'Etc/UTC' || z === 'Etc/GMT' ? 'UTC' : z
 }
 

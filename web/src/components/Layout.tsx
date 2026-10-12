@@ -9,7 +9,7 @@ import { useAuth, getThemePref, setThemePref, type ThemePref } from '@/lib/auth'
 import { get } from '@/lib/api'
 import { useLiveEvents } from '@/lib/events'
 import type { Host, Tenant } from '@/lib/types'
-import { cx, StatusDot } from './ui'
+import { cx, PageBoundary, StatusDot } from './ui'
 
 // Provider users can scope list views to one tenant.
 const TenantCtx = createContext<{ tenant: number | null; setTenant: (t: number | null) => void }>({ tenant: null, setTenant: () => {} })
@@ -176,7 +176,7 @@ export function Layout() {
           </header>
           <main className="scrollbar-thin flex-1 overflow-y-auto">
             <div className="fade-in mx-auto max-w-[1500px] p-4 sm:p-6 lg:p-8">
-              <Outlet />
+              <PageBoundary key={loc.pathname}><Outlet /></PageBoundary>
             </div>
             {me?.branding.footer_text && <footer className="px-5 pb-4 text-center text-xs text-muted">{me.branding.footer_text}</footer>}
           </main>

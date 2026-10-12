@@ -1,5 +1,5 @@
 import { clsx } from 'clsx'
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode, type ButtonHTMLAttributes, type InputHTMLAttributes, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
+import { Component, createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode, type ButtonHTMLAttributes, type InputHTMLAttributes, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
 import { createPortal } from 'react-dom'
 import { AlertTriangle, BellOff, Check, CheckCircle2, ChevronDown, Copy, Info, Loader2, X } from 'lucide-react'
 
@@ -506,4 +506,22 @@ export function Segmented<T extends string>({ options, value, onChange }: { opti
       ))}
     </div>
   )
+}
+
+// ---------- Error boundary ----------
+
+// PageBoundary keeps the shell usable when one page throws while rendering.
+export class PageBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state: { error: Error | null } = { error: null }
+  static getDerivedStateFromError(error: Error) { return { error } }
+  componentDidCatch(error: Error) { console.error(error) }
+  render() {
+    if (!this.state.error) return this.props.children
+    return (
+      <div className="mx-auto max-w-xl py-16">
+        <ErrorBox error={new Error(`This page failed to render: ${this.state.error.message}`)} />
+        <Button className="mt-4" onClick={() => location.reload()}>Reload</Button>
+      </div>
+    )
+  }
 }

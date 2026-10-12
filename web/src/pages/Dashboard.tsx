@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Bell, BellOff, Plus, Server, ShieldAlert, Wrench } from 'lucide-react'
 import { get, post } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
-import { ago } from '@/lib/format'
+import { ago, plural } from '@/lib/format'
 import type { Alert, AlertEvent, Check, Host } from '@/lib/types'
 import { BeatBar, checkBeatsToBeats, hostBeatsToBeats, useCheckBeats, useHostBeats } from '@/components/BeatBar'
 import { useTenantFilter } from '@/components/Layout'
@@ -87,9 +87,9 @@ export function Dashboard() {
         actions={can('hosts') && <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => nav('/hosts/new')}>Add host</Button>} />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatusTile tone="ok" value={upHosts + x.checks.up} sub={`${upHosts} hosts · ${x.checks.up} checks`} onClick={() => nav('/hosts?status=up')} />
-        <StatusTile tone="crit" value={x.hosts.down + x.checks.down} sub={`${x.hosts.down} hosts · ${x.checks.down} checks`} onClick={() => nav(x.hosts.down ? '/hosts?status=down' : '/checks')} />
-        <StatusTile tone="warn" value={warnTotal} sub={`${hosts.data ? warnHosts : 0} hosts · ${x.checks.warning} checks`} onClick={() => nav('/alerts')} />
+        <StatusTile tone="ok" value={upHosts + x.checks.up} sub={`${plural(upHosts, 'host')} · ${plural(x.checks.up, 'check')}`} onClick={() => nav('/hosts?status=up')} />
+        <StatusTile tone="crit" value={x.hosts.down + x.checks.down} sub={`${plural(x.hosts.down, 'host')} · ${plural(x.checks.down, 'check')}`} onClick={() => nav(x.hosts.down ? '/hosts?status=down' : '/checks')} />
+        <StatusTile tone="warn" value={warnTotal} sub={`${plural(hosts.data ? warnHosts : 0, 'host')} · ${plural(x.checks.warning, 'check')}`} onClick={() => nav('/alerts')} />
         <StatusTile tone="maint" value={x.hosts.maintenance} sub={x.hosts.maintenance === 1 ? '1 host in a maintenance window' : `${x.hosts.maintenance} hosts in a maintenance window`} onClick={() => nav('/maintenance')} />
       </div>
 
@@ -98,7 +98,7 @@ export function Dashboard() {
           sub={`${x.alerts.critical} critical · ${x.alerts.warning} warning${x.alerts.acked ? ` · ${x.alerts.acked} acknowledged` : ''}`} onClick={() => nav('/alerts')} />
         <Stat label="Updates pending" icon={<Wrench />} value={x.upgrades_pending} tone={x.security_updates ? 'warn' : 'muted'} sub={`${x.security_updates} security${x.reboot_required ? ` · ${x.reboot_required} need a reboot` : ''}`} onClick={() => nav('/hosts')} />
         {x.vuln_enabled && <Stat label="Critical CVEs" icon={<ShieldAlert />} value={v.critical ?? 0} tone={v.critical ? 'crit' : v.high ? 'warn' : 'muted'} sub={`${v.high ?? 0} high`} onClick={() => nav('/vulnerabilities')} />}
-        <Stat label="Monitored" icon={<Server />} value={x.hosts.total} tone="muted" sub={`${x.checks.total} checks${x.hosts.pending ? ` · ${x.hosts.pending} pending` : ''}`} onClick={() => nav('/hosts')} />
+        <Stat label="Monitored" icon={<Server />} value={x.hosts.total} tone="muted" sub={`${plural(x.checks.total, 'check')}${x.hosts.pending ? ` · ${x.hosts.pending} pending` : ''}`} onClick={() => nav('/hosts')} />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">

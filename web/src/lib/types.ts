@@ -106,6 +106,9 @@ export interface Host {
   allow_ip_block: boolean
   allow_scripts: boolean
   auto_block: boolean
+  /** How the agent treats jobs that change the host (set locally on the agent). */
+  write_policy?: 'server' | 'operator' | 'none'
+  operator_key_ids?: string[]
   snmp_info: SNMPInfo | null
   storage_bytes: number
   created_at: number
@@ -141,6 +144,7 @@ export interface HostDetail extends Host {
   latest_agent_version: string
   check_count: number
   open_findings: Record<string, number>
+  vuln_enabled?: boolean
 }
 
 export interface InventoryStatus {
@@ -380,6 +384,7 @@ export interface Job {
   finished_at: number
   exit_code: number | null
   error: string
+  operator_key_id?: string
   output?: string
   result_json?: string
   host_name?: string
@@ -531,4 +536,11 @@ export interface CleanupTask {
   id: string
   name: string
   description: string
+}
+
+export interface PushFingerprint {
+  host: string
+  port: number
+  fingerprint: string // SHA256:...
+  key_type: string
 }

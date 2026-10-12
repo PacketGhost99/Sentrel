@@ -35,6 +35,10 @@ There's no Go or Node on the Windows laptop. Build and test on the VPS (`Heartbe
 - e2e, on the VPS: `set -a; . ~/.hb-dev-credentials; set +a; HB_USER=$HB_TEST_ADMIN HB_PASSWORD=$HB_TEST_PASSWORD bash scripts/e2e.sh`.
   - It runs against the live server and the VPS's own agent, and restores host flags it changes.
 - Pipe build/test output through `tail`/`grep FAIL` to keep context small.
+- The VPS has only 2 cores and 3.8 GB RAM, and parallel builds get OOM-killed. Wrap every VPS build/test in the shared lock: `scripts/sync.sh run 'flock ~/hb-build.lock env GOFLAGS=-p=1 <cmd>'`.
+  - Test only the packages you touched until the final check.
+  - Never compile tools like syft/nfpm from source there; use prebuilt binaries.
+  - Run at most 2 agents that build on the VPS at once.
 
 ## Conventions
 - Every table has `tenant_id`; tenant 0 is the provider.

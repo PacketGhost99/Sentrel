@@ -10,11 +10,16 @@
   Optional properties:
     CAFINGERPRINT=<sha256>   pin the server CA (self-signed TLS mode)
     NAME="Display name"      host name shown in the UI (default: hostname)
+    WRITEJOBS=<mode>         server (default), operator or none (read-only agent)
+    OPERATORKEY=<b64>[,<b64>...]  operator public key(s) for WRITEJOBS=operator
   Without TOKEN only the files are installed; run "heartbeat-agent register" later.
 
   Install:   register -> service install -> service start (only when TOKEN is set).
   Uninstall: service stop -> service uninstall (config and state are kept).
   Upgrade:   a newer MSI replaces the old one (fixed UpgradeCode, MajorUpgrade).
+  Permissions: the config/state folder is locked to SYSTEM and Administrators by
+  "register" (and re-applied whenever the service starts); wixl has no
+  PermissionEx, so the MSI does not set it itself.
 -->
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
   <Product Id="*" Name="Heartbeat Agent" Language="1033" Version="@VERSION@"
@@ -40,8 +45,10 @@
     </Feature>
 
     <!-- Optional register arguments, assembled as immediate actions. -->
-    <CustomAction Id="SetRegExtraCA" Property="REGEXTRA" Value="--ca-fingerprint &quot;[CAFINGERPRINT]&quot;"/>
+    <CustomAction Id="SetRegExtraCA" Property="REGEXTRA" Value="[REGEXTRA] --ca-fingerprint &quot;[CAFINGERPRINT]&quot;"/>
     <CustomAction Id="SetRegExtraName" Property="REGEXTRA" Value="[REGEXTRA] --name &quot;[NAME]&quot;"/>
+    <CustomAction Id="SetRegExtraWrite" Property="REGEXTRA" Value="[REGEXTRA] --write-jobs &quot;[WRITEJOBS]&quot;"/>
+    <CustomAction Id="SetRegExtraOpKey" Property="REGEXTRA" Value="[REGEXTRA] --operator-key &quot;[OPERATORKEY]&quot;"/>
 
     <CustomAction Id="HbRegister" FileKey="AgentExeFile" Execute="deferred" Impersonate="no" Return="check"
       ExeCommand="register --server &quot;[SERVER]&quot; --token &quot;[TOKEN]&quot; --config &quot;[CommonAppDataFolder]Heartbeat Agent\agent.yaml&quot; --state-dir &quot;[CommonAppDataFolder]Heartbeat Agent&quot;[REGEXTRA]"/>
@@ -59,6 +66,8 @@
     <InstallExecuteSequence>
       <Custom Action="SetRegExtraCA" Sequence="1401">NOT Installed AND CAFINGERPRINT</Custom>
       <Custom Action="SetRegExtraName" Sequence="1402">NOT Installed AND NAME</Custom>
+      <Custom Action="SetRegExtraWrite" Sequence="1403">NOT Installed AND WRITEJOBS</Custom>
+      <Custom Action="SetRegExtraOpKey" Sequence="1404">NOT Installed AND OPERATORKEY</Custom>
 
       <Custom Action="HbServiceStop" Sequence="1801">REMOVE="ALL"</Custom>
       <Custom Action="HbServiceUninstall" Sequence="1802">REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE</Custom>

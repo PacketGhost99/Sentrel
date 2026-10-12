@@ -1,0 +1,11 @@
+#!/bin/sh
+# Idempotent: make the registered config and state readable by the agent user.
+ETC=@AGENT_ETC@
+STATE=@AGENT_STATE@
+U=@AGENT_USER@
+chown "$U:$U" "$STATE" 2>/dev/null || true
+chown "$U:$U" "$STATE"/* 2>/dev/null || true
+if [ -f "$ETC/agent.yaml" ]; then chmod 0640 "$ETC/agent.yaml"; chown root:"$U" "$ETC/agent.yaml"; fi
+# Root-owned copy of the job signing key: the privileged helper trusts only this.
+if [ -f "$ETC/job.pub" ]; then chmod 0644 "$ETC/job.pub"; chown root:root "$ETC/job.pub"; fi
+exit 0

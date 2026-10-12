@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { Plus, RefreshCcw, ScanSearch, Server } from 'lucide-react'
-import { get, post } from '@/lib/api'
+import { errorMessage, get, post } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { ago, osLabel } from '@/lib/format'
 import type { Host, HostBeat, HostGroup } from '@/lib/types'
@@ -109,8 +109,10 @@ export function Hosts() {
   const bulk = async (type: 'scan' | 'dry' | 'upgrade') => {
     if (!agentIds.length) return
     if (type === 'scan') {
-      for (const id of agentIds) await post(`/hosts/${id}/scan`).catch(() => {})
-      toast(`Queued vulnerability scans for ${agentIds.length} hosts`)
+      let failure = ''
+      for (const id of agentIds) await post(`/hosts/${id}/scan`).catch((e) => { failure = failure || errorMessage(e) })
+      if (failure) toast(failure, 'crit')
+      else toast(`Queued vulnerability scans for ${agentIds.length} hosts`)
       return
     }
     if (type === 'upgrade') {
@@ -118,9 +120,10 @@ export function Hosts() {
         body: <p>Install all pending package updates on <b>{agentIds.length}</b> host(s) now? Hosts without “allow upgrades” enabled will be skipped. Consider a dry run first.</p> })
       if (!ok) return
     }
-    const r = await post<{ host_id: number; job_id?: string; error?: string }[]>('/jobs/bulk', { host_ids: agentIds, type: 'upgrade', dry_run: type === 'dry', confirm: type === 'upgrade', schedule: 'now' })
+    const r = await post<{ host_id: number; job_id?: string; status?: string; error?: string }[]>('/jobs/bulk', { host_ids: agentIds, type: 'upgrade', dry_run: type === 'dry', confirm: type === 'upgrade', schedule: 'now' })
     const okN = r.filter((x) => x.job_id).length
-    toast(`${okN} job(s) created${r.length - okN ? `, ${r.length - okN} skipped` : ''}`, okN ? 'ok' : 'crit')
+    const awaiting = r.filter((x) => x.status === 'awaiting_signature').length
+    toast(`${okN} job(s) created${awaiting ? ` (${awaiting} awaiting operator signature)` : ''}${r.length - okN ? `, ${r.length - okN} skipped` : ''}`, okN ? 'ok' : 'crit')
     nav('/jobs')
   }
 

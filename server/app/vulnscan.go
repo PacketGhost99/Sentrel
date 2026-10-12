@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -24,7 +25,15 @@ type VulnService struct {
 	queued  map[int64]bool
 	wake    chan struct{}
 	syncing bool
+
+	// Hooks for tests; default to the real scanner.
+	updateFn func(url string) error
+	loadFn   func() error
 }
+
+// errVulnDisabled is returned by every scan and DB-update entry point while
+// vulnerability scanning is switched off.
+const msgVulnDisabled = "Vulnerability scanning is disabled; enable it in Settings"
 
 type vulnJob struct {
 	hostID  int64
@@ -32,7 +41,60 @@ type vulnJob struct {
 }
 
 func newVulnService(a *App) *VulnService {
-	return &VulnService{app: a, scanner: vuln.New(filepath.Join(a.cfg.DataDir, "vulndb"), a.log), queued: map[int64]bool{}, wake: make(chan struct{}, 1)}
+	v := &VulnService{app: a, scanner: vuln.New(filepath.Join(a.cfg.DataDir, "vulndb"), a.log), queued: map[int64]bool{}, wake: make(chan struct{}, 1)}
+	v.updateFn = func(url string) error { return v.scanner.Update(url) }
+	v.loadFn = func() error { return v.scanner.Load() }
+	v.migrateDefault()
+	return v
+}
+
+func (v *VulnService) dbDir() string { return filepath.Join(v.app.cfg.DataDir, "vulndb") }
+
+// migrateDefault keeps scanning on for installs that predate the opt-in
+// setting: when no explicit vuln setting is stored but a DB directory or scan
+// history exists, the setting is saved as enabled. New installs stay off.
+func (v *VulnService) migrateDefault() {
+	a := v.app
+	if raw, err := a.settings.raw(0, keyVuln); err != nil || raw != nil {
+		return
+	}
+	legacy := false
+	if ents, err := os.ReadDir(v.dbDir()); err == nil && len(ents) > 0 {
+		legacy = true
+	}
+	if !legacy {
+		var n int
+		if err := a.db.Get(&n, `SELECT COUNT(*) FROM vuln_scans`); err == nil && n > 0 {
+			legacy = true
+		}
+	}
+	if !legacy {
+		return
+	}
+	s := a.settings.Vuln()
+	s.Enabled = true
+	if err := a.settings.Save(context.Background(), 0, keyVuln, s); err != nil {
+		a.log.Warn("could not keep vulnerability scanning enabled for an existing install", "err", err)
+		return
+	}
+	a.log.Info("existing vulnerability data found; vulnerability scanning stays enabled")
+}
+
+// Enabled reports whether scanning is switched on.
+func (v *VulnService) Enabled() bool { return v.app.settings.Vuln().Enabled }
+
+// Disable stops queued work and releases the DB. With deleteDB the files are
+// removed from disk as well.
+func (v *VulnService) Disable(deleteDB bool) error {
+	v.mu.Lock()
+	v.queue = nil
+	v.queued = map[int64]bool{}
+	v.mu.Unlock()
+	if deleteDB {
+		return v.scanner.Delete()
+	}
+	v.scanner.Close()
+	return nil
 }
 
 func (v *VulnService) close() { v.scanner.Close() }
@@ -68,6 +130,9 @@ func (v *VulnService) QueueLength() int {
 
 // SyncNow starts a DB update in the background.
 func (v *VulnService) SyncNow() error {
+	if !v.Enabled() {
+		return errors.New(msgVulnDisabled)
+	}
 	v.mu.Lock()
 	if v.syncing {
 		v.mu.Unlock()
@@ -83,7 +148,7 @@ func (v *VulnService) SyncNow() error {
 		}()
 		v.app.log.Info("vulnerability DB update starting")
 		start := time.Now()
-		err := v.scanner.Update(v.app.settings.Vuln().DBURL)
+		err := v.updateFn(v.app.settings.Vuln().DBURL)
 		ctx := context.Background()
 		if err != nil {
 			v.app.log.Error("vulnerability DB update failed", "err", err)
@@ -110,7 +175,11 @@ func (v *VulnService) loop(ctx context.Context) {
 				v.enqueue(id, "restart")
 			}
 		}()
-		if err := v.scanner.Load(); err != nil && v.app.settings.Vuln().Enabled {
+		// Nothing is opened or downloaded while scanning is disabled.
+		if !v.Enabled() {
+			return
+		}
+		if err := v.loadFn(); err != nil {
 			v.app.log.Info("no local vulnerability DB; downloading", "reason", err)
 			_ = v.SyncNow()
 		}
@@ -144,7 +213,7 @@ func (v *VulnService) maybeSync() {
 }
 
 func (v *VulnService) drain(ctx context.Context) {
-	for {
+	for v.Enabled() {
 		v.mu.Lock()
 		if len(v.queue) == 0 {
 			v.mu.Unlock()

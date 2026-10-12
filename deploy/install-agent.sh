@@ -9,6 +9,13 @@
 #   --ca-fingerprint FP     pin the server CA (self-signed TLS mode)
 #   --binary PATH           use a local binary instead of downloading
 #   --name NAME             display name for the host
+#   --write-jobs MODE       who may authorise jobs that change this host:
+#                             server    the server's signature is enough (default)
+#                             operator  jobs also need a signature from --operator-key
+#                             none      read-only agent; refuses every such job
+#   --read-only             shorthand for --write-jobs none
+#   --operator-key B64      operator public key (from `hb-sign keygen-operator`);
+#                           repeatable, used with --write-jobs operator
 #   --docker                add the agent user to the docker group (container
 #                           monitoring). Opt-in: docker group membership is
 #                           root-equivalent. Without it container monitoring
@@ -24,6 +31,8 @@ CAFP=""
 BINARY=""
 NAME=""
 DOCKER=0
+WRITE_JOBS=""
+OPKEYS=""
 INSECURE=""
 UNINSTALL=0
 
@@ -34,6 +43,9 @@ while [ $# -gt 0 ]; do
     --ca-fingerprint) CAFP="$2"; shift 2 ;;
     --binary) BINARY="$2"; shift 2 ;;
     --name) NAME="$2"; shift 2 ;;
+    --write-jobs) WRITE_JOBS="$2"; shift 2 ;;
+    --read-only) WRITE_JOBS="none"; shift ;;
+    --operator-key) OPKEYS="$OPKEYS $2"; shift 2 ;;
     --docker) DOCKER=1; shift ;;
     --insecure-download) INSECURE=1; shift ;;
     --uninstall) UNINSTALL=1; shift ;;
@@ -69,6 +81,11 @@ fi
 [ -n "$SERVER" ] || die "--server is required"
 [ -n "$TOKEN" ] || die "--token is required"
 command -v systemctl >/dev/null 2>&1 || die "systemd is required"
+case "${WRITE_JOBS:-server}" in
+  server|none) [ -z "$OPKEYS" ] || die "--operator-key needs --write-jobs operator" ;;
+  operator) [ -n "$OPKEYS" ] || die "--write-jobs operator needs at least one --operator-key" ;;
+  *) die "--write-jobs must be server, operator or none" ;;
+esac
 
 case "$(uname -m)" in
   x86_64|amd64) ARCH=amd64 ;;
@@ -135,6 +152,8 @@ say "registering with $SERVER"
 set -- register --server "$SERVER" --token "$TOKEN" --config "$ETC/agent.yaml" --state-dir "$STATE"
 [ -n "$CAFP" ] && set -- "$@" --ca-fingerprint "$CAFP"
 [ -n "$NAME" ] && set -- "$@" --name "$NAME"
+[ -n "$WRITE_JOBS" ] && set -- "$@" --write-jobs "$WRITE_JOBS"
+for k in $OPKEYS; do set -- "$@" --operator-key "$k"; done
 "$BIN" "$@"
 chown "$USER_NAME:$USER_NAME" "$STATE"/* 2>/dev/null || true
 chmod 0640 "$ETC/agent.yaml"; chown root:"$USER_NAME" "$ETC/agent.yaml"

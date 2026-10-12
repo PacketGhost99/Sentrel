@@ -72,6 +72,11 @@ message Hello {
   string updated_from = 8;
   // Set by `heartbeat-agent self-test`: the server verifies auth then closes.
   bool self_test = 9;
+  // The agent's local write-job policy (server, operator or none) and the
+  // base64 Ed25519 operator public keys it trusts. Read from the root-owned
+  // agent.yaml; the server cannot change either.
+  string write_policy = 10;
+  repeated string operator_keys = 11;
 }
 
 message HostInfo {
@@ -312,6 +317,10 @@ message AgentConfig {
 message SignedJob {
   bytes spec = 1;
   bytes signature = 2;
+  // Second signature over the same spec bytes by an operator key, required by
+  // agents whose write policy is "operator" for write-class jobs.
+  bytes operator_signature = 3;
+  string operator_key_id = 4;
 }
 
 message JobSpec {

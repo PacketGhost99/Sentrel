@@ -15,7 +15,7 @@ export function Setup() {
   const [f, setF] = useState({
     token: '', username: 'admin', password: '', confirm: '', email: '',
     server_url: location.origin, tls_mode: 'http', hostname: location.hostname,
-    acme_email: '', timezone: localZone(), trust_proxy: false,
+    acme_email: '', timezone: localZone(), trust_proxy: false, vuln_enabled: false,
   })
   const [err, setErr] = useState<unknown>(null)
   const [busy, setBusy] = useState(false)
@@ -145,6 +145,8 @@ export function Setup() {
                 {zones.map((z) => <option key={z}>{z}</option>)}
               </Select>
             </Field>
+            <Toggle checked={f.vuln_enabled} onChange={(v) => setF({ ...f, vuln_enabled: v })} label="Enable vulnerability (CVE) scanning"
+              hint="Optional. Downloads a vulnerability database of about 3 GB in the background and needs 2 GB of RAM or more. Leave off on a Raspberry Pi or a 1 GB server; you can turn it on later in Settings." />
             <div className="flex justify-between">
               <Button onClick={() => setStep(1)}>Back</Button>
               <Button variant="primary" onClick={() => setStep(3)}>Continue</Button>
@@ -159,6 +161,7 @@ export function Setup() {
               <dt className="text-muted">Server URL</dt><dd className="break-all">{f.tls_mode === 'http' ? f.server_url : newURL}</dd>
               <dt className="text-muted">TLS</dt><dd>{f.tls_mode === 'http' ? 'Plain HTTP' : f.tls_mode === 'selfsigned' ? 'Self-signed (internal CA)' : "Let's Encrypt"}</dd>
               <dt className="text-muted">Timezone</dt><dd>{f.timezone}</dd>
+              <dt className="text-muted">CVE scanning</dt><dd>{f.vuln_enabled ? 'Enabled (downloads about 3 GB)' : 'Off'}</dd>
             </dl>
             <ErrorBox error={err} />
             <div className="flex justify-between">

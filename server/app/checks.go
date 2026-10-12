@@ -161,19 +161,20 @@ func (r *CheckRunner) execute(ctx context.Context, c *Check) probe.Result {
 	}
 	cctx, cancel := context.WithTimeout(ctx, to+5*time.Second)
 	defer cancel()
+	g := r.app.guardFor(c.TenantID)
 	switch c.Type {
 	case "ping":
-		return probe.Ping(cctx, c.Target, cfg.Count, to)
+		return probe.Ping(cctx, g, c.Target, cfg.Count, to)
 	case "tcp":
-		return probe.TCP(cctx, c.Target, to)
+		return probe.TCP(cctx, g, c.Target, to)
 	case "http":
-		return probe.HTTP(cctx, probe.HTTPConfig{URL: c.Target, Method: cfg.Method, Headers: cfg.Headers, Body: cfg.Body, ExpectStatus: cfg.ExpectStatus,
+		return probe.HTTP(cctx, g, probe.HTTPConfig{URL: c.Target, Method: cfg.Method, Headers: cfg.Headers, Body: cfg.Body, ExpectStatus: cfg.ExpectStatus,
 			Keyword: cfg.Keyword, KeywordAbsent: cfg.KeywordAbsent, KeywordRegex: cfg.KeywordRegex, FollowRedirects: cfg.FollowRedirects,
 			IgnoreTLS: cfg.IgnoreTLS, BasicUser: cfg.BasicUser, BasicPassword: cfg.BasicPassword, MaxLatencyMs: cfg.MaxLatencyMs}, to)
 	case "cert":
-		return probe.Cert(cctx, c.Target, cfg.ServerName, to, cfg.AllowInvalid)
+		return probe.Cert(cctx, g, c.Target, cfg.ServerName, to, cfg.AllowInvalid)
 	case "dns":
-		return probe.DNS(cctx, c.Target, probe.DNSConfig{RecordType: cfg.RecordType, Server: cfg.Resolver, Expect: cfg.Expect}, to)
+		return probe.DNS(cctx, g, c.Target, probe.DNSConfig{RecordType: cfg.RecordType, Server: cfg.Resolver, Expect: cfg.Expect}, to)
 	}
 	return probe.Result{Message: "unknown check type " + c.Type}
 }

@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"errors"
 	"image/png"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -72,32 +71,22 @@ func randomToken(n int) string {
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 
-// clientIP returns the caller IP, honouring X-Forwarded-For only when the
-// server is configured to trust a proxy.
+// clientIP returns the caller IP. Forwarding headers are honoured only when
+// trust_proxy is on and the TCP peer is in trusted_proxies (see clientip.go).
 func (a *App) clientIP(r *http.Request) string {
-	if a.settings.TLS().TrustProxy {
-		if cf := r.Header.Get("CF-Connecting-IP"); cf != "" {
-			return cf
-		}
-		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-			return strings.TrimSpace(strings.Split(xff, ",")[0])
-		}
-		if xr := r.Header.Get("X-Real-IP"); xr != "" {
-			return xr
-		}
-	}
-	h, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return h
+	t := a.settings.TLS()
+	return resolveClientIP(r, t.TrustProxy, t.TrustedProxies)
 }
 
 func (a *App) isHTTPS(r *http.Request) bool {
 	if r.TLS != nil {
 		return true
 	}
-	return a.settings.TLS().TrustProxy && strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
+	if !a.fromTrustedProxy(r) {
+		return false
+	}
+	vals := strings.Split(strings.Join(r.Header.Values("X-Forwarded-Proto"), ","), ",")
+	return strings.EqualFold(strings.TrimSpace(vals[len(vals)-1]), "https")
 }
 
 // middleware authenticates the request (API key or session) and enforces
@@ -121,6 +110,9 @@ func (s *authService) middleware(next http.Handler) http.Handler {
 					return
 				}
 			}
+		}
+		if p == nil && r.Header.Get("Authorization") == "" {
+			p = s.proxyPrincipal(w, r)
 		}
 		if p != nil {
 			p.IP = ip
@@ -428,17 +420,23 @@ func ldapConfig(s LDAPSettings) authn.LDAPConfig {
 
 // mapLDAPRole picks the most privileged mapped role.
 func mapLDAPRole(s LDAPSettings, groups []string) (string, int64, bool) {
+	return mapGroupRole(s.RoleMapping, s.DefaultRole, s.DefaultTenant, groups)
+}
+
+// mapGroupRole picks the most privileged role mapped from the user's groups,
+// falling back to the default role (empty default = deny).
+func mapGroupRole(mapping []LDAPRoleMapping, defRole string, defTenant int64, groups []string) (string, int64, bool) {
 	rank := map[string]int{RoleAdmin: 5, RoleOperator: 4, RoleTenantAdmin: 3, RoleViewer: 2, RoleTenantViewer: 1}
 	best, bestT, ok := "", int64(0), false
-	for _, m := range s.RoleMapping {
+	for _, m := range mapping {
 		for _, g := range groups {
 			if strings.EqualFold(strings.TrimSpace(g), strings.TrimSpace(m.Group)) && ValidRole(m.Role, m.TenantID) && rank[m.Role] > rank[best] {
 				best, bestT, ok = m.Role, m.TenantID, true
 			}
 		}
 	}
-	if !ok && s.DefaultRole != "" && ValidRole(s.DefaultRole, s.DefaultTenant) {
-		return s.DefaultRole, s.DefaultTenant, true
+	if !ok && defRole != "" && ValidRole(defRole, defTenant) {
+		return defRole, defTenant, true
 	}
 	return best, bestT, ok
 }
@@ -459,7 +457,8 @@ func (s *authService) logout(c *Ctx) (any, error) {
 	if c.P != nil && c.P.SessionID != "" {
 		_, _ = s.app.db.ExecContext(c.ctx(), `DELETE FROM sessions WHERE id_hash=?`, c.P.SessionID)
 	}
-	http.SetCookie(c.W, &http.Cookie{Name: sessionCookie, Value: "", Path: "/", MaxAge: -1, HttpOnly: true})
+	http.SetCookie(c.W, &http.Cookie{Name: sessionCookie, Value: "", Path: "/", MaxAge: -1, HttpOnly: true,
+		Secure: s.app.isHTTPS(c.R), SameSite: http.SameSiteLaxMode})
 	return map[string]bool{"ok": true}, nil
 }
 

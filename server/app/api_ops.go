@@ -66,6 +66,7 @@ func (a *App) apiBulkJobs(c *Ctx) (any, error) {
 	type res struct {
 		HostID int64  `json:"host_id"`
 		JobID  string `json:"job_id,omitempty"`
+		Status string `json:"status,omitempty"`
 		Error  string `json:"error,omitempty"`
 	}
 	out := []res{}
@@ -77,7 +78,7 @@ func (a *App) apiBulkJobs(c *Ctx) (any, error) {
 			out = append(out, res{HostID: id, Error: err.Error()})
 			continue
 		}
-		out = append(out, res{HostID: id, JobID: j.ID})
+		out = append(out, res{HostID: id, JobID: j.ID, Status: j.Status})
 	}
 	return out, nil
 }
@@ -102,6 +103,18 @@ func (a *App) apiGetJob(c *Ctx) (any, error) {
 	return j, nil
 }
 
+func (a *App) apiJobSpec(c *Ctx) (any, error) {
+	return a.jobs.JobSpecFor(c.ctx(), c.P, c.Param("id"))
+}
+
+func (a *App) apiOperatorSignature(c *Ctx) (any, error) {
+	var req OperatorSignRequest
+	if err := c.Decode(&req); err != nil {
+		return nil, err
+	}
+	return a.jobs.OperatorSign(c.ctx(), c.P, c.Param("id"), req)
+}
+
 func (a *App) apiCancelJob(c *Ctx) (any, error) {
 	j, err := a.getJob(c.ctx(), c.Param("id"))
 	if err != nil || !c.P.CanTenant(j.TenantID) {
@@ -113,6 +126,9 @@ func (a *App) apiCancelJob(c *Ctx) (any, error) {
 // --- vulnerabilities ---
 
 func (a *App) apiListFindings(c *Ctx) (any, error) {
+	if !a.vuln.Enabled() {
+		return []VulnFinding{}, nil
+	}
 	// One row per CVE per host: a source package usually ships several binary
 	// packages (linux-headers, linux-modules, ...) that share a CVE.
 	tw, args := c.tenantWhere("f.tenant_id")
@@ -227,8 +243,8 @@ func (a *App) apiUpdateFinding(c *Ctx) (any, error) {
 }
 
 func (a *App) apiScanAll(c *Ctx) (any, error) {
-	if !a.settings.Vuln().Enabled {
-		return nil, badRequest("vulnerability scanning is disabled in settings")
+	if !a.vuln.Enabled() {
+		return nil, conflict(msgVulnDisabled)
 	}
 	tw, args := c.tenantWhere("tenant_id")
 	var ids []int64
@@ -246,10 +262,13 @@ func (a *App) apiScanAll(c *Ctx) (any, error) {
 }
 
 func (a *App) apiVulnDBStatus(c *Ctx) (any, error) {
-	return map[string]any{"db": a.vuln.Status(), "queue": a.vuln.QueueLength(), "settings": a.settings.Vuln()}, nil
+	return map[string]any{"enabled": a.vuln.Enabled(), "db": a.vuln.Status(), "queue": a.vuln.QueueLength(), "settings": a.settings.Vuln()}, nil
 }
 
 func (a *App) apiVulnDBSync(c *Ctx) (any, error) {
+	if !a.vuln.Enabled() {
+		return nil, conflict(msgVulnDisabled)
+	}
 	if err := a.vuln.SyncNow(); err != nil {
 		return nil, conflict(err.Error())
 	}

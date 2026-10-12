@@ -1,0 +1,28 @@
+# Rendered by scripts/build.sh --packages (see packaging/agent/nfpm.yaml).
+name: "@SERVER_PKG@"
+arch: "${ARCH}"
+platform: linux
+version: "${VERSION}"
+section: admin
+priority: optional
+maintainer: "@MAINTAINER@"
+description: "@PRODUCT_TITLE@ monitoring server (embeds the web UI and agent builds)"
+vendor: "@PRODUCT_TITLE@"
+homepage: "@HOMEPAGE@"
+license: "@LICENSE@"
+recommends:
+  - libcap2-bin
+contents:
+  - src: "@STAGE@/bin/@SERVER_BIN@-linux-@ARCH@"
+    dst: "@SERVER_PATH@"
+    file_info: { mode: 0755 }
+  - src: "@STAGE@/server/server.service"
+    dst: "/usr/lib/systemd/system/@SERVER_UNIT@.service"
+    file_info: { mode: 0644 }
+  - dst: "@SERVER_DATA@"
+    type: dir
+    file_info: { mode: 0750 }
+scripts:
+  postinstall: "@STAGE@/server/postinstall.sh"
+  preremove: "@STAGE@/server/preremove.sh"
+  postremove: "@STAGE@/server/postremove.sh"

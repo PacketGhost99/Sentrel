@@ -13,6 +13,10 @@ Supported distributions (`ID` in `/etc/os-release`): `ubuntu`, `debian`, `raspbi
 
 **Windows is not supported for package CVE matching.** Windows hosts get inventory and pending Windows Updates (and the `security_updates` threshold) but no CVE findings; scans for them are marked skipped. SNMP devices and agentless targets have no inventory and are skipped as well.
 
+## Turning scanning on
+
+Scanning is **off by default** for new installs, because the database is large (about 3 GB). Turn it on in the setup wizard or under Settings, Vulnerabilities. The server then downloads the database in the background and shows progress on the Vulnerabilities page. While scanning is off, no database is downloaded or opened, scan requests return 409 ("Vulnerability scanning is disabled; enable it in Settings") and the CVE badges are hidden. Installs that already had a database or scan history keep scanning enabled on upgrade. When you turn scanning off you can also delete the database files (`delete_db: true` in `PUT /api/v1/settings/vuln`); they are never deleted automatically.
+
 ## The database
 
 - Location: `<data dir>/vulndb/`. Plan for roughly **3 GB** of disk space on the data volume (schema v6).

@@ -18,6 +18,7 @@ interface Dash {
   security_updates: number
   reboot_required: number
   vulnerabilities: Record<string, number>
+  vuln_enabled?: boolean
   recent_events: AlertEvent[]
   firing_alerts: Alert[]
 }
@@ -96,7 +97,7 @@ export function Dashboard() {
         <Stat label="Active alerts" icon={<Bell />} value={x.alerts.critical + x.alerts.warning} tone={x.alerts.critical ? 'crit' : x.alerts.warning ? 'warn' : 'muted'}
           sub={`${x.alerts.critical} critical · ${x.alerts.warning} warning${x.alerts.acked ? ` · ${x.alerts.acked} acknowledged` : ''}`} onClick={() => nav('/alerts')} />
         <Stat label="Updates pending" icon={<Wrench />} value={x.upgrades_pending} tone={x.security_updates ? 'warn' : 'muted'} sub={`${x.security_updates} security${x.reboot_required ? ` · ${x.reboot_required} need a reboot` : ''}`} onClick={() => nav('/hosts')} />
-        <Stat label="Critical CVEs" icon={<ShieldAlert />} value={v.critical ?? 0} tone={v.critical ? 'crit' : v.high ? 'warn' : 'muted'} sub={`${v.high ?? 0} high`} onClick={() => nav('/vulnerabilities')} />
+        {x.vuln_enabled && <Stat label="Critical CVEs" icon={<ShieldAlert />} value={v.critical ?? 0} tone={v.critical ? 'crit' : v.high ? 'warn' : 'muted'} sub={`${v.high ?? 0} high`} onClick={() => nav('/vulnerabilities')} />}
         <Stat label="Monitored" icon={<Server />} value={x.hosts.total} tone="muted" sub={`${x.checks.total} checks${x.hosts.pending ? ` · ${x.hosts.pending} pending` : ''}`} onClick={() => nav('/hosts')} />
       </div>
 

@@ -74,6 +74,33 @@ Cleanup runs periodically; per-host metric retention and per-host storage accoun
 
 Disk budget: `tsdb/` (grows with hosts times series times retention) plus `vulndb/` (about 3 GB) plus `heartbeat.db`.
 
+## Resource usage
+
+Measured on a 2-vCPU, 3.8 GB Linux VPS running the server and its own agent, with 3 hosts (2 agents, 1 other), about 5 hours after start. Sizes and rates grow with hosts, series and retention, so treat them as a guide.
+
+| Item | Measured |
+|---|---|
+| Server idle memory (RSS) | about 120 to 150 MB; the same with scanning off and with an existing vulnerability database opened |
+| Server peak memory (VmHWM) | about 575 MB, reached while scanning hosts against the vulnerability database |
+| Server CPU at idle | under 0.1% of one core (8 CPU-minutes over 5 hours) |
+| Agent memory (RSS) | 13 to 15 MB (peak 22 MB) |
+| Agent CPU | about 0.2% of one core over 5 minutes at the default 30 s interval |
+| `heartbeat.db` | about 60 MB plus WAL with 48,000 vulnerability findings and 1,300 packages; a few MB without scanning |
+| Metric store (`tsdb/`) | about 2 MB for 3 hosts after 10 hours; budget roughly 0.5 to 1 MB per host per day at default collection settings |
+| Vulnerability database (`vulndb/`) | about 3.1 GB on disk, only when scanning is enabled |
+| Server binary | about 116 MB (UI and agent binaries embedded; built with `-trimpath -s -w`) |
+| Agent binary | about 14 MB |
+
+Vulnerability scanning is off by default. While it is off, the server never downloads or opens the database. Enabling it (Settings, Vulnerabilities, or the setup wizard) downloads about 3 GB in the background. Disabling it releases the database; tick "Also delete the downloaded database" (`delete_db: true` in the request) to reclaim the disk space.
+
+### Hardware recommendations
+
+| Host | Scanning | CPU | RAM | Disk |
+|---|---|---|---|---|
+| Raspberry Pi 4 or a 1 GB VPS | Off (default) | 1 core | 1 GB | 2 GB plus metrics (about 1 MB per host per day) |
+| Small server | On | 2 cores | 2 GB or more | 6 GB or more (the database is about 3 GB and is replaced on update) |
+| Larger fleet (50+ hosts) with scanning | On | 2 to 4 cores | 4 GB | 10 GB or more |
+
 ## Logs and health
 
 - Logs go to stderr: `journalctl -u heartbeat` (systemd) or `docker logs heartbeat`. `HEARTBEAT_LOG_LEVEL` is `debug`, `info` (default), `warn` or `error`; `HEARTBEAT_LOG_FORMAT=json` switches to JSON lines.

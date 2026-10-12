@@ -1,0 +1,38 @@
+# Rendered by scripts/build.sh --packages: @X@ placeholders come from build.sh,
+# ${ARCH} and ${VERSION} from nfpm's environment.
+name: "@AGENT_PKG@"
+arch: "${ARCH}"
+platform: linux
+version: "${VERSION}"
+section: admin
+priority: optional
+maintainer: "@MAINTAINER@"
+description: "@PRODUCT_TITLE@ monitoring agent"
+vendor: "@PRODUCT_TITLE@"
+homepage: "@HOMEPAGE@"
+license: "@LICENSE@"
+recommends:
+  - sudo
+contents:
+  - src: "@STAGE@/bin/@AGENT_BIN@-linux-@ARCH@"
+    dst: "@AGENT_PATH@"
+    file_info: { mode: 0755 }
+  - src: "@STAGE@/agent/agent.service"
+    dst: "/usr/lib/systemd/system/@AGENT_BIN@.service"
+    file_info: { mode: 0644 }
+  - src: "@STAGE@/agent/sudoers"
+    dst: "@AGENT_SHARE@/sudoers"
+    file_info: { mode: 0644 }
+  - src: "@STAGE@/agent/fix-perms"
+    dst: "@AGENT_SHARE@/fix-perms"
+    file_info: { mode: 0755 }
+  - dst: "@AGENT_ETC@"
+    type: dir
+    file_info: { mode: 0750 }
+  - dst: "@AGENT_STATE@"
+    type: dir
+    file_info: { mode: 0700 }
+scripts:
+  postinstall: "@STAGE@/agent/postinstall.sh"
+  preremove: "@STAGE@/agent/preremove.sh"
+  postremove: "@STAGE@/agent/postremove.sh"

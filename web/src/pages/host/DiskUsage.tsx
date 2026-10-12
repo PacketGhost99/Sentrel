@@ -6,6 +6,7 @@ import { errorMessage, get, post } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { ago, bytes } from '@/lib/format'
 import type { Alert, CleanupTask, DiskUsageReport, HostDetail, Job } from '@/lib/types'
+import { OperatorSignPanel, WritePolicyNote } from '@/components/OperatorSign'
 import { Badge, Button, Card, Checkbox, ErrorBox, Field, Input, Modal, Note, Select, Spinner, useToast } from '@/components/ui'
 
 export const DISK_ALERT_METRICS = ['disk', 'inodes', 'disk_fill_hours']
@@ -201,10 +202,11 @@ export function CleanupDialog({ host, onClose }: { host: HostDetail; onClose: ()
     <Modal open onClose={onClose} title={`Clean up disk space on ${host.name}`} size="lg"
       footer={<>
         <Button onClick={onClose}>Close</Button>
-        <Button icon={<FlaskConical className="size-4" />} loading={busy || (running && !!run?.dry)} disabled={!host.allow_cleanup || !chosen || running} onClick={() => start(true)}>Dry run</Button>
-        <Button variant="danger" loading={busy || (running && !run?.dry)} disabled={!host.allow_cleanup || !dryOk || typed !== host.name || running} onClick={() => start(false)}>Run cleanup</Button>
+        <Button icon={<FlaskConical className="size-4" />} loading={busy || (running && !!run?.dry)} disabled={!host.allow_cleanup || host.write_policy === 'none' || !chosen || running} onClick={() => start(true)}>Dry run</Button>
+        <Button variant="danger" loading={busy || (running && !run?.dry)} disabled={!host.allow_cleanup || host.write_policy === 'none' || !dryOk || typed !== host.name || running} onClick={() => start(false)}>Run cleanup</Button>
       </>}>
       <div className="space-y-4">
+        <WritePolicyNote host={host} />
         {!host.allow_cleanup && (
           <Note tone="warn">
             Disk cleanup is turned off for this host. Enable <b>Allow disk cleanup</b> in the host's{' '}
@@ -227,7 +229,8 @@ export function CleanupDialog({ host, onClose }: { host: HostDetail; onClose: ()
             </ul>
           )}
         </div>
-        {run && (
+        {j?.status === 'awaiting_signature' && <OperatorSignPanel job={j} />}
+        {run && j?.status !== 'awaiting_signature' && (
           <div>
             <div className="mb-1.5 flex items-center gap-2 text-xs font-medium text-muted">
               {run.dry ? 'Dry run' : 'Cleanup'} {finished ? (j!.status === 'succeeded' ? 'finished' : j!.status) : <><Spinner className="size-3.5" />running</>}

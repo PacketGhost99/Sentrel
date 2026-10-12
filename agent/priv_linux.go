@@ -480,11 +480,16 @@ func fail2banStatus(ctx context.Context) *pb.Fail2Ban {
 func installUpdate(path, sha, version, sig string) error {
 	state := DefaultStateDir()
 	abs, err := filepath.Abs(path)
-	if err != nil || !strings.HasPrefix(abs, state+string(os.PathSeparator)) {
-		return fmt.Errorf("update file must be inside %s", state)
+	if err != nil || filepath.Dir(abs) != filepath.Clean(state) {
+		return fmt.Errorf("update file must be directly inside %s", state)
 	}
-	fi, err := os.Lstat(abs)
-	if err != nil || !fi.Mode().IsRegular() {
+	// Open without following a final symlink, then check the descriptor.
+	src, err := os.OpenFile(abs, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+	if err != nil {
+		return fmt.Errorf("open update file: %w", err)
+	}
+	defer src.Close()
+	if fi, err := src.Stat(); err != nil || !fi.Mode().IsRegular() {
 		return errors.New("update file must be a regular file")
 	}
 	keyPath := filepath.Join(filepath.Dir(DefaultConfigPath()), "job.pub")
@@ -501,7 +506,8 @@ func installUpdate(path, sha, version, sig string) error {
 	}
 	// Copy first so the agent user cannot swap the file after verification.
 	staged := installedBinary + ".new"
-	if err := copyFile(abs, staged, 0o755); err != nil {
+	// Staged 0700 until verified so unverified content is never world-readable.
+	if err := copyReader(src, staged, 0o700); err != nil {
 		return err
 	}
 	if err := verifyUpdateFile(staged, sha, version, sig, pub, runtime.GOOS, runtime.GOARCH); err != nil {
@@ -517,19 +523,34 @@ func installUpdate(path, sha, version, sig string) error {
 		os.Remove(staged)
 		return err
 	}
+	if err := os.Chmod(staged, 0o755); err != nil {
+		os.Remove(staged)
+		return err
+	}
 	if err := os.Rename(staged, installedBinary); err != nil {
 		return err
 	}
 	m := &updateMarker{From: strings.TrimSpace(string(cur)), To: version, At: time.Now().Unix()}
-	if err := writeMarker(state, m); err != nil {
+	if err := writeUpdateMarker(state, m); err != nil {
 		return err
-	}
-	if uid, err := strconv.Atoi(os.Getenv("SUDO_UID")); err == nil {
-		gid, _ := strconv.Atoi(os.Getenv("SUDO_GID"))
-		_ = os.Chown(markerPath(state), uid, gid)
 	}
 	fmt.Printf("installed agent %s (previous kept as %s.old)\n", version, installedBinary)
 	return nil
+}
+
+// writeUpdateMarker writes the marker as root and hands it to the invoking
+// (sudo) user, refusing symlinks in the agent-owned state directory.
+func writeUpdateMarker(state string, m *updateMarker) error {
+	uid, gid := -1, -1
+	if u, err := strconv.Atoi(os.Getenv("SUDO_UID")); err == nil {
+		uid = u
+		if g, err := strconv.Atoi(os.Getenv("SUDO_GID")); err == nil {
+			gid = g
+		} else {
+			gid = u
+		}
+	}
+	return writeMarkerOwned(state, m, uid, gid)
 }
 
 func rollbackUpdate() error {

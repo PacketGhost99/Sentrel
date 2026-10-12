@@ -88,13 +88,20 @@ Group=heartbeat
 ExecStart=$BIN serve --data-dir $DATA --listen $LISTEN
 Restart=always
 RestartSec=3
+# CAP_NET_RAW: privileged ICMP for ping checks (pro-bing falls back to UDP
+# ping if it is missing). CAP_NET_BIND_SERVICE: ports 80/443 for TLS and ACME.
 AmbientCapabilities=CAP_NET_RAW CAP_NET_BIND_SERVICE
 CapabilityBoundingSet=CAP_NET_RAW CAP_NET_BIND_SERVICE
-NoNewPrivileges=true
+NoNewPrivileges=yes
 ProtectSystem=strict
-ProtectHome=true
+ProtectHome=yes
 ReadWritePaths=$DATA
-PrivateTmp=true
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
 LimitNOFILE=65536
 
 [Install]

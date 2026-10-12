@@ -9,6 +9,8 @@ import (
 	"runtime"
 
 	"gopkg.in/yaml.v3"
+
+	"heartbeat/internal/jobpolicy"
 )
 
 // Config is the agent's on-disk configuration. Everything about what to
@@ -20,6 +22,13 @@ type Config struct {
 	CAFingerprint string `yaml:"ca_fingerprint,omitempty"`
 	Name          string `yaml:"name,omitempty"`
 	LogLevel      string `yaml:"log_level,omitempty"`
+
+	// WriteJobs is the local policy for jobs that change the host: server
+	// (default), operator or none. OperatorKeys are the base64 Ed25519
+	// public keys trusted under the operator policy. Both are set only here,
+	// at install or register time; the server cannot change them.
+	WriteJobs    string   `yaml:"write_jobs,omitempty"`
+	OperatorKeys []string `yaml:"operator_keys,omitempty"`
 
 	path string `yaml:"-"`
 }
@@ -58,6 +67,12 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	if c.StateDir == "" {
 		c.StateDir = DefaultStateDir()
+	}
+	if _, err := jobpolicy.NormalizePolicy(c.WriteJobs); err != nil {
+		return nil, fmt.Errorf("%s: write_jobs: %w", path, err)
+	}
+	if _, err := jobpolicy.ParseKeys(c.OperatorKeys); err != nil {
+		return nil, fmt.Errorf("%s: operator_keys: %w", path, err)
 	}
 	c.path = path
 	return &c, nil

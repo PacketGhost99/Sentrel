@@ -50,7 +50,7 @@ expect "session login" '.user.username != null' "$R"
 
 step "agent host"
 HOSTS=$(api GET /hosts)
-HID=$(echo "$HOSTS" | jq -r '[.[] | select(.kind=="agent" and .connected)][0].id')
+HID=$(echo "$HOSTS" | jq -r --arg hn "$(hostname)" '[.[] | select(.kind=="agent" and .connected and .host_info.hostname==$hn)][0].id')
 [ "$HID" != "null" ] && ok "connected agent host #$HID" || { bad "no connected agent"; exit 1; }
 H=$(api GET "/hosts/$HID")
 expect "host has disks and services" '(.state.disks | length) > 0 and (.state.services | length) > 0' "$H"

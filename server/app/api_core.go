@@ -24,6 +24,8 @@ type PublicInfo struct {
 	TenantName    string   `json:"tenant_name,omitempty"`
 	LDAP          bool     `json:"ldap"`
 	RADIUS        bool     `json:"radius"`
+	OIDCEnabled   bool     `json:"oidc_enabled"`
+	OIDCLabel     string   `json:"oidc_label,omitempty"`
 	ServerURL     string   `json:"server_url"`
 	TLSMode       string   `json:"tls_mode"`
 }
@@ -57,6 +59,9 @@ func (a *App) setupRequired(ctx context.Context) bool {
 func (a *App) apiPublicInfo(c *Ctx) (any, error) {
 	info := PublicInfo{SetupRequired: a.setupRequired(c.ctx()), Version: version.Version, LDAP: a.settings.LDAP().Enabled,
 		RADIUS: a.settings.RADIUS().Enabled, ServerURL: a.settings.General().ServerURL, TLSMode: a.srv.Mode()}
+	if oc := a.settings.OIDC(); oc.Enabled {
+		info.OIDCEnabled, info.OIDCLabel = true, firstNonEmpty(oc.ButtonLabel, "SSO")
+	}
 	var tid int64
 	if t := a.tenantForRequest(c.ctx(), c.Q("tenant"), c.R.Host); t != nil {
 		tid, info.TenantSlug, info.TenantName = t.ID, t.Slug, t.Name
@@ -77,6 +82,8 @@ type SetupReq struct {
 	ACMEEmail  string `json:"acme_email"`
 	Timezone   string `json:"timezone"`
 	TrustProxy bool   `json:"trust_proxy"`
+	// VulnEnabled opts in to CVE scanning (downloads a ~3 GB database).
+	VulnEnabled bool `json:"vuln_enabled"`
 }
 
 func (a *App) apiSetup(c *Ctx) (any, error) {
@@ -145,6 +152,14 @@ func (a *App) apiSetup(c *Ctx) (any, error) {
 	t.Mode, t.Hostname, t.ACMEEmail, t.TrustProxy = req.TLSMode, req.Hostname, req.ACMEEmail, req.TrustProxy
 	if err := a.settings.Save(c.ctx(), 0, keyTLS, t); err != nil {
 		return nil, err
+	}
+	vs := a.settings.Vuln()
+	vs.Enabled = req.VulnEnabled
+	if err := a.settings.Save(c.ctx(), 0, keyVuln, vs); err != nil {
+		return nil, err
+	}
+	if vs.Enabled {
+		_ = a.vuln.SyncNow()
 	}
 	a.setupMu.Lock()
 	a.setupToken = ""
@@ -352,6 +367,7 @@ type dashboard struct {
 		Down    int `json:"down"`
 		Warning int `json:"warning"`
 	} `json:"checks"`
+	VulnEnabled     bool           `json:"vuln_enabled"`
 	Upgrades        int            `json:"upgrades_pending"`
 	SecurityUpdates int            `json:"security_updates"`
 	RebootRequired  int            `json:"reboot_required"`
@@ -429,7 +445,11 @@ func (a *App) apiDashboard(c *Ctx) (any, error) {
 	rows = nil
 	_ = a.db.SelectContext(ctx, &rows, `SELECT severity AS k, COUNT(DISTINCT host_id || ':' || vuln_id) AS n FROM vuln_findings WHERE status='open' AND `+tw+` GROUP BY severity`, targs...)
 	d.Vulns = map[string]int{}
+	d.VulnEnabled = a.vuln.Enabled()
 	for _, r := range rows {
+		if !d.VulnEnabled {
+			break
+		}
 		d.Vulns[strings.ToLower(r.K)] = r.N
 	}
 	d.RecentEvents = []AlertEvent{}

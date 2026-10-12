@@ -26,7 +26,7 @@ type SSHRequest struct {
 	PrivateKey    string
 	KeyPassphrase string
 	SudoPassword  string // defaults to Password
-	HostKey       string // optional pinned host key fingerprint (SHA256:...)
+	HostKey       string // required pinned host key fingerprint (SHA256:...)
 }
 
 // Logger receives progress lines.
@@ -67,12 +67,15 @@ func SSHInstall(ctx context.Context, req SSHRequest, installer []byte, bin Binar
 	if port == 0 {
 		port = 22
 	}
+	if strings.TrimSpace(req.HostKey) == "" {
+		return "", errors.New("host key fingerprint is required: fetch and confirm it before installing")
+	}
 	var seenKey string
 	cfg := &ssh.ClientConfig{
 		User: req.Username, Auth: auths, Timeout: 15 * time.Second,
 		HostKeyCallback: func(_ string, _ net.Addr, key ssh.PublicKey) error {
 			seenKey = ssh.FingerprintSHA256(key)
-			if req.HostKey != "" && !strings.EqualFold(strings.TrimSpace(req.HostKey), seenKey) {
+			if !strings.EqualFold(strings.TrimSpace(req.HostKey), seenKey) {
 				return fmt.Errorf("host key mismatch: got %s", seenKey)
 			}
 			return nil
@@ -233,4 +236,45 @@ func WinRMInstall(ctx context.Context, req WinRMRequest, script string, log Logg
 		return fmt.Errorf("installer exited with code %d", code)
 	}
 	return nil
+}
+
+var errFingerprintDone = errors.New("fingerprint captured")
+
+// SSHFingerprint connects to host:port, completes only the key exchange and
+// returns the host key's SHA256 fingerprint and key type. It never
+// authenticates, so no credentials are sent.
+func SSHFingerprint(ctx context.Context, host string, port int) (fingerprint, keyType string, err error) {
+	if host == "" {
+		return "", "", errors.New("host is required")
+	}
+	if port == 0 {
+		port = 22
+	}
+	addr := net.JoinHostPort(host, strconv.Itoa(port))
+	d := net.Dialer{Timeout: 10 * time.Second}
+	conn, err := d.DialContext(ctx, "tcp", addr)
+	if err != nil {
+		return "", "", err
+	}
+	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(15 * time.Second))
+	cfg := &ssh.ClientConfig{
+		User:    "heartbeat-fingerprint",
+		Timeout: 15 * time.Second,
+		HostKeyCallback: func(_ string, _ net.Addr, key ssh.PublicKey) error {
+			fingerprint, keyType = ssh.FingerprintSHA256(key), key.Type()
+			return errFingerprintDone
+		},
+	}
+	sc, _, _, herr := ssh.NewClientConn(conn, addr, cfg)
+	if sc != nil {
+		sc.Close()
+	}
+	if fingerprint == "" {
+		if herr == nil {
+			herr = errors.New("no host key received")
+		}
+		return "", "", fmt.Errorf("ssh handshake with %s: %w", addr, herr)
+	}
+	return fingerprint, keyType, nil
 }

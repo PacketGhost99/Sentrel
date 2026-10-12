@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth'
 import { ago, bits, bytes, dateTime, duration, num, osLabel, pct } from '@/lib/format'
 import type { Alert, HostDetail as HD, Series } from '@/lib/types'
 import { Chart, RangePicker, rangeSeconds, type RangeId, type Unit } from '@/components/Chart'
+import { WritePolicyBadge } from '@/components/OperatorSign'
 import { Badge, Button, Card, Empty, ErrorBox, Input, KV, Loading, Meter, MutedBadge, Note, PageHeader, SeverityBadge, StatusDot, StatusPill, Table, Tabs, Td, Th, UptimePill, useConfirm, useToast } from '@/components/ui'
 import { BeatBar, averageUptime, hostBeatsToBeats, useHostBeats } from '@/components/BeatBar'
 import { hostStatusLabel } from './Hosts'
@@ -54,6 +55,7 @@ export function HostDetail() {
             {(host.tags || []).map((t) => <Badge key={t} tone="info">{t}</Badge>)}
             {host.reboot_required && <Badge tone="warn">reboot required</Badge>}
             {host.revoked && <Badge tone="crit">revoked</Badge>}
+            {agent && <WritePolicyBadge host={host} />}
           </span>
         }
         actions={agent && <HostActions host={host} />}
@@ -64,7 +66,7 @@ export function HostDetail() {
         { id: 'system', label: 'System', hidden: !agent },
         { id: 'interfaces', label: 'Interfaces', hidden: !snmp },
         { id: 'packages', label: 'Packages', hidden: !agent, count: host.upgrade_count },
-        { id: 'vulns', label: 'CVEs', hidden: !agent, count: (host.open_findings?.critical || 0) + (host.open_findings?.high || 0) },
+        { id: 'vulns', label: 'CVEs', hidden: !agent || !host.vuln_enabled, count: (host.open_findings?.critical || 0) + (host.open_findings?.high || 0) },
         { id: 'security', label: 'Security', hidden: !agent },
         { id: 'checks', label: 'Checks', count: host.check_count },
         { id: 'alerts', label: 'Alerts', count: firing },
@@ -100,14 +102,14 @@ function HostActions({ host }: { host: HD }) {
       <Button size="sm" icon={<RefreshCw className="size-3.5" />} onClick={async () => {
         try { await post(`/hosts/${host.id}/refresh-inventory`); toast('Inventory refresh requested') } catch (e) { toast(errorMessage(e), 'crit') }
       }}>Refresh inventory</Button>
-      {can('jobs') && outdated && (
+      {can('jobs') && outdated && host.write_policy !== 'none' && (
         <Button size="sm" variant="primary" icon={<ArrowUpCircle className="size-3.5" />} onClick={async () => {
           const ok = await confirm({ title: 'Update agent', confirmLabel: 'Update', body: <p>Update the agent on <b>{host.name}</b> from {host.agent_version} to {host.latest_agent_version}? The new binary is signature-checked and self-tested before it replaces the old one, and it rolls back automatically if it cannot reconnect.</p> })
           if (!ok) return
-          try { await post(`/hosts/${host.id}/update-agent`, { confirm: true }); toast('Agent update queued'); qc.invalidateQueries({ queryKey: ['jobs'] }) } catch (e) { toast(errorMessage(e), 'crit') }
+          try { const j = await post<{ status?: string }>(`/hosts/${host.id}/update-agent`, { confirm: true }); toast(j?.status === 'awaiting_signature' ? 'Agent update is waiting for your operator signature (see Jobs)' : 'Agent update queued'); qc.invalidateQueries({ queryKey: ['jobs'] }) } catch (e) { toast(errorMessage(e), 'crit') }
         }}>Update agent</Button>
       )}
-      {can('scripts') && host.allow_scripts && <Button size="sm" icon={<Terminal className="size-3.5" />} onClick={() => setScript(true)}>Run script</Button>}
+      {can('scripts') && host.allow_scripts && host.write_policy !== 'none' && <Button size="sm" icon={<Terminal className="size-3.5" />} onClick={() => setScript(true)}>Run script</Button>}
       {script && <RunScript host={host} onClose={() => setScript(false)} />}
     </>
   )

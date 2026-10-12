@@ -138,6 +138,7 @@ type pushSSHReq struct {
 	KeyPassphrase string `json:"key_passphrase"`
 	SudoPassword  string `json:"sudo_password"`
 	HostKey       string `json:"host_key_fingerprint"`
+	HostKeyAlias  string `json:"host_key"` // accepted as an alias of host_key_fingerprint
 }
 
 type pushWinRMReq struct {
@@ -149,6 +150,8 @@ type pushWinRMReq struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 	NTLM     bool   `json:"ntlm"`
+	// AllowInsecure must be true to use plain HTTP or skip certificate verification.
+	AllowInsecure bool `json:"allow_insecure"`
 }
 
 type pushService struct {
@@ -235,6 +238,12 @@ func (a *App) apiPushSSH(c *Ctx) (any, error) {
 	if req.Host == "" || req.Username == "" {
 		return nil, badRequest("host and username are required")
 	}
+	if req.HostKey == "" {
+		req.HostKey = req.HostKeyAlias
+	}
+	if strings.TrimSpace(req.HostKey) == "" {
+		return nil, badRequest("host_key is required: fetch the host key fingerprint with POST /push/ssh/fingerprint, confirm it, then send it as host_key")
+	}
 	return a.push.start(c, "ssh", req.Host, req.Username, req.pushCommon, func(ctx context.Context, token, serverURL string, log pushinstall.Logger) error {
 		args := []string{"--server", serverURL, "--token", token}
 		cmds, fp := a.installCommands(serverURL, token)
@@ -260,6 +269,33 @@ func (a *App) apiPushSSH(c *Ctx) (any, error) {
 	})
 }
 
+type pushFingerprintReq struct {
+	Host string `json:"host"`
+	Port int    `json:"port"`
+}
+
+// apiPushSSHFingerprint returns the SSH host key fingerprint without authenticating.
+func (a *App) apiPushSSHFingerprint(c *Ctx) (any, error) {
+	var req pushFingerprintReq
+	if err := c.Decode(&req); err != nil {
+		return nil, err
+	}
+	req.Host = strings.TrimSpace(req.Host)
+	if req.Host == "" {
+		return nil, badRequest("host is required")
+	}
+	if req.Port < 0 || req.Port > 65535 {
+		return nil, badRequest("invalid port")
+	}
+	ctx, cancel := context.WithTimeout(c.ctx(), 25*time.Second)
+	defer cancel()
+	fp, kt, err := pushinstall.SSHFingerprint(ctx, req.Host, req.Port)
+	if err != nil {
+		return nil, badRequest("%v", err)
+	}
+	return map[string]any{"host": req.Host, "port": req.Port, "fingerprint": fp, "key_type": kt}, nil
+}
+
 func (a *App) apiPushWinRM(c *Ctx) (any, error) {
 	var req pushWinRMReq
 	if err := c.Decode(&req); err != nil {
@@ -267,6 +303,9 @@ func (a *App) apiPushWinRM(c *Ctx) (any, error) {
 	}
 	if req.Host == "" || req.Username == "" || req.Password == "" {
 		return nil, badRequest("host, username and password are required")
+	}
+	if (!req.HTTPS || req.Insecure) && !req.AllowInsecure {
+		return nil, badRequest("WinRM over plain HTTP or with certificate checks disabled exposes the password to anyone on the network path; use https with a trusted certificate or set allow_insecure to true to accept the risk")
 	}
 	return a.push.start(c, "winrm", req.Host, req.Username, req.pushCommon, func(ctx context.Context, token, serverURL string, log pushinstall.Logger) error {
 		cmds, _ := a.installCommands(serverURL, token)

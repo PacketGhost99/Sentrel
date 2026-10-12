@@ -1,0 +1,26 @@
+[Unit]
+Description=@PRODUCT_TITLE@ monitoring agent
+Documentation=@DOCS_URL@
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=@AGENT_ETC@/agent.yaml
+
+[Service]
+User=@AGENT_USER@
+Group=@AGENT_USER@
+# Runs as root (the + prefix): fixes ownership of the files created by
+# "@AGENT_BIN@ register", which is run as root.
+ExecStartPre=+@AGENT_SHARE@/fix-perms
+ExecStart=@AGENT_PATH@ run --config @AGENT_ETC@/agent.yaml
+Restart=always
+RestartSec=5
+# Cap the agent so it can never hurt the host. Package upgrades started by the
+# privileged helper run in their own transient scope, outside these limits,
+# and survive agent restarts. (No ProtectSystem: sudo children inherit the
+# mount namespace and package managers must write /usr.)
+MemoryMax=192M
+CPUQuota=25%
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

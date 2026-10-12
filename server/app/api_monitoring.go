@@ -965,23 +965,28 @@ func (a *App) apiTestChannelConfig(c *Ctx) (any, error) {
 		return nil, err
 	}
 	var existing []byte
+	var existingTenant int64 = -1
 	if req.ChannelID != 0 {
 		ch, err := a.visibleChannel(c, req.ChannelID)
 		if err != nil {
 			return nil, err
 		}
 		existing = ch.Config
+		existingTenant = ch.TenantID
 	}
 	if req.Name == "" {
 		req.Name = "Unsaved channel"
 	}
-	_, cfg, err := a.validateChannel(c, &req, existing)
+	tenant, cfg, err := a.validateChannel(c, &req, existing)
 	if err != nil {
 		return nil, err
 	}
+	if existingTenant >= 0 {
+		tenant = existingTenant
+	}
 	ctx, cancel := context.WithTimeout(c.ctx(), 30*time.Second)
 	defer cancel()
-	if err := a.notifier.SendTest(ctx, NotificationChannel{Name: req.Name, Type: req.Type, Config: cfg}); err != nil {
+	if err := a.notifier.SendTest(ctx, NotificationChannel{TenantID: tenant, Name: req.Name, Type: req.Type, Config: cfg}); err != nil {
 		return map[string]any{"ok": false, "error": err.Error()}, nil
 	}
 	return map[string]any{"ok": true}, nil

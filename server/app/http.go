@@ -319,7 +319,7 @@ func (a *App) publicURL(r *http.Request) string {
 		scheme = "https"
 	}
 	host := r.Host
-	if a.settings.TLS().TrustProxy && r.Header.Get("X-Forwarded-Host") != "" {
+	if a.fromTrustedProxy(r) && r.Header.Get("X-Forwarded-Host") != "" {
 		host = r.Header.Get("X-Forwarded-Host")
 	}
 	return scheme + "://" + host

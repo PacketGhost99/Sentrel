@@ -31,6 +31,7 @@ export function Login() {
   const nav = useNavigate()
   const [params] = useSearchParams()
   const next = params.get('next') || '/'
+  const ssoError = params.get('sso_error')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [code, setCode] = useState('')
@@ -115,6 +116,15 @@ export function Login() {
         {!mfa ? (
           <form onSubmit={submit} className="space-y-4">
             {b?.login_text && <p className="whitespace-pre-line text-sm text-muted">{b.login_text}</p>}
+            {ssoError && <ErrorBox error={new Error(ssoError)} />}
+            {info?.oidc_enabled && (
+              <>
+                <a href="/api/v1/auth/oidc/start" className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-accent px-3 text-sm font-medium text-white hover:opacity-90">
+                  <KeyRound className="size-4" />Sign in with {info.oidc_label || 'SSO'}
+                </a>
+                <div className="flex items-center gap-3 text-xs text-muted"><span className="h-px flex-1 bg-border" />or<span className="h-px flex-1 bg-border" /></div>
+              </>
+            )}
             <Field label="Username">
               <Input autoFocus autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} />
             </Field>

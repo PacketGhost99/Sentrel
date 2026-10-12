@@ -3,6 +3,8 @@ package agent
 import (
 	"crypto/ed25519"
 	"crypto/rand"
+	"io"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -106,7 +108,7 @@ func TestValidIP(t *testing.T) {
 
 func TestVerifyJob(t *testing.T) {
 	pub, priv, _ := ed25519.GenerateKey(rand.Reader)
-	a := &Agent{cfg: &Config{AgentID: "agent-1"}, jobKey: pub, seenJobs: map[string]time.Time{}}
+	a := &Agent{cfg: &Config{AgentID: "agent-1", StateDir: t.TempDir()}, log: slog.New(slog.NewTextHandler(io.Discard, nil)), jobKey: pub, seenJobs: map[string]time.Time{}}
 	sign := func(s *pb.JobSpec) *pb.SignedJob {
 		b, _ := proto.Marshal(s)
 		return &pb.SignedJob{Spec: b, Signature: ed25519.Sign(priv, b)}
@@ -145,5 +147,38 @@ func TestServerTarget(t *testing.T) {
 	}
 	if _, _, _, err := serverTarget("ftp://x"); err == nil {
 		t.Error("ftp accepted")
+	}
+}
+
+func TestSeenJobsPersist(t *testing.T) {
+	pub, priv, _ := ed25519.GenerateKey(rand.Reader)
+	dir := t.TempDir()
+	newAgent := func() *Agent {
+		return &Agent{cfg: &Config{AgentID: "agent-1", StateDir: dir}, log: slog.New(slog.NewTextHandler(io.Discard, nil)), jobKey: pub, seenJobs: map[string]time.Time{}}
+	}
+	now := time.Now().Unix()
+	b, _ := proto.Marshal(&pb.JobSpec{Id: "persist-1", AgentId: "agent-1", IssuedUnix: now, ExpiresUnix: now + 60})
+	sj := &pb.SignedJob{Spec: b, Signature: ed25519.Sign(priv, b)}
+	a := newAgent()
+	if _, err := a.verifyJob(sj); err != nil {
+		t.Fatal(err)
+	}
+	// "Restart": a new agent loads the file and must reject the replay.
+	a2 := newAgent()
+	a2.loadSeenJobs()
+	if _, err := a2.verifyJob(sj); err == nil {
+		t.Fatal("replay after restart accepted")
+	}
+	// Expired entries are dropped on load.
+	a3 := newAgent()
+	a3.seenJobs["old"] = time.Now().Add(-time.Minute)
+	a3.saveSeenJobs()
+	a4 := newAgent()
+	a4.loadSeenJobs()
+	if _, ok := a4.seenJobs["old"]; ok {
+		t.Error("expired entry kept")
+	}
+	if _, ok := a4.seenJobs["persist-1"]; ok {
+		t.Error("a3 save should not contain persist-1 (it never loaded it)")
 	}
 }

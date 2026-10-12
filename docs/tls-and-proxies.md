@@ -11,6 +11,7 @@ TLS is configured under **Settings, TLS & access** (and in the setup wizard). Ch
 | `hostname`, `extra_names` | names for the certificate |
 | `acme_email`, `acme_directory` | Let's Encrypt contact and an alternative ACME directory URL |
 | `trust_proxy` | trust forwarding headers from a reverse proxy |
+| `trusted_proxies` | CIDRs or IPs of the proxies whose forwarding headers are believed (default: loopback) |
 
 Also set **General, server URL** (for example `https://monitor.example.com`): it is the address agents use, the base of links in notifications and the host in install commands.
 
@@ -50,7 +51,13 @@ For other proxies (nginx, HAProxy, Traefik) the requirements are the same: HTTP/
 
 ### `trust_proxy`
 
-When enabled, the server takes the client address from `CF-Connecting-IP`, else the first entry of `X-Forwarded-For`, else `X-Real-IP`; it treats a request as HTTPS when `X-Forwarded-Proto: https` (which sets the `Secure` flag on the session cookie); and it uses `X-Forwarded-Host` when deriving its own URL. The client address feeds the audit log, login lockout and session list.
+When enabled, forwarding headers are believed only if the TCP peer address is inside `trusted_proxies`, a list of IPs and CIDR ranges that defaults to loopback (`127.0.0.0/8`, `::1`) when empty. Requests from any other peer have their `X-Forwarded-*`, `CF-Connecting-IP` and `X-Real-IP` headers ignored.
+
+- Client address: `X-Forwarded-For` is read from the right, skipping entries that are themselves trusted proxies; the first untrusted address is the client. Entries a client prepends on the left are therefore ignored, and a malformed chain falls back to the peer address. Without `X-Forwarded-For`, `CF-Connecting-IP` and then `X-Real-IP` are used.
+- HTTPS: `X-Forwarded-Proto: https` (last value) marks the request as HTTPS, which sets the `Secure` flag on cookies.
+- `X-Forwarded-Host` is used when deriving the server's own URL.
+
+The client address feeds the audit log, login lockout and session list. If a CDN such as Cloudflare sits in front of your proxy, add the CDN's published ranges and your proxy's address to `trusted_proxies` so the walk reaches the real client.
 
 Enable it only when the server is reachable exclusively through the proxy. If clients can reach the port directly they can spoof these headers and evade lockout and audit attribution. Leave it off otherwise.
 

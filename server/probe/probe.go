@@ -18,6 +18,8 @@ import (
 	"time"
 
 	probing "github.com/prometheus-community/pro-bing"
+
+	"heartbeat/server/netguard"
 )
 
 // Result of one probe.
@@ -35,13 +37,16 @@ func down(format string, a ...any) Result { return Result{Message: fmt.Sprintf(f
 var unprivileged atomic.Bool
 
 // Ping sends count echo requests.
-func Ping(ctx context.Context, target string, count int, timeout time.Duration) Result {
+func Ping(ctx context.Context, g netguard.Guard, target string, count int, timeout time.Duration) Result {
 	if count <= 0 {
 		count = 3
 	}
 	run := func(priv bool) (*probing.Statistics, error) {
 		p, err := probing.NewPinger(target)
 		if err != nil {
+			return nil, err
+		}
+		if err := g.Check(p.IPAddr().IP); err != nil {
 			return nil, err
 		}
 		p.SetPrivileged(priv)
@@ -85,9 +90,9 @@ func Ping(ctx context.Context, target string, count int, timeout time.Duration) 
 }
 
 // TCP checks that a TCP connection can be established.
-func TCP(ctx context.Context, addr string, timeout time.Duration) Result {
+func TCP(ctx context.Context, g netguard.Guard, addr string, timeout time.Duration) Result {
 	start := time.Now()
-	d := net.Dialer{Timeout: timeout}
+	d := g.Dialer(timeout)
 	c, err := d.DialContext(ctx, "tcp", addr)
 	if err != nil {
 		return down("connect %s: %v", addr, simplify(err))
@@ -115,7 +120,7 @@ type HTTPConfig struct {
 }
 
 // HTTP performs a request and validates status, keyword and latency.
-func HTTP(ctx context.Context, cfg HTTPConfig, timeout time.Duration) Result {
+func HTTP(ctx context.Context, g netguard.Guard, cfg HTTPConfig, timeout time.Duration) Result {
 	u, err := url.Parse(cfg.URL)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
 		return down("invalid URL")
@@ -139,11 +144,10 @@ func HTTP(ctx context.Context, cfg HTTPConfig, timeout time.Duration) Result {
 	if cfg.BasicUser != "" {
 		req.SetBasicAuth(cfg.BasicUser, cfg.BasicPassword)
 	}
-	tr := &http.Transport{
+	tr := g.Transport(&http.Transport{
 		TLSClientConfig:   &tls.Config{InsecureSkipVerify: cfg.IgnoreTLS},
 		DisableKeepAlives: true,
-		Proxy:             http.ProxyFromEnvironment,
-	}
+	})
 	defer tr.CloseIdleConnections()
 	cl := &http.Client{Transport: tr, Timeout: timeout}
 	if cfg.FollowRedirects != nil && !*cfg.FollowRedirects {
@@ -233,7 +237,7 @@ func statusOK(code int, spec string) bool {
 // Cert connects with TLS and reports days until the leaf certificate expires.
 // The result is "up" even when expiry is near; severity is decided by the
 // caller from Values["cert_days"]. Chain errors are reported as down.
-func Cert(ctx context.Context, addr, serverName string, timeout time.Duration, allowInvalid bool) Result {
+func Cert(ctx context.Context, g netguard.Guard, addr, serverName string, timeout time.Duration, allowInvalid bool) Result {
 	host, _, err := net.SplitHostPort(addr)
 	if err != nil {
 		host = addr
@@ -242,7 +246,7 @@ func Cert(ctx context.Context, addr, serverName string, timeout time.Duration, a
 	if serverName == "" {
 		serverName = host
 	}
-	d := &net.Dialer{Timeout: timeout}
+	d := g.Dialer(timeout)
 	start := time.Now()
 	conn, err := tls.DialWithDialer(d, "tcp", addr, &tls.Config{ServerName: serverName, InsecureSkipVerify: true})
 	if err != nil {
@@ -284,7 +288,7 @@ type DNSConfig struct {
 }
 
 // DNS resolves a name.
-func DNS(ctx context.Context, name string, cfg DNSConfig, timeout time.Duration) Result {
+func DNS(ctx context.Context, g netguard.Guard, name string, cfg DNSConfig, timeout time.Duration) Result {
 	r := net.DefaultResolver
 	if cfg.Server != "" {
 		srv := cfg.Server
@@ -292,7 +296,7 @@ func DNS(ctx context.Context, name string, cfg DNSConfig, timeout time.Duration)
 			srv = net.JoinHostPort(srv, "53")
 		}
 		r = &net.Resolver{PreferGo: true, Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
-			d := net.Dialer{Timeout: timeout}
+			d := g.Dialer(timeout)
 			return d.DialContext(ctx, network, srv)
 		}}
 	}

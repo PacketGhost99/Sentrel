@@ -118,6 +118,7 @@ Other options (SSH/WinRM push install, manual `heartbeat-agent register`) are in
 | [docs/tls-and-proxies.md](docs/tls-and-proxies.md) | TLS modes, reverse proxies (Caddy), `trust_proxy`, recovery |
 | [docs/agents.md](docs/agents.md) | Agent install, data collected, privilege model, self-update, troubleshooting |
 | [docs/security.md](docs/security.md) | Threat model and controls |
+| [docs/sso.md](docs/sso.md) | Single sign-on: OpenID Connect (Authentik, Authelia, Keycloak, Google, Entra) and forward-auth headers |
 | [docs/alerting.md](docs/alerting.md) | Thresholds, checks, flapping, maintenance, notification channels |
 | [docs/snmp.md](docs/snmp.md) | SNMP devices and writing profiles |
 | [docs/vulnerabilities.md](docs/vulnerabilities.md) | Vulnerability matching, database, air-gapped mirror |

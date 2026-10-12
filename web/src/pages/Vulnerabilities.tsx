@@ -50,7 +50,25 @@ export function Vulnerabilities() {
   const qc = useQueryClient()
   const sum = useQuery({ queryKey: ['vulns', 'summary', tenant], queryFn: () => get<any>('/vulnerabilities/summary', { tenant_id: tenant ?? undefined }), refetchInterval: 30_000 })
   const db = sum.data?.db
+  const enableScanning = async () => {
+    try { await put('/settings/vuln', { enabled: true }); toast('Vulnerability scanning enabled; downloading the database'); qc.invalidateQueries() } catch (e) { toast(errorMessage(e), 'crit') }
+  }
   const totals = (sum.data?.hosts || []).reduce((a: any, h: any) => ({ c: a.c + h.critical, h: a.h + h.high, m: a.m + h.medium, f: a.f + h.fixable, k: a.k + h.kev }), { c: 0, h: 0, m: 0, f: 0, k: 0 })
+  if (sum.data && !sum.data.enabled) {
+    return (
+      <div>
+        <PageHeader title="Vulnerabilities" subtitle="Installed packages matched against the Grype vulnerability database." />
+        <Card>
+          <Empty title="Vulnerability scanning is turned off" icon={<ShieldCheck className="size-8" />}>
+            <p>Scanning matches each host's installed packages against a vulnerability database. Enabling it downloads about 3 GB to the server in the background and works best with 2 GB of RAM or more.</p>
+            <div className="mt-4">
+              {can('settings') ? <Button variant="primary" icon={<DatabaseZap className="size-4" />} onClick={enableScanning}>Enable vulnerability scanning</Button> : <span>Ask an administrator to enable it in Settings.</span>}
+            </div>
+          </Empty>
+        </Card>
+      </div>
+    )
+  }
   return (
     <div>
       <PageHeader title="Vulnerabilities" subtitle="Installed packages matched against the Grype vulnerability database. Agents only send package lists; nothing is scanned over the network."
@@ -58,7 +76,6 @@ export function Vulnerabilities() {
           {can('jobs') && <Button icon={<ScanSearch className="size-4" />} onClick={async () => { try { const r = await post<any>('/vulnerabilities/scan-all'); toast(`${r.queued} scans queued`) } catch (e) { toast(errorMessage(e), 'crit') } }}>Scan all</Button>}
           {can('settings') && <Button icon={<DatabaseZap className="size-4" />} disabled={db?.updating} onClick={async () => { try { await post('/vulnerabilities/db/sync'); toast('Database update started'); qc.invalidateQueries({ queryKey: ['vulns'] }) } catch (e) { toast(errorMessage(e), 'crit') } }}>Update DB</Button>}
         </>} />
-      {sum.data && !sum.data.enabled && <Note tone="warn" className="mb-4">Vulnerability scanning is turned off. Enable it under Settings, Vulnerabilities.</Note>}
       {db && !db.available && <Note tone="warn" className="mb-4">{db.updating ? 'Downloading the vulnerability database (about 3 GB uncompressed; first download takes several minutes)…' : `The vulnerability database is not available yet${db.last_error ? `: ${db.last_error}` : ''}.`}</Note>}
       <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-5">
         <Stat label="Critical" value={totals.c} tone={totals.c ? 'crit' : 'muted'} />

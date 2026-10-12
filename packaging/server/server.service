@@ -1,0 +1,29 @@
+[Unit]
+Description=@PRODUCT_TITLE@ monitoring server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=@SERVER_USER@
+Group=@SERVER_USER@
+ExecStart=@SERVER_PATH@ serve --data-dir @SERVER_DATA@ --listen 0.0.0.0:8080
+Restart=always
+RestartSec=3
+# CAP_NET_RAW: privileged ICMP for ping checks (pro-bing falls back to UDP
+# ping if it is missing). CAP_NET_BIND_SERVICE: ports 80/443 for TLS and ACME.
+AmbientCapabilities=CAP_NET_RAW CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_RAW CAP_NET_BIND_SERVICE
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=@SERVER_DATA@
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

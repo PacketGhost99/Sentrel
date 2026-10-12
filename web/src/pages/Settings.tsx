@@ -6,10 +6,10 @@ import { errorMessage, get, post, put } from '@/lib/api'
 import { applyBranding, useAuth } from '@/lib/auth'
 import { bytes, dateTime, duration, timezones } from '@/lib/format'
 import type { Branding, Tenant } from '@/lib/types'
-import { Badge, Button, Card, CodeBlock, ErrorBox, Field, Input, KV, Loading, Note, PageHeader, Select, TagInput, Tabs, Textarea, Toggle, useToast } from '@/components/ui'
+import { Badge, Button, Card, Checkbox, CodeBlock, CopyButton, ErrorBox, Field, Input, KV, Loading, Note, PageHeader, Select, TagInput, Tabs, Textarea, Toggle, useToast } from '@/components/ui'
 import { roleInfo } from './Users'
 
-type Section = 'general' | 'tls' | 'smtp' | 'directory' | 'security' | 'retention' | 'agent_defaults' | 'alerting' | 'vuln' | 'snmp' | 'server'
+type Section = 'general' | 'tls' | 'smtp' | 'directory' | 'sso' | 'security' | 'retention' | 'agent_defaults' | 'alerting' | 'vuln' | 'snmp' | 'server'
 
 export function Settings() {
   const [params, setParams] = useSearchParams()
@@ -19,7 +19,7 @@ export function Settings() {
     <div>
       <PageHeader title="Settings" subtitle="Server-wide configuration. Changes apply immediately and are recorded in the audit log." />
       <Tabs<Section> value={tab} onChange={(t) => setParams({ tab: t }, { replace: true })} className="mb-4" tabs={[
-        { id: 'general', label: 'General' }, { id: 'tls', label: 'TLS & access' }, { id: 'smtp', label: 'Email' }, { id: 'directory', label: 'LDAP & RADIUS' },
+        { id: 'general', label: 'General' }, { id: 'tls', label: 'TLS & access' }, { id: 'smtp', label: 'Email' }, { id: 'directory', label: 'LDAP & RADIUS' }, { id: 'sso', label: 'Single sign-on' },
         { id: 'security', label: 'Security' }, { id: 'retention', label: 'Data retention' }, { id: 'agent_defaults', label: 'Agents' }, { id: 'alerting', label: 'Alerting' },
         { id: 'vuln', label: 'Vulnerabilities' }, { id: 'snmp', label: 'SNMP profiles' }, { id: 'server', label: 'Server & backup' },
       ]} />
@@ -29,6 +29,7 @@ export function Settings() {
           {tab === 'tls' && <TLS data={s.data!.tls} active={s.data!.active_tls_mode} fp={s.data!.ca_fingerprint} />}
           {tab === 'smtp' && <SMTP data={s.data!.smtp} />}
           {tab === 'directory' && <Directory ldap={s.data!.ldap} radius={s.data!.radius} />}
+          {tab === 'sso' && <SSO oidc={s.data!.oidc} proxy={s.data!.proxy_auth} serverUrl={s.data!.general?.server_url} />}
           {tab === 'security' && <Security data={s.data!.security} />}
           {tab === 'retention' && <Retention data={s.data!.retention} />}
           {tab === 'agent_defaults' && <Agents data={s.data!.agent_defaults} />}
@@ -118,6 +119,7 @@ function TLS({ data, active, fp }: { data: any; active: string; fp: string }) {
             <Field label="ACME directory (optional)" hint="Leave blank for Let's Encrypt production; use the staging URL to test"><Input value={v.acme_directory} onChange={(e) => set({ acme_directory: e.target.value })} /></Field>
           </>}
           <Toggle checked={!!v.trust_proxy} onChange={(x) => set({ trust_proxy: x })} label="Trust reverse proxy headers" hint="Use X-Forwarded-For and X-Forwarded-Proto for client IPs and HTTPS detection. Only enable when the server is not directly reachable." />
+          {v.trust_proxy && <Field label="Trusted proxies" hint="IP addresses or CIDR ranges whose forwarding headers are believed (press Enter to add). Empty means loopback only. X-Forwarded-For is read right to left, skipping these."><TagInput value={v.trusted_proxies || []} onChange={(x) => set({ trusted_proxies: x })} placeholder="127.0.0.1 or 10.0.0.0/8" /></Field>}
           <Note tone="warn">Switching mode restarts the listener. If a mode fails to start, the server falls back to plain HTTP so you are never locked out; start with <code className="mono">--force-http</code> to recover manually.</Note>
         </div>
         <SaveBar busy={busy} err={err} onSave={() => save()} />
@@ -250,6 +252,7 @@ function Security({ data }: { data: any }) {
         <Field label="Lock out after failed logins"><Input type="number" value={v.lockout_attempts} onChange={(e) => set({ lockout_attempts: num(e.target.value) })} /></Field>
         <Field label="Lockout window (minutes)"><Input type="number" value={v.lockout_minutes} onChange={(e) => set({ lockout_minutes: num(e.target.value) })} /></Field>
         <div className="sm:col-span-2"><Toggle checked={!!v.metrics_auth} onChange={(x) => set({ metrics_auth: x })} label="Require an API key for /metrics" hint="Off: anyone who can reach the server can scrape the Prometheus endpoint" /></div>
+        <div className="sm:col-span-2"><Toggle checked={!!v.allow_private_targets_for_tenants} onChange={(x) => set({ allow_private_targets_for_tenants: x })} label="Allow tenants to monitor private addresses" hint="Off: tenant checks and notification channels can only reach public addresses (loopback, private ranges and link-local such as cloud metadata are blocked). Provider checks are never restricted." /></div>
       </div>
       <SaveBar busy={busy} err={err} onSave={() => save()} />
     </Card>
@@ -328,11 +331,21 @@ function Alerting({ data }: { data: any }) {
 
 function Vuln({ data }: { data: any }) {
   const { v, set, save, busy, err } = useSection('vuln', data)
+  const [deleteDb, setDeleteDb] = useState(false)
+  const db = useQuery({ queryKey: ['vulns', 'db'], queryFn: () => get<any>('/vulnerabilities/db'), refetchInterval: (q) => (q.state.data?.db?.updating ? 3000 : 30000) })
+  const turningOff = !v.enabled && !!data.enabled
+  const dbInfo = db.data?.db
   return (
     <Card title="Vulnerability scanning" className="max-w-3xl">
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="sm:col-span-2 space-y-2">
-          <Toggle checked={!!v.enabled} onChange={(x) => set({ enabled: x })} label="Enable vulnerability scanning" hint="Downloads the Grype database (about 3 GB on disk) to the server" />
+          <Toggle checked={!!v.enabled} onChange={(x) => set({ enabled: x })} label="Enable vulnerability scanning" hint="Off by default to keep the server small. Turning it on downloads the Grype vulnerability database in the background: about 3 GB on disk, several minutes on first download, plus extra memory while scanning. Recommended for servers with 2 GB of RAM or more." />
+          {v.enabled && data.enabled && dbInfo && (
+            <p className="text-xs text-muted">{dbInfo.available ? `Database ready: ${bytes(dbInfo.size_bytes)}, built ${dateTime(Date.parse(dbInfo.built) / 1000)}.` : dbInfo.updating ? 'Downloading the database…' : `Database not available${dbInfo.last_error ? `: ${dbInfo.last_error}` : ''}.`}</p>
+          )}
+          {turningOff && (
+            <Checkbox checked={deleteDb} onChange={setDeleteDb} label="Also delete the downloaded database to free disk space" />
+          )}
           <Toggle checked={!!v.scan_after_inventory} onChange={(x) => set({ scan_after_inventory: x })} label="Rescan a host whenever its packages change" />
           <Toggle checked={!!v.only_fixable} onChange={(x) => set({ only_fixable: x })} label="Alert only on vulnerabilities with a fix available" />
         </div>
@@ -340,7 +353,7 @@ function Vuln({ data }: { data: any }) {
         <Field label="Daily DB update hour (server time)"><Input type="number" min={0} max={23} value={v.sync_hour} onChange={(e) => set({ sync_hour: num(e.target.value) })} /></Field>
         <Field label="Database URL (air-gapped mirror)" className="sm:col-span-2" hint="Blank uses Anchore's public listing. Mirror https://grype.anchore.io/databases to serve it internally."><Input value={v.db_url} onChange={(e) => set({ db_url: e.target.value })} /></Field>
       </div>
-      <SaveBar busy={busy} err={err} onSave={() => save()} />
+      <SaveBar busy={busy} err={err} onSave={() => save(turningOff && deleteDb ? { ...v, delete_db: true } : undefined)} />
     </Card>
   )
 }
@@ -407,6 +420,7 @@ function Server() {
           <a href="/api/v1/server/backup"><Button variant="primary" icon={<Download className="size-4" />}>Download backup</Button></a>
           <CodeBlock code={`# CLI (works while the server runs)\nheartbeat-server backup --data-dir ${x.data_dir} --out backup.tar.gz\n# restore onto a stopped or new server\nheartbeat-server restore --data-dir ${x.data_dir} --in backup.tar.gz`} />
           <Note tone="warn">The backup contains the CA private key and job signing key. Store it securely.</Note>
+          {x.tls_mode === 'http' && <Note tone="warn">This server is running without HTTPS. The backup contains the CA and job-signing keys; download it only over a trusted network.</Note>}
         </div>
       </Card>
     </div>
@@ -464,6 +478,97 @@ export function BrandingPage() {
           </div>
         </Card>
       </div>
+    </div>
+  )
+}
+
+function GroupMap({ maps, onChange, tenants, groupPlaceholder }: { maps: any[]; onChange: (m: any[]) => void; tenants?: Tenant[]; groupPlaceholder: string }) {
+  const roles = (t: number) => (t === 0 ? ['admin', 'operator', 'viewer'] : ['tenant_admin', 'tenant_viewer'])
+  return (
+    <div className="space-y-2">
+      {maps.map((m, i) => (
+        <div key={i} className="flex flex-wrap items-center gap-2">
+          <Input className="min-w-40 flex-1" value={m.group} placeholder={groupPlaceholder} onChange={(e) => { const a = [...maps]; a[i] = { ...m, group: e.target.value }; onChange(a) }} />
+          <Select value={m.tenant_id} onChange={(e) => { const a = [...maps]; const t = Number(e.target.value); a[i] = { ...m, tenant_id: t, role: roles(t)[0] }; onChange(a) }}>
+            {tenants?.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </Select>
+          <Select value={m.role} onChange={(e) => { const a = [...maps]; a[i] = { ...m, role: e.target.value }; onChange(a) }}>
+            {roles(m.tenant_id).map((r) => <option key={r} value={r}>{roleInfo[r].label}</option>)}
+          </Select>
+          <Button size="sm" variant="ghost" icon={<X className="size-3.5" />} onClick={() => onChange(maps.filter((_, j) => j !== i))} />
+        </div>
+      ))}
+      <Button size="sm" icon={<Plus className="size-3.5" />} onClick={() => onChange([...maps, { group: '', role: 'viewer', tenant_id: 0 }])}>Add mapping</Button>
+    </div>
+  )
+}
+
+function DefaultRole({ v, set, tenants, none }: { v: any; set: (p: any) => void; tenants?: Tenant[]; none: string }) {
+  const roles = (t: number) => (t === 0 ? ['admin', 'operator', 'viewer'] : ['tenant_admin', 'tenant_viewer'])
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      <Field label="Default role (no mapping matched)"><Select value={v.default_role} onChange={(e) => set({ default_role: e.target.value })}><option value="">{none}</option>{roles(v.default_tenant || 0).map((r) => <option key={r} value={r}>{roleInfo[r].label}</option>)}</Select></Field>
+      <Field label="Default tenant"><Select value={v.default_tenant || 0} onChange={(e) => set({ default_tenant: Number(e.target.value), default_role: '' })}>{tenants?.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</Select></Field>
+    </div>
+  )
+}
+
+function SSO({ oidc, proxy, serverUrl }: { oidc: any; proxy: any; serverUrl?: string }) {
+  const O = useSection('oidc', oidc)
+  const P = useSection('proxy_auth', proxy)
+  const toast = useToast()
+  const tenants = useQuery({ queryKey: ['tenants'], queryFn: () => get<Tenant[]>('/tenants') })
+  const callback = `${(serverUrl || window.location.origin).replace(/\/$/, '')}/api/v1/auth/oidc/callback`
+  return (
+    <div className="grid gap-4 xl:grid-cols-2">
+      <Card title="OpenID Connect" subtitle="Authentik, Authelia, Keycloak, Google, Microsoft Entra and other OIDC providers.">
+        <div className="space-y-3">
+          <Toggle checked={!!O.v.enabled} onChange={(x) => O.set({ enabled: x })} label="Enable single sign-on" />
+          <Field label="Redirect URI" hint="Register this exact URL with your provider. It is built from the server URL in General settings.">
+            <div className="flex items-center gap-2"><Input readOnly value={callback} className="mono" /><CopyButton text={callback} /></div>
+          </Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Issuer URL" className="sm:col-span-2" hint="The address that serves /.well-known/openid-configuration"><Input value={O.v.issuer_url} onChange={(e) => O.set({ issuer_url: e.target.value })} placeholder="https://auth.example.com/application/o/heartbeat" /></Field>
+            <Field label="Client ID"><Input value={O.v.client_id} onChange={(e) => O.set({ client_id: e.target.value })} /></Field>
+            <Field label="Client secret" hint={secretHint(O.v.client_secret_set)}><Input type="password" autoComplete="new-password" value={O.v.client_secret || ''} onChange={(e) => O.set({ client_secret: e.target.value })} /></Field>
+            <Field label="Scopes"><Input value={O.v.scopes} onChange={(e) => O.set({ scopes: e.target.value })} /></Field>
+            <Field label="Button label" hint="Shown as Sign in with …"><Input value={O.v.button_label} onChange={(e) => O.set({ button_label: e.target.value })} /></Field>
+            <Field label="Username claim"><Input value={O.v.username_claim} onChange={(e) => O.set({ username_claim: e.target.value })} /></Field>
+            <Field label="Groups claim"><Input value={O.v.groups_claim} onChange={(e) => O.set({ groups_claim: e.target.value })} /></Field>
+          </div>
+          <Field label="Group → role mapping" hint="The most privileged matching mapping wins. Users matching none get the default role, or are refused if none.">
+            <GroupMap maps={O.v.group_role_map || []} onChange={(m) => O.set({ group_role_map: m })} tenants={tenants.data} groupPlaceholder="heartbeat-admins" />
+          </Field>
+          <DefaultRole v={O.v} set={O.set} tenants={tenants.data} none="Refuse sign-in" />
+          <div className="space-y-2">
+            <Toggle checked={!!O.v.allow_provision} onChange={(x) => O.set({ allow_provision: x })} label="Create accounts on first sign-in" />
+            <Toggle checked={!!O.v.require_verified_email} onChange={(x) => O.set({ require_verified_email: x })} label="Require a verified email address" />
+            <Toggle checked={!!O.v.trust_idp_mfa} onChange={(x) => O.set({ trust_idp_mfa: x })} label="Trust the provider's MFA" hint="A sign-in whose amr claim includes mfa, otp or hwk skips the second factor here. Otherwise the normal 2FA policy applies." />
+          </div>
+          <Note>Users created through OIDC cannot sign in with a password.</Note>
+        </div>
+        <SaveBar busy={O.busy} err={O.err} onSave={() => O.save()} extra={
+          <Button onClick={async () => { try { const r = await post<any>('/settings/oidc/test'); toast(r.ok ? r.message : r.error, r.ok ? 'ok' : 'crit') } catch (e) { toast(errorMessage(e), 'crit') } }}>Test discovery (save first)</Button>
+        } />
+      </Card>
+      <Card title="Forward-auth headers" subtitle="Authelia, Authentik proxy outposts, oauth2-proxy and similar.">
+        <div className="space-y-3">
+          <Toggle checked={!!P.v.enabled} onChange={(x) => P.set({ enabled: x })} label="Sign users in from proxy headers" />
+          <Note tone="warn">Only requests whose direct connection comes from a trusted proxy are believed (TLS &amp; access: Trust reverse proxy headers and Trusted proxies). Your proxy must strip these headers from client requests and set them itself, or anyone could sign in as anybody.</Note>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Username header"><Input value={P.v.user_header} onChange={(e) => P.set({ user_header: e.target.value })} /></Field>
+            <Field label="Email header"><Input value={P.v.email_header} onChange={(e) => P.set({ email_header: e.target.value })} /></Field>
+            <Field label="Name header"><Input value={P.v.name_header} onChange={(e) => P.set({ name_header: e.target.value })} /></Field>
+            <Field label="Groups header" hint="Comma-separated"><Input value={P.v.groups_header} onChange={(e) => P.set({ groups_header: e.target.value })} /></Field>
+          </div>
+          <Field label="Group → role mapping">
+            <GroupMap maps={P.v.group_role_map || []} onChange={(m) => P.set({ group_role_map: m })} tenants={tenants.data} groupPlaceholder="admins" />
+          </Field>
+          <DefaultRole v={P.v} set={P.set} tenants={tenants.data} none="Refuse sign-in" />
+          <Toggle checked={!!P.v.allow_provision} onChange={(x) => P.set({ allow_provision: x })} label="Create accounts on first sign-in" />
+        </div>
+        <SaveBar busy={P.busy} err={P.err} onSave={() => P.save()} />
+      </Card>
     </div>
   )
 }

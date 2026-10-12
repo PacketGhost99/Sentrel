@@ -7,11 +7,11 @@ This page describes what Heartbeat protects, how, and where the limits are. To r
 | Asset | Main threats | Controls |
 |---|---|---|
 | Server and its CA keys | remote compromise, stolen backup | one port, hardened systemd unit, restrictive file modes, authenticated API |
-| Monitored hosts | a compromised server pushing malicious jobs; a stolen network position | per-host opt-in for remote actions, signed and expiring jobs, narrow sudo boundary, binary signatures |
+| Monitored hosts | a compromised server pushing malicious jobs; a stolen network position | per-host opt-in for remote actions, signed and expiring jobs, agent-side write policy (read-only or operator-signed), narrow sudo boundary, binary signatures |
 | Agent identity | enrolling a rogue host, replaying a captured session | one-time enrolment tokens, client certificates, signed hello with replay guard, revocation |
 | Operators and API clients | credential stuffing, CSRF, privilege escalation across tenants | lockout, 2FA and passkeys, CSRF tokens, RBAC, tenant isolation, audit log |
 
-Important limits. Whoever controls the server (or holds `pki/ca.key` and `pki/job.key`) can enrol agents and sign jobs; the per-host opt-ins are the protection that remains. Heartbeat does not encrypt its database at rest. A TLS-terminating proxy or plain HTTP mode removes transport confidentiality between agent and server (see below).
+Important limits. Whoever controls the server (or holds `pki/ca.key` and `pki/job.key`) can enrol agents and sign jobs. With the default `server` write policy the per-host opt-ins are the only protection that remains; agents installed as read-only or operator-signed (see below) stay safe even then. Heartbeat does not encrypt its database at rest. A TLS-terminating proxy or plain HTTP mode removes transport confidentiality between agent and server (see below).
 
 ## Enrolment
 
@@ -28,7 +28,7 @@ The CA (ECDSA P-256, 20 years, path length 0) is created at first start in `pki/
 Every connection starts with a `Hello`. The server authenticates it in one of two ways:
 
 1. **mTLS**: when the server terminates TLS it requests a client certificate (verified against the internal CA when presented) and uses it.
-2. **Signed hello**: when TLS is terminated elsewhere (proxy) or not used, the agent sends its certificate and an ECDSA signature over `agent id + timestamp`. The server verifies the signature and certificate chain, accepts a clock skew of at most 5 minutes, and rejects any hello not newer than the last accepted one for that agent (replay guard).
+2. **Signed hello**: when TLS is terminated elsewhere (proxy) or not used, the agent sends its certificate and an ECDSA signature over `agent id + timestamp`. The server verifies the signature and certificate chain, accepts a clock skew of at most 5 minutes, and rejects any hello not newer than the last accepted one for that agent (replay guard), which is persisted in the database (`agent_hello`) so a server restart does not reopen the replay window.
 
 In both cases the certificate serial must match the host record and must not be revoked. The protocol is versioned (`SCHEMA_VERSION`); unsupported versions are refused.
 
@@ -40,6 +40,25 @@ The server holds an Ed25519 key (`pki/job.key`); agents receive the public key a
 - its id has been seen before (the replay set survives restarts).
 
 Agent updates are signed over `OS, architecture, version, SHA-256`. The unprivileged agent checks hash and signature, runs the candidate's `self-test`, and the root helper repeats the verification on a root-owned copy of the file before installing it, so the agent user cannot swap the file between check and install. A failed update rolls back automatically (see [agents.md](agents.md)).
+
+## Write policy: surviving a server compromise
+
+Jobs fall into two classes, defined in one shared package (`internal/jobpolicy`) that both server and agent use:
+
+- **SAFE**: `refresh_inventory`, `collect_now`, `disk_usage`, `unblock_ip`. They only read state or remove a block.
+- **WRITE**: everything else (`upgrade`, `script`, `block_ip`, `disk_cleanup`, `self_update`) and any job type the agent does not know.
+
+Each agent enforces a **write policy** that is set only locally, at install or register time, and stored in the root-owned `agent.yaml` (`write_jobs`, `operator_keys`). Nothing the server sends (agent options, the pushed agent config, jobs) can change it: the pushed configuration message has no such fields, and tests assert this.
+
+| `write_jobs` | WRITE jobs |
+|---|---|
+| `server` (default) | accepted with the server's signature, as before |
+| `operator` | also need an Ed25519 signature over the exact same job bytes from one of the operator public keys in `operator_keys`; the server's own signature is still required |
+| `none` | refused with `rejected: agent is read-only` |
+
+Threat model: an attacker who fully controls the server (database, `pki/job.key`, the API) can issue SAFE jobs to every agent and nothing else on `operator` and `none` hosts. They cannot run scripts, upgrade packages, change firewall rules, clean disks or push an agent binary. The operator private key is never stored on, or sent to, the server; sign on a separate machine or in your browser. A self-update job is a WRITE job: the operator signature covers the download path, SHA-256 and version in the job, and the agent still verifies the binary signature.
+
+The agent reports its policy and the fingerprints of its operator keys to the server in its hello. This is only used to show badges, refuse impossible requests early (a `none` host gets `403`) and to verify signatures before queueing; the agent re-checks everything itself. Hosts that are not on the `server` policy are skipped by automatic agent updates and automatic IP blocking. Jobs waiting for a signature (`awaiting_signature`) expire like queued jobs, after 24 hours by default.
 
 ## Privilege boundary and opt-in remote actions
 
@@ -103,6 +122,21 @@ The audit log records sign-ins and failures, setup, user, tenant, key, host, che
 - **Not stored**: SSH/WinRM credentials used for push install (only target, user name and install log are kept).
 - **Key files**: `pki/ca.key`, `pki/job.key`, `pki/server.key` are mode `0600`; the data directory is `0750`.
 - **Backups contain all of the above.** Encrypt and restrict them (see [operations.md](operations.md)).
+
+## Outbound targets (SSRF)
+
+Server-side checks (HTTP, TCP, TLS certificate, DNS with a custom resolver, ping) and notification channels (webhook, Slack, Teams, Discord, Gotify, ntfy, Telegram, Pushover) connect to addresses supplied by users. All of them dial through one guarded dialer (`server/netguard`) whose `Control` hook checks the address after DNS resolution and before the socket connects, so DNS rebinding and redirects cannot bypass it.
+
+- Objects owned by the provider (tenant 0) may reach any address, because the provider legitimately monitors its own network.
+- Objects owned by a tenant are refused loopback, private (RFC 1918, ULA), link-local (including 169.254.169.254 cloud metadata), CGNAT, unspecified and multicast addresses. The check or notification result says `target address is not allowed`. Environment proxies are not used for these connections.
+- Setting `allow_private_targets_for_tenants` (Settings, Security; provider only; default off) lifts the restriction for tenants who monitor internal systems.
+- SMTP goes to the server the administrator configured and is not restricted.
+
+## Push install host keys
+
+Push install over SSH never trusts a host key on first use. The Add host page first fetches the target's SHA256 host key fingerprint (`POST /push/ssh/fingerprint`, which completes only the key exchange and sends no credentials), shows it, and requires you to confirm it. `POST /push/ssh` returns 400 unless `host_key` (alias `host_key_fingerprint`) is supplied, and the connection is refused if the server presents another key. Compare the fingerprint out of band (for example `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` on the target).
+
+Push install over WinRM with plain HTTP (port 5985) or with certificate verification disabled exposes the administrator password to anyone on the network path. The API rejects such requests unless `allow_insecure` is `true`, and the UI shows a warning and asks for explicit acceptance. Use HTTPS with a trusted certificate where possible.
 
 ## Public surface
 

@@ -251,7 +251,11 @@ func TestVersionComparison(t *testing.T) {
 
 func TestFindingsUpgradeInfo(t *testing.T) {
 	e := newTestEnv(t)
+	stubVulnUpdates(e)
 	admin := e.setupAdmin()
+	if err := e.a.settings.Save(context.Background(), 0, keyVuln, VulnSettings{Enabled: true}); err != nil {
+		t.Fatal(err)
+	}
 	hostID, _ := e.enrol(admin)
 	ctx := context.Background()
 	now := time.Now().Unix()

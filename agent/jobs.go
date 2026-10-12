@@ -23,6 +23,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	pb "heartbeat/gen/heartbeatv1"
+	"heartbeat/internal/jobpolicy"
 )
 
 func slogDiscard() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
@@ -105,6 +106,9 @@ func (a *Agent) verifyJob(sj *pb.SignedJob) (*pb.JobSpec, error) {
 	if spec.AgentId != a.cfg.AgentID {
 		return nil, errors.New("job is for a different agent")
 	}
+	if err := a.checkWritePolicy(&spec, sj); err != nil {
+		return nil, err
+	}
 	now := time.Now().Unix()
 	if spec.ExpiresUnix < now {
 		return nil, errors.New("job has expired")
@@ -117,8 +121,29 @@ func (a *Agent) verifyJob(sj *pb.SignedJob) (*pb.JobSpec, error) {
 	if _, seen := a.seenJobs[spec.Id]; seen {
 		return nil, errors.New("job already processed")
 	}
-	a.seenJobs[spec.Id] = time.Now()
+	a.seenJobs[spec.Id] = time.Unix(spec.ExpiresUnix, 0).Add(seenSlack)
+	a.saveSeenLocked() // persist before running so a restart cannot replay it
 	return &spec, nil
+}
+
+// checkWritePolicy enforces the local write policy. It depends only on the
+// agent's own configuration and the job bytes, never on server-pushed options.
+func (a *Agent) checkWritePolicy(spec *pb.JobSpec, sj *pb.SignedJob) error {
+	if jobpolicy.IsSafe(spec.Type) {
+		return nil
+	}
+	switch a.writePolicy {
+	case jobpolicy.PolicyNone:
+		return errors.New(jobpolicy.ReadOnlyMessage)
+	case jobpolicy.PolicyOperator:
+		if len(sj.OperatorSignature) == 0 {
+			return errors.New("rejected: write jobs on this agent need an operator signature")
+		}
+		if _, ok := jobpolicy.VerifyOperator(a.opKeys, sj.OperatorKeyId, sj.Spec, sj.OperatorSignature); !ok {
+			return errors.New("rejected: invalid operator signature")
+		}
+	}
+	return nil
 }
 
 func (a *Agent) result(id, status string, code int, errMsg string, started time.Time, resultJSON []byte) {
@@ -355,7 +380,11 @@ func (a *Agent) selfUpdate(ctx context.Context, spec *pb.JobSpec, w *jobWriter) 
 	if runtime.GOOS == "windows" {
 		name = "update.exe"
 	}
-	dst := filepath.Join(a.cfg.StateDir, name)
+	stage, err := stagingDir(a.cfg.StateDir)
+	if err != nil {
+		return err
+	}
+	dst := filepath.Join(stage, name)
 	f, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o700)
 	if err != nil {
 		return err
@@ -386,6 +415,9 @@ func (a *Agent) selfUpdate(ctx context.Context, spec *pb.JobSpec, w *jobWriter) 
 		return err
 	}
 	_ = os.Remove(dst)
+	if stage != a.cfg.StateDir {
+		_ = os.RemoveAll(stage)
+	}
 	return nil
 }
 

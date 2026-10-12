@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -22,6 +23,7 @@ const usage = `Heartbeat agent %s
 
 Usage:
   heartbeat-agent register SERVER_URL TOKEN [--ca-fingerprint FP] [--name NAME]
+                           [--write-jobs server|operator|none] [--operator-key B64]... [--read-only]
   heartbeat-agent run [--config FILE]
   heartbeat-agent self-test [--config FILE]
   heartbeat-agent status [--config FILE]
@@ -87,6 +89,19 @@ func logger(level string) *slog.Logger {
 	return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: lvl}))
 }
 
+// stringList is a repeatable string flag.
+type stringList []string
+
+func (s *stringList) String() string { return strings.Join(*s, ",") }
+func (s *stringList) Set(v string) error {
+	for _, p := range strings.Split(v, ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			*s = append(*s, p)
+		}
+	}
+	return nil
+}
+
 func register(args []string) error {
 	fs := flag.NewFlagSet("register", flag.ExitOnError)
 	server := fs.String("server", "", "server URL")
@@ -95,6 +110,10 @@ func register(args []string) error {
 	stateDir := fs.String("state-dir", agent.DefaultStateDir(), "state directory (keys, certificates)")
 	pin := fs.String("ca-fingerprint", "", "pin the server CA (self-signed TLS mode)")
 	name := fs.String("name", "", "display name for this host")
+	writeJobs := fs.String("write-jobs", "server", "who may authorise jobs that change this host: server, operator or none")
+	readOnly := fs.Bool("read-only", false, "shorthand for --write-jobs none")
+	var opKeys stringList
+	fs.Var(&opKeys, "operator-key", "base64 Ed25519 operator public key (repeatable; with --write-jobs operator)")
 	// Allow positional SERVER TOKEN before flags.
 	var pos []string
 	for len(args) > 0 && !strings.HasPrefix(args[0], "-") {
@@ -112,10 +131,17 @@ func register(args []string) error {
 	if *server == "" || *token == "" {
 		return fmt.Errorf("server URL and token are required")
 	}
+	if *readOnly {
+		if *writeJobs != "server" && *writeJobs != "none" {
+			return fmt.Errorf("--read-only conflicts with --write-jobs %s", *writeJobs)
+		}
+		*writeJobs = "none"
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	cfg, err := agent.Register(ctx, agent.RegisterOptions{ServerURL: strings.TrimRight(*server, "/"), Token: *token, ConfigPath: *cfgPath,
-		StateDir: *stateDir, CAFingerprint: *pin, Name: *name})
+		StateDir: *stateDir, CAFingerprint: *pin, Name: *name,
+		WriteJobs: *writeJobs, OperatorKeys: opKeys})
 	if err != nil {
 		return err
 	}
@@ -257,6 +283,14 @@ func serviceCmd(args []string) error {
 	s, err := service.New(&program{cfgPath: *cfgPath}, svcConfig(*cfgPath))
 	if err != nil {
 		return err
+	}
+	// Installing over an existing registration (MSI repair or reinstall,
+	// re-running an installer) replaces it rather than failing.
+	if action == "install" {
+		if _, err := s.Status(); !errors.Is(err, service.ErrNotInstalled) {
+			_ = s.Stop()
+			_ = s.Uninstall()
+		}
 	}
 	return service.Control(s, action)
 }

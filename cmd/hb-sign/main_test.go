@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -59,5 +60,52 @@ func TestBadArgs(t *testing.T) {
 		if run(a) == nil {
 			t.Errorf("%v: expected error", a)
 		}
+	}
+}
+
+func TestOperatorKeygenAndSignJob(t *testing.T) {
+	dir := t.TempDir()
+	keyFile := filepath.Join(dir, "op.key")
+	if err := run([]string{"keygen-operator", "-out", keyFile}); err != nil {
+		t.Fatal(err)
+	}
+	if err := run([]string{"keygen-operator", "-out", keyFile}); err == nil {
+		t.Fatal("overwrote an existing key")
+	}
+	pubText, err := os.ReadFile(keyFile + ".pub")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pubRaw, err := base64.StdEncoding.DecodeString(strings.TrimSpace(string(pubText)))
+	if err != nil || len(pubRaw) != ed25519.PublicKeySize {
+		t.Fatalf("public key: %v", err)
+	}
+	spec := []byte("exact job spec bytes")
+	specB64 := base64.StdEncoding.EncodeToString(spec)
+	check := func(specArg string) {
+		sig, err := signJob(keyFile, specArg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw, _ := base64.StdEncoding.DecodeString(sig)
+		if !ed25519.Verify(ed25519.PublicKey(pubRaw), spec, raw) {
+			t.Fatal("signature does not verify against the public key")
+		}
+		if ed25519.Verify(ed25519.PublicKey(pubRaw), []byte("other"), raw) {
+			t.Fatal("signature verifies for other bytes")
+		}
+	}
+	check(specB64)
+	specFile := filepath.Join(dir, "spec.b64")
+	os.WriteFile(specFile, []byte(specB64+"\n"), 0o644)
+	check(specFile)
+	if err := run([]string{"sign-job", "--key", keyFile, "--spec", specB64}); err != nil {
+		t.Fatal(err)
+	}
+	if err := run([]string{"sign-job", "--key", keyFile}); err == nil {
+		t.Fatal("missing spec accepted")
+	}
+	if _, err := signJob(keyFile, "!!notbase64"); err == nil {
+		t.Fatal("bad spec accepted")
 	}
 }

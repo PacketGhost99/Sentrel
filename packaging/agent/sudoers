@@ -1,0 +1,3 @@
+# @PRODUCT_TITLE@ agent: the agent runs unprivileged and may only invoke its own
+# root-owned helper, which validates arguments and job signatures itself.
+@AGENT_USER@ ALL=(root) NOPASSWD: @AGENT_PATH@ priv *

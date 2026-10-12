@@ -17,6 +17,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	pb "heartbeat/gen/heartbeatv1"
+	"heartbeat/internal/jobpolicy"
 	"heartbeat/internal/sigs"
 	"heartbeat/server/db"
 )
@@ -70,6 +71,27 @@ func (m *JobManager) Create(ctx context.Context, p *Principal, req JobRequest) (
 	}
 	if h.Kind != "agent" || h.Revoked {
 		return nil, badRequest("jobs can only run on hosts with an active agent")
+	}
+	// What this host's agent accepts for jobs that change the host is decided
+	// by the agent's own config (reported in its hello), not by the server.
+	policy := h.WritePolicy
+	if policy == "" {
+		policy = jobpolicy.PolicyServer
+	}
+	needOperator := false
+	if jobpolicy.IsWrite(req.Type) {
+		switch policy {
+		case jobpolicy.PolicyNone:
+			return nil, forbidden("this host's agent is read-only: it was installed with write jobs disabled and refuses jobs that change the host")
+		case jobpolicy.PolicyOperator:
+			if strings.HasPrefix(p.Name, "system:") {
+				return nil, forbidden("automatic jobs are not created for hosts that require operator-signed jobs")
+			}
+			if len(h.OperatorKeys) == 0 {
+				return nil, forbidden("this host requires operator-signed jobs but its agent reported no operator keys")
+			}
+			needOperator = true
+		}
 	}
 	if req.Params == nil {
 		req.Params = map[string]string{}
@@ -174,15 +196,29 @@ func (m *JobManager) Create(ctx context.Context, p *Principal, req JobRequest) (
 	default:
 		return nil, badRequest("schedule must be now, at or maintenance")
 	}
+	var specBytes []byte
+	if needOperator {
+		// The operator signs exactly these bytes, so they are fixed now.
+		if req.Type == "self_update" {
+			if err := m.prepareSelfUpdate(h, req.Params); err != nil {
+				return nil, badRequest("%v", err)
+			}
+		}
+		specBytes, err = marshalSpec(j, *h.AgentID, req.Params)
+		if err != nil {
+			return nil, err
+		}
+		j.Status = "awaiting_signature"
+	}
 	pj, _ := json.Marshal(req.Params)
 	j.Params = JSON(pj)
 	_, err = a.db.ExecContext(ctx, `INSERT INTO jobs (id, tenant_id, host_id, type, params, dry_run, status, schedule, run_after, expires_at, timeout_seconds,
-		requested_by, confirmed_by, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-		j.ID, j.TenantID, j.HostID, j.Type, string(pj), j.DryRun, j.Status, j.Schedule, j.RunAfter, j.ExpiresAt, j.TimeoutSeconds, j.RequestedBy, j.ConfirmedBy, j.CreatedAt)
+		requested_by, confirmed_by, created_at, spec) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		j.ID, j.TenantID, j.HostID, j.Type, string(pj), j.DryRun, j.Status, j.Schedule, j.RunAfter, j.ExpiresAt, j.TimeoutSeconds, j.RequestedBy, j.ConfirmedBy, j.CreatedAt, specBytes)
 	if err != nil {
 		return nil, err
 	}
-	details := map[string]any{"type": j.Type, "dry_run": j.DryRun, "schedule": j.Schedule, "host": h.Name}
+	details := map[string]any{"type": j.Type, "dry_run": j.DryRun, "schedule": j.Schedule, "host": h.Name, "status": j.Status}
 	for k, v := range req.Params {
 		if k == "script" {
 			v = truncateStr(v, 500)
@@ -195,6 +231,92 @@ func (m *JobManager) Create(ctx context.Context, p *Principal, req JobRequest) (
 	return j, nil
 }
 
+// marshalSpec builds the deterministic job spec an agent verifies. Jobs that
+// need an operator signature use it at creation so the bytes never change.
+func marshalSpec(j *Job, agentID string, params map[string]string) ([]byte, error) {
+	spec := &pb.JobSpec{Id: j.ID, AgentId: agentID, Type: j.Type, Params: params, IssuedUnix: time.Now().Unix(),
+		ExpiresUnix: j.ExpiresAt, DryRun: j.DryRun, TimeoutSeconds: uint32(j.TimeoutSeconds)}
+	return proto.MarshalOptions{Deterministic: true}.Marshal(spec)
+}
+
+// JobSpecInfo is what an operator needs to sign a job offline.
+type JobSpecInfo struct {
+	JobID          string   `json:"job_id"`
+	Status         string   `json:"status"`
+	Spec           string   `json:"spec"` // base64 of the exact bytes to sign
+	OperatorKeyIDs []string `json:"operator_key_ids"`
+	ExpiresAt      int64    `json:"expires_at"`
+}
+
+// OperatorSignRequest carries an operator's signature over the job spec.
+type OperatorSignRequest struct {
+	Signature string `json:"signature"` // base64 Ed25519 signature
+	KeyID     string `json:"key_id"`
+}
+
+// JobSpecFor returns the spec bytes of an operator-signed job.
+func (m *JobManager) JobSpecFor(ctx context.Context, p *Principal, id string) (*JobSpecInfo, error) {
+	j, err := m.app.getJob(ctx, id)
+	if err != nil || !p.CanTenant(j.TenantID) {
+		return nil, errNotFound
+	}
+	if j.Type == "script" && !p.Has(PermScripts) {
+		return nil, forbidden("only administrators can view script jobs")
+	}
+	var spec []byte
+	if err := m.app.db.GetContext(ctx, &spec, `SELECT COALESCE(spec, x'') FROM jobs WHERE id=?`, id); err != nil || len(spec) == 0 {
+		return nil, badRequest("this job does not use operator signing")
+	}
+	info := &JobSpecInfo{JobID: j.ID, Status: j.Status, Spec: base64.StdEncoding.EncodeToString(spec), ExpiresAt: j.ExpiresAt, OperatorKeyIDs: []string{}}
+	if h, err := m.app.getHost(ctx, j.HostID); err == nil && h.OperatorKeyIDs != nil {
+		info.OperatorKeyIDs = h.OperatorKeyIDs
+	}
+	return info, nil
+}
+
+// OperatorSign verifies an operator signature against the keys the host's
+// agent reported and releases the job to the queue.
+func (m *JobManager) OperatorSign(ctx context.Context, p *Principal, id string, req OperatorSignRequest) (*Job, error) {
+	a := m.app
+	j, err := a.getJob(ctx, id)
+	if err != nil || !p.CanTenant(j.TenantID) {
+		return nil, errNotFound
+	}
+	if j.Status != "awaiting_signature" {
+		return nil, conflict("job is not waiting for an operator signature (status " + j.Status + ")")
+	}
+	sig, err := base64.StdEncoding.DecodeString(strings.TrimSpace(req.Signature))
+	if err != nil || len(sig) == 0 {
+		return nil, badRequest("signature must be base64")
+	}
+	h, err := a.getHost(ctx, j.HostID)
+	if err != nil {
+		return nil, errNotFound
+	}
+	keys, _ := jobpolicy.ParseKeys(h.OperatorKeys)
+	var spec []byte
+	if err := a.db.GetContext(ctx, &spec, `SELECT COALESCE(spec, x'') FROM jobs WHERE id=?`, id); err != nil || len(spec) == 0 {
+		return nil, badRequest("this job does not use operator signing")
+	}
+	keyID, ok := jobpolicy.VerifyOperator(keys, strings.TrimSpace(req.KeyID), spec, sig)
+	if !ok {
+		return nil, badRequest("the signature does not verify against any operator key this host's agent trusts")
+	}
+	res, err := a.db.ExecContext(ctx, `UPDATE jobs SET operator_signature=?, operator_key_id=?,
+		status = CASE WHEN schedule='now' THEN 'queued' ELSE 'scheduled' END WHERE id=? AND status='awaiting_signature'`, sig, keyID, id)
+	if err != nil {
+		return nil, err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return nil, conflict("job is no longer waiting for a signature")
+	}
+	a.audit(ctx, auditEntry{TenantID: j.TenantID, UserID: p.UserID, Actor: p.Name, Action: "job.operator_signed", TargetType: "job", TargetID: id,
+		Details: map[string]any{"type": j.Type, "key_id": keyID}, IP: p.IP})
+	a.events.publish(Event{Type: "job.updated", TenantID: j.TenantID, HostID: j.HostID, ID: j.ID})
+	m.kick()
+	return a.getJob(ctx, id)
+}
+
 func truncateStr(s string, n int) string {
 	if len(s) <= n {
 		return s
@@ -204,7 +326,7 @@ func truncateStr(s string, n int) string {
 
 // Cancel cancels a job that has not been sent yet.
 func (m *JobManager) Cancel(ctx context.Context, p *Principal, id string) error {
-	res, err := m.app.db.ExecContext(ctx, `UPDATE jobs SET status='cancelled', finished_at=? WHERE id=? AND status IN ('queued','scheduled')`, db.Now(), id)
+	res, err := m.app.db.ExecContext(ctx, `UPDATE jobs SET status='cancelled', finished_at=? WHERE id=? AND status IN ('queued','scheduled','awaiting_signature')`, db.Now(), id)
 	if err != nil {
 		return err
 	}
@@ -212,7 +334,12 @@ func (m *JobManager) Cancel(ctx context.Context, p *Principal, id string) error 
 		return badRequest("job is not cancellable (already sent or finished)")
 	}
 	m.app.audit(ctx, auditEntry{TenantID: p.TenantID, UserID: p.UserID, Actor: p.Name, Action: "job.cancelled", TargetType: "job", TargetID: id, IP: p.IP})
-	m.app.events.publish(Event{Type: "job.updated", ID: id})
+	var owner struct {
+		TenantID int64 `db:"tenant_id"`
+		HostID   int64 `db:"host_id"`
+	}
+	_ = m.app.db.GetContext(ctx, &owner, `SELECT tenant_id, host_id FROM jobs WHERE id=?`, id)
+	m.app.events.publish(Event{Type: "job.updated", ID: id, TenantID: owner.TenantID, HostID: owner.HostID})
 	return nil
 }
 
@@ -234,7 +361,7 @@ func (m *JobManager) tick(ctx context.Context) {
 	a := m.app
 	now := db.Now()
 	// Expire.
-	if res, err := a.db.ExecContext(ctx, `UPDATE jobs SET status='expired', finished_at=?, error='not delivered before expiry' WHERE status IN ('queued','scheduled') AND expires_at < ?`, now, now); err == nil {
+	if res, err := a.db.ExecContext(ctx, `UPDATE jobs SET status='expired', finished_at=?, error='not delivered before expiry' WHERE status IN ('queued','scheduled','awaiting_signature') AND expires_at < ?`, now, now); err == nil {
 		if n, _ := res.RowsAffected(); n > 0 {
 			_, _ = a.db.ExecContext(ctx, `UPDATE ip_blocks SET status='failed' WHERE status='pending' AND job_id IN (SELECT id FROM jobs WHERE status='expired')`)
 		}
@@ -280,21 +407,39 @@ func (m *JobManager) dispatch(ctx context.Context, j *Job) error {
 	if err != nil || h.AgentID == nil {
 		return errors.New("host gone")
 	}
-	params := map[string]string{}
-	_ = json.Unmarshal(j.Params, &params)
-	if j.Type == "self_update" {
-		if err := m.prepareSelfUpdate(h, params); err != nil {
-			_, _ = a.db.ExecContext(ctx, `UPDATE jobs SET status='failed', error=?, finished_at=? WHERE id=?`, err.Error(), db.Now(), j.ID)
+	var stored struct {
+		Spec   []byte `db:"spec"`
+		OpSig  []byte `db:"operator_signature"`
+		OpKeyI string `db:"operator_key_id"`
+	}
+	_ = a.db.GetContext(ctx, &stored, `SELECT COALESCE(spec, x'') AS spec, COALESCE(operator_signature, x'') AS operator_signature, operator_key_id FROM jobs WHERE id=?`, j.ID)
+	signed := &pb.SignedJob{}
+	if len(stored.Spec) > 0 {
+		// Operator-signed job: the spec was fixed at creation and the operator
+		// signed exactly these bytes. The server adds its own signature.
+		if len(stored.OpSig) == 0 {
+			return errors.New("job has no operator signature")
+		}
+		signed.Spec, signed.OperatorSignature, signed.OperatorKeyId = stored.Spec, stored.OpSig, stored.OpKeyI
+	} else {
+		params := map[string]string{}
+		_ = json.Unmarshal(j.Params, &params)
+		if j.Type == "self_update" {
+			if err := m.prepareSelfUpdate(h, params); err != nil {
+				_, _ = a.db.ExecContext(ctx, `UPDATE jobs SET status='failed', error=?, finished_at=? WHERE id=?`, err.Error(), db.Now(), j.ID)
+				return err
+			}
+		}
+		spec := &pb.JobSpec{Id: j.ID, AgentId: *h.AgentID, Type: j.Type, Params: params, IssuedUnix: time.Now().Unix(),
+			ExpiresUnix: time.Now().Add(15 * time.Minute).Unix(), DryRun: j.DryRun, TimeoutSeconds: uint32(j.TimeoutSeconds)}
+		b, err := proto.MarshalOptions{Deterministic: true}.Marshal(spec)
+		if err != nil {
 			return err
 		}
+		signed.Spec = b
 	}
-	spec := &pb.JobSpec{Id: j.ID, AgentId: *h.AgentID, Type: j.Type, Params: params, IssuedUnix: time.Now().Unix(),
-		ExpiresUnix: time.Now().Add(15 * time.Minute).Unix(), DryRun: j.DryRun, TimeoutSeconds: uint32(j.TimeoutSeconds)}
-	b, err := proto.MarshalOptions{Deterministic: true}.Marshal(spec)
-	if err != nil {
-		return err
-	}
-	msg := &pb.ServerMessage{Msg: &pb.ServerMessage_Job{Job: &pb.SignedJob{Spec: b, Signature: a.ca.SignJob(b)}}}
+	signed.Signature = a.ca.SignJob(signed.Spec)
+	msg := &pb.ServerMessage{Msg: &pb.ServerMessage_Job{Job: signed}}
 	res, err := a.db.ExecContext(ctx, `UPDATE jobs SET status='sent', sent_at=? WHERE id=? AND status='queued'`, db.Now(), j.ID)
 	if err != nil {
 		return err
@@ -395,6 +540,11 @@ func (m *JobManager) autoUpdateAll(ctx context.Context) {
 func (m *JobManager) maybeAutoUpdate(ctx context.Context, h *Host) {
 	a := m.app
 	if !a.settings.Agent().AutoUpdate || h.Kind != "agent" || h.Revoked {
+		return
+	}
+	// Hosts that restrict write jobs (read-only or operator-signed) are never
+	// updated automatically; update them with an explicit job.
+	if h.WritePolicy != "" && h.WritePolicy != jobpolicy.PolicyServer {
 		return
 	}
 	switch h.AgentVersion {

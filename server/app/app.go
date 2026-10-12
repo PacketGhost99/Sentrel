@@ -5,6 +5,7 @@ package app
 import (
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -17,6 +18,7 @@ import (
 	"github.com/jmoiron/sqlx"
 
 	pb "heartbeat/gen/heartbeatv1"
+	"heartbeat/internal/jobpolicy"
 	"heartbeat/server/db"
 	"heartbeat/server/metrics"
 	"heartbeat/server/pki"
@@ -322,8 +324,15 @@ func (a *App) onAgentConnected(ctx context.Context, h *Host, hello *pb.Hello, ip
 	if addr == "" || addr == "0.0.0.0" {
 		addr = ip
 	}
-	_, err := a.db.ExecContext(ctx, `UPDATE hosts SET connected=1, status='up', last_seen_at=?, agent_version=?, host_info=?, address=?, updated_at=? WHERE id=?`,
-		now, hello.AgentVersion, string(info), addr, now, h.ID)
+	policy, keys, keyIDs := reportedWritePolicy(hello)
+	if policy != h.WritePolicy || strings.Join(keyIDs, ",") != strings.Join(h.OperatorKeyIDs, ",") {
+		a.audit(ctx, auditEntry{TenantID: h.TenantID, Actor: "agent:" + h.Name, Action: "host.write_policy", TargetType: "host", TargetID: itoa(h.ID),
+			Details: map[string]any{"from": h.WritePolicy, "to": policy, "operator_key_ids": keyIDs}})
+	}
+	kb, _ := json.Marshal(keys)
+	ib, _ := json.Marshal(keyIDs)
+	_, err := a.db.ExecContext(ctx, `UPDATE hosts SET connected=1, status='up', last_seen_at=?, agent_version=?, host_info=?, address=?, write_policy=?, operator_keys=?, operator_key_ids=?, updated_at=? WHERE id=?`,
+		now, hello.AgentVersion, string(info), addr, policy, string(kb), string(ib), now, h.ID)
 	if err != nil {
 		a.log.Error("agent connected update", "err", err)
 	}
@@ -339,6 +348,27 @@ func (a *App) onAgentConnected(ctx context.Context, h *Host, hello *pb.Hello, ip
 	a.log.Info("agent connected", "host_id", h.ID, "name", h.Name, "ip", ip, "version", hello.AgentVersion)
 	a.events.publish(Event{Type: "host.connected", TenantID: h.TenantID, HostID: h.ID})
 	a.alerts.hostSeen(h.ID)
+}
+
+// reportedWritePolicy extracts the agent's write policy and operator keys from
+// its hello. Unknown or missing values mean the default (server) policy, which
+// is what agents that predate the feature enforce.
+func reportedWritePolicy(hello *pb.Hello) (policy string, keys, ids []string) {
+	policy, err := jobpolicy.NormalizePolicy(hello.WritePolicy)
+	if err != nil {
+		policy = jobpolicy.PolicyOperator // unknown value: assume the strictest that needs signatures
+	}
+	keys, ids = []string{}, []string{}
+	for _, k := range hello.OperatorKeys {
+		if len(keys) >= 16 {
+			break
+		}
+		if pub, err := jobpolicy.ParseKey(k); err == nil {
+			keys = append(keys, base64.StdEncoding.EncodeToString(pub))
+			ids = append(ids, jobpolicy.KeyID(pub))
+		}
+	}
+	return policy, keys, ids
 }
 
 func (a *App) onAgentDisconnected(hostID int64) {

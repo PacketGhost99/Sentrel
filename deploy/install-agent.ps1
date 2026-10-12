@@ -11,6 +11,9 @@
 .PARAMETER CaFingerprint Pin the server CA (self-signed TLS mode).
 .PARAMETER BinaryPath    Use a local heartbeat-agent.exe instead of downloading.
 .PARAMETER Name          Display name for the host.
+.PARAMETER WriteJobs     Who may authorise jobs that change this host: server (default), operator or none.
+.PARAMETER ReadOnly      Shorthand for -WriteJobs none.
+.PARAMETER OperatorKey   Operator public key(s) (from "hb-sign keygen-operator") for -WriteJobs operator.
 .PARAMETER InsecureDownload Skip TLS validation for the binary download only.
 .PARAMETER Uninstall     Remove the agent.
 #>
@@ -20,6 +23,9 @@ param(
   [string]$CaFingerprint = "",
   [string]$BinaryPath = "",
   [string]$Name = "",
+  [ValidateSet("", "server", "operator", "none")][string]$WriteJobs = "",
+  [switch]$ReadOnly,
+  [string[]]$OperatorKey = @(),
   [switch]$InsecureDownload,
   [switch]$Uninstall
 )
@@ -54,8 +60,8 @@ $Server = $Server.TrimEnd('/')
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 New-Item -ItemType Directory -Force -Path $InstallDir, $DataDir | Out-Null
-# Only SYSTEM and Administrators may read the agent's key material.
-icacls $DataDir /inheritance:r /grant:r "SYSTEM:(OI)(CI)F" "Administrators:(OI)(CI)F" | Out-Null
+# Only SYSTEM and Administrators may read or write the agent state (keys, update staging).
+icacls $DataDir /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" | Out-Null
 
 if (Test-Path $Exe) {
   & $Exe service stop --config $Config 2>$null | Out-Null
@@ -90,6 +96,9 @@ Say "registering with $Server"
 $regArgs = @("register", "--server", $Server, "--token", $Token, "--config", $Config, "--state-dir", $DataDir)
 if ($CaFingerprint) { $regArgs += @("--ca-fingerprint", $CaFingerprint) }
 if ($Name) { $regArgs += @("--name", $Name) }
+if ($ReadOnly) { $WriteJobs = "none" }
+if ($WriteJobs) { $regArgs += @("--write-jobs", $WriteJobs) }
+foreach ($k in $OperatorKey) { $regArgs += @("--operator-key", $k) }
 & $Exe @regArgs
 if ($LASTEXITCODE -ne 0) { throw "registration failed" }
 

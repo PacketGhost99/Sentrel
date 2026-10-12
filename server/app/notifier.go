@@ -310,7 +310,7 @@ func (n *Notifier) deliver(ctx context.Context, ch NotificationChannel, q []queu
 	var err error
 	for attempt := 0; attempt < 3; attempt++ {
 		sctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-		err = notify.Send(sctx, ch.Type, json.RawMessage(ch.Config), n.smtpConfig(), msg)
+		err = notify.Send(sctx, n.app.guardFor(ch.TenantID), ch.Type, json.RawMessage(ch.Config), n.smtpConfig(), msg)
 		cancel()
 		if err == nil {
 			break
@@ -411,5 +411,5 @@ func (n *Notifier) SendTest(ctx context.Context, ch NotificationChannel) error {
 		Items: []notify.Item{{Event: "test", Status: "firing", Severity: "warning", Title: "Test notification",
 			Message: "If you can read this, the " + ch.Type + " channel \"" + ch.Name + "\" works.", Host: "example-host", StartedAt: db.Now()}},
 	}
-	return notify.Send(ctx, ch.Type, json.RawMessage(ch.Config), n.smtpConfig(), msg)
+	return notify.Send(ctx, n.app.guardFor(ch.TenantID), ch.Type, json.RawMessage(ch.Config), n.smtpConfig(), msg)
 }

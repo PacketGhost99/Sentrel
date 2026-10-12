@@ -190,7 +190,24 @@ func winInstallUpdate(path, sha, version, sig string) error {
 	if err != nil {
 		return err
 	}
-	if err := verifyUpdateFile(path, sha, version, sig, pub, runtime.GOOS, runtime.GOARCH); err != nil {
+	// The update must sit in the protected staging directory (only SYSTEM and
+	// Administrators can write there). Copy it to a file of our own, verify
+	// that copy, and install from it, so nothing can change between the
+	// check and the swap.
+	state := DefaultStateDir()
+	abs, err := filepath.Abs(path)
+	if err != nil || !isStagingDir(state, filepath.Dir(abs)) {
+		return fmt.Errorf("update file must be inside %s", filepath.Join(state, "update-stage"))
+	}
+	if fi, err := os.Lstat(abs); err != nil || !fi.Mode().IsRegular() {
+		return errors.New("update file must be a regular file")
+	}
+	verified := filepath.Join(filepath.Dir(abs), "verified.exe")
+	if err := copyFile(abs, verified, 0o700); err != nil {
+		return err
+	}
+	defer os.Remove(verified)
+	if err := verifyUpdateFile(verified, sha, version, sig, pub, runtime.GOOS, runtime.GOARCH); err != nil {
 		return err
 	}
 	exe := installedPath()
@@ -199,12 +216,18 @@ func winInstallUpdate(path, sha, version, sig string) error {
 	if err := os.Rename(exe, old); err != nil {
 		return fmt.Errorf("rename current binary: %w", err)
 	}
-	if err := copyFile(path, exe, 0o755); err != nil {
+	if err := copyFile(verified, exe, 0o755); err != nil {
+		_ = os.Rename(old, exe)
+		return err
+	}
+	// Drop any explicit ACL: the binary inherits Program Files' ACL.
+	if err := resetInheritedDACL(exe); err != nil {
+		_ = os.Remove(exe)
 		_ = os.Rename(old, exe)
 		return err
 	}
 	m := &updateMarker{From: AgentVersion(), To: version, At: time.Now().Unix()}
-	return writeMarker(DefaultStateDir(), m)
+	return writeMarker(state, m)
 }
 
 func winRollback() error {

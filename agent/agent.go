@@ -24,6 +24,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	pb "heartbeat/gen/heartbeatv1"
+	"heartbeat/internal/jobpolicy"
 	"heartbeat/internal/sigs"
 )
 
@@ -35,6 +36,10 @@ type Agent struct {
 	key    *ecdsa.PrivateKey
 	caPEM  []byte
 	jobKey ed25519.PublicKey
+
+	// Write policy, fixed from the local config at start-up.
+	writePolicy string
+	opKeys      []ed25519.PublicKey
 
 	collector *Collector
 	failures  *failureCounter
@@ -75,8 +80,23 @@ func New(cfg *Config, log *slog.Logger) (*Agent, error) {
 	if err != nil {
 		return nil, fmt.Errorf("job key %s: %w", cfg.JobKeyFile(), err)
 	}
+	// Self-heal the folder ACLs of existing Windows installs.
+	if err := hardenStateDirs(cfg.StateDir, cfg.Path()); err != nil {
+		log.Warn("could not protect the state directory", "err", err)
+	}
+	policy, err := jobpolicy.NormalizePolicy(cfg.WriteJobs)
+	if err != nil {
+		return nil, err
+	}
+	opKeys, err := jobpolicy.ParseKeys(cfg.OperatorKeys)
+	if err != nil {
+		return nil, err
+	}
+	if policy == jobpolicy.PolicyOperator && len(opKeys) == 0 {
+		log.Warn("write_jobs is operator but no operator_keys are configured: all write jobs will be refused")
+	}
 	run, stream := newPrivRunner()
-	a := &Agent{cfg: cfg, log: log, cert: cert, key: k, caPEM: ca, jobKey: jk, collector: NewCollector(cfg.StateDir),
+	a := &Agent{cfg: cfg, log: log, cert: cert, key: k, caPEM: ca, jobKey: jk, writePolicy: policy, opKeys: opKeys, collector: NewCollector(cfg.StateDir),
 		failures: newFailureCounter(), priv: run, privOut: stream, conf: defaultConfig(),
 		collectNow: make(chan struct{}, 1), invNow: make(chan struct{}, 1), blocksNow: make(chan struct{}, 1),
 		seenJobs: map[string]time.Time{}, jobSem: make(chan struct{}, 2)}
@@ -183,6 +203,7 @@ func (a *Agent) hello(selfTest bool, updatedFrom string) (*pb.AgentMessage, erro
 	return &pb.AgentMessage{Msg: &pb.AgentMessage_Hello{Hello: &pb.Hello{
 		AgentId: a.cfg.AgentID, SchemaVersion: uint32(pb.SchemaVersion_SCHEMA_VERSION_CURRENT), AgentVersion: AgentVersion(),
 		Host: CollectHostInfo(context.Background()), CertPem: certPEM, UnixMs: ms, Signature: sig, UpdatedFrom: updatedFrom, SelfTest: selfTest,
+		WritePolicy: a.writePolicy, OperatorKeys: append([]string(nil), a.cfg.OperatorKeys...),
 	}}}, nil
 }
 
@@ -501,34 +522,57 @@ func (a *Agent) housekeeping(ctx context.Context) {
 
 // --- job de-duplication ---
 
+// seenSlack keeps an ID past its job's expiry to absorb clock skew.
+const seenSlack = 10 * time.Minute
+
+type seenFileDoc struct {
+	Version int              `json:"version"`
+	Jobs    map[string]int64 `json:"jobs"` // job ID -> remember-until (unix seconds)
+}
+
 func (a *Agent) seenFile() string { return filepath.Join(a.cfg.StateDir, "jobs-seen.json") }
 
+// loadSeenJobs restores accepted job IDs so a restart cannot replay a job.
 func (a *Agent) loadSeenJobs() {
 	b, err := os.ReadFile(a.seenFile())
 	if err != nil {
 		return
 	}
-	var m map[string]int64
-	if json.Unmarshal(b, &m) == nil {
-		for k, v := range m {
-			a.seenJobs[k] = time.Unix(v, 0)
+	var doc seenFileDoc
+	if json.Unmarshal(b, &doc) != nil {
+		return
+	}
+	a.jobsMu.Lock()
+	defer a.jobsMu.Unlock()
+	now := time.Now()
+	for k, v := range doc.Jobs {
+		if exp := time.Unix(v, 0); exp.After(now) {
+			a.seenJobs[k] = exp
 		}
 	}
 }
 
+// saveSeenJobs prunes expired IDs and writes the rest atomically.
 func (a *Agent) saveSeenJobs() {
 	a.jobsMu.Lock()
-	m := map[string]int64{}
-	for k, v := range a.seenJobs {
-		if time.Since(v) < 48*time.Hour {
-			m[k] = v.Unix()
+	defer a.jobsMu.Unlock()
+	a.saveSeenLocked()
+}
+
+func (a *Agent) saveSeenLocked() {
+	doc := seenFileDoc{Version: 1, Jobs: map[string]int64{}}
+	now := time.Now()
+	for k, exp := range a.seenJobs {
+		if exp.After(now) {
+			doc.Jobs[k] = exp.Unix()
 		} else {
 			delete(a.seenJobs, k)
 		}
 	}
-	a.jobsMu.Unlock()
-	b, _ := json.Marshal(m)
-	_ = os.WriteFile(a.seenFile(), b, 0o600)
+	b, _ := json.Marshal(doc)
+	if err := safeWriteFile(a.seenFile(), b, 0o600, -1, -1); err != nil {
+		a.log.Warn("could not persist seen jobs", "err", err)
+	}
 }
 
 // --- self-update watchdog ---

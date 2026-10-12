@@ -141,7 +141,7 @@ export function statusTone(s?: string): 'ok' | 'warn' | 'crit' | 'muted' | 'info
   switch (s) {
     case 'up': case 'succeeded': case 'completed': case 'active': case 'operational': case 'running': case 'sent':
       return 'ok'
-    case 'warning': case 'pending': case 'queued': case 'scheduled': case 'degraded': case 'skipped':
+    case 'warning': case 'pending': case 'awaiting_signature': case 'queued': case 'scheduled': case 'degraded': case 'skipped':
       return 'warn'
     case 'down': case 'failed': case 'critical': case 'rejected': case 'expired': case 'firing':
       return 'crit'

@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { errorMessage, post } from '@/lib/api'
 import type { HostDetail, Job } from '@/lib/types'
-import { Button, ErrorBox, Field, Input, Modal, Note, Select, Textarea } from '@/components/ui'
+import { WritePolicyNote } from '@/components/OperatorSign'
+import { Button, ErrorBox, Field, Input, Modal, Note, Select, Textarea, useToast } from '@/components/ui'
 
 export function RunScript({ host, onClose }: { host: HostDetail; onClose: () => void }) {
   const win = host.host_info?.os === 'windows'
@@ -13,16 +14,19 @@ export function RunScript({ host, onClose }: { host: HostDetail; onClose: () => 
   const [err, setErr] = useState<unknown>(null)
   const [busy, setBusy] = useState(false)
   const nav = useNavigate()
+  const toast = useToast()
   return (
     <Modal open onClose={onClose} title={`Run a script on ${host.name}`} size="lg"
-      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="danger" loading={busy} disabled={typed !== host.name || !script.trim()} onClick={async () => {
+      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="danger" loading={busy} disabled={typed !== host.name || !script.trim() || host.write_policy === 'none'} onClick={async () => {
         setBusy(true); setErr(null)
         try {
           const j = await post<Job>('/jobs', { host_id: host.id, type: 'script', confirm: true, timeout_seconds: Number(timeout), params: { interpreter: interp, script } })
+          if (j.status === 'awaiting_signature') toast('Waiting for your operator signature')
           onClose(); nav(`/jobs/${j.id}`)
         } catch (e) { setErr(errorMessage(e)) } finally { setBusy(false) }
       }}>Run script</Button></>}>
       <div className="space-y-3">
+        <WritePolicyNote host={host} />
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Interpreter">
             <Select value={interp} onChange={(e) => setInterp(e.target.value)}>

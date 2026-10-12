@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"heartbeat/server/db"
+	"heartbeat/server/netguard"
 )
 
 // Settings sections. Each is stored as one JSON row in the settings table.
@@ -20,13 +21,14 @@ type GeneralSettings struct {
 }
 
 type TLSSettings struct {
-	Mode          string   `json:"mode"`     // http, selfsigned, acme
-	Listen        string   `json:"listen"`   // e.g. 0.0.0.0:8080
-	Hostname      string   `json:"hostname"` // for selfsigned SAN / ACME
-	ExtraNames    []string `json:"extra_names"`
-	ACMEEmail     string   `json:"acme_email"`
-	ACMEDirectory string   `json:"acme_directory"` // optional, defaults to Let's Encrypt production
-	TrustProxy    bool     `json:"trust_proxy"`    // honour X-Forwarded-For / X-Forwarded-Proto
+	Mode           string   `json:"mode"`     // http, selfsigned, acme
+	Listen         string   `json:"listen"`   // e.g. 0.0.0.0:8080
+	Hostname       string   `json:"hostname"` // for selfsigned SAN / ACME
+	ExtraNames     []string `json:"extra_names"`
+	ACMEEmail      string   `json:"acme_email"`
+	ACMEDirectory  string   `json:"acme_directory"`  // optional, defaults to Let's Encrypt production
+	TrustProxy     bool     `json:"trust_proxy"`     // honour X-Forwarded-For / X-Forwarded-Proto
+	TrustedProxies []string `json:"trusted_proxies"` // CIDRs or IPs allowed to set forwarding headers; empty = loopback
 }
 
 type SMTPSettings struct {
@@ -63,6 +65,37 @@ type LDAPRoleMapping struct {
 	TenantID int64  `json:"tenant_id"`
 }
 
+// OIDCSettings configures OpenID Connect single sign-on.
+type OIDCSettings struct {
+	Enabled              bool              `json:"enabled"`
+	IssuerURL            string            `json:"issuer_url"`
+	ClientID             string            `json:"client_id"`
+	ClientSecret         string            `json:"client_secret,omitempty"`
+	Scopes               string            `json:"scopes"` // space separated
+	ButtonLabel          string            `json:"button_label"`
+	UsernameClaim        string            `json:"username_claim"`
+	GroupsClaim          string            `json:"groups_claim"`
+	GroupRoleMap         []LDAPRoleMapping `json:"group_role_map"`
+	DefaultRole          string            `json:"default_role"` // empty = deny unmapped users
+	DefaultTenant        int64             `json:"default_tenant"`
+	AllowProvision       bool              `json:"allow_provision"`
+	RequireVerifiedEmail bool              `json:"require_verified_email"`
+	TrustIdPMFA          bool              `json:"trust_idp_mfa"` // amr containing mfa, otp or hwk satisfies 2FA
+}
+
+// ProxyAuthSettings configures forward-auth (trusted reverse proxy) login.
+type ProxyAuthSettings struct {
+	Enabled        bool              `json:"enabled"`
+	UserHeader     string            `json:"user_header"`
+	EmailHeader    string            `json:"email_header"`
+	NameHeader     string            `json:"name_header"`
+	GroupsHeader   string            `json:"groups_header"` // comma separated
+	GroupRoleMap   []LDAPRoleMapping `json:"group_role_map"`
+	DefaultRole    string            `json:"default_role"`
+	DefaultTenant  int64             `json:"default_tenant"`
+	AllowProvision bool              `json:"allow_provision"`
+}
+
 type RADIUSSettings struct {
 	Enabled       bool   `json:"enabled"`
 	Server        string `json:"server"` // host:port
@@ -82,6 +115,9 @@ type SecuritySettings struct {
 	LockoutAttempts   int    `json:"lockout_attempts"`
 	LockoutMinutes    int    `json:"lockout_minutes"`
 	MetricsAuth       bool   `json:"metrics_auth"` // /metrics requires an API key
+	// AllowPrivateTargetsForTenants lets tenant-owned checks and channels reach
+	// loopback, private and link-local addresses. Provider-only; default false.
+	AllowPrivateTargetsForTenants bool `json:"allow_private_targets_for_tenants"`
 }
 
 type RetentionSettings struct {
@@ -146,6 +182,8 @@ const (
 	keySMTP      = "smtp"
 	keyLDAP      = "ldap"
 	keyRADIUS    = "radius"
+	keyOIDC      = "oidc"
+	keyProxyAuth = "proxy_auth"
 	keySecurity  = "security"
 	keyRetention = "retention"
 	keyAgent     = "agent_defaults"
@@ -166,6 +204,10 @@ func defaultFor(key string) any {
 		return &LDAPSettings{UserFilter: "(&(objectClass=person)(uid=%s))", EmailAttr: "mail", NameAttr: "cn", GroupAttr: "memberOf"}
 	case keyRADIUS:
 		return &RADIUSSettings{NASIdentifier: "heartbeat", TimeoutSec: 5, RoleAttribute: "Filter-Id"}
+	case keyOIDC:
+		return &OIDCSettings{Scopes: "openid profile email groups", ButtonLabel: "SSO", UsernameClaim: "preferred_username", GroupsClaim: "groups", TrustIdPMFA: true}
+	case keyProxyAuth:
+		return &ProxyAuthSettings{UserHeader: "Remote-User", EmailHeader: "Remote-Email", NameHeader: "Remote-Name", GroupsHeader: "Remote-Groups"}
 	case keySecurity:
 		return &SecuritySettings{Require2FA: "none", SessionHours: 12, PasswordMinLength: 10, LockoutAttempts: 8, LockoutMinutes: 15}
 	case keyRetention:
@@ -177,7 +219,7 @@ func defaultFor(key string) any {
 	case keyAlerting:
 		return &AlertingSettings{GroupWaitSeconds: 30, DefaultRepeatMinutes: 240, FlapWindowMinutes: 30, FlapThreshold: 6, ResolveCount: 1}
 	case keyVuln:
-		return &VulnSettings{Enabled: true, SyncHour: 2, ScanAfterInventory: true, AlertSeverity: "Critical", OnlyFixable: true}
+		return &VulnSettings{Enabled: false, SyncHour: 2, ScanAfterInventory: true, AlertSeverity: "Critical", OnlyFixable: true}
 	case keyBranding:
 		return &Branding{ProductName: "Heartbeat", AccentColor: "#e11d48"}
 	}
@@ -266,6 +308,8 @@ func (s *SettingsStore) TLS() TLSSettings             { return get[TLSSettings](
 func (s *SettingsStore) SMTP() SMTPSettings           { return get[SMTPSettings](s, keySMTP) }
 func (s *SettingsStore) LDAP() LDAPSettings           { return get[LDAPSettings](s, keyLDAP) }
 func (s *SettingsStore) RADIUS() RADIUSSettings       { return get[RADIUSSettings](s, keyRADIUS) }
+func (s *SettingsStore) OIDC() OIDCSettings           { return get[OIDCSettings](s, keyOIDC) }
+func (s *SettingsStore) ProxyAuth() ProxyAuthSettings { return get[ProxyAuthSettings](s, keyProxyAuth) }
 func (s *SettingsStore) Security() SecuritySettings   { return get[SecuritySettings](s, keySecurity) }
 func (s *SettingsStore) Retention() RetentionSettings { return get[RetentionSettings](s, keyRetention) }
 func (s *SettingsStore) Agent() AgentDefaults         { return get[AgentDefaults](s, keyAgent) }
@@ -300,4 +344,14 @@ func (s *SettingsStore) Branding(tenant int64) Branding {
 		}
 	}
 	return b
+}
+
+// guardFor returns the outbound-connection policy for objects owned by a
+// tenant. The provider (tenant 0) may reach anything; tenants are limited to
+// public addresses unless the provider enables allow_private_targets_for_tenants.
+func (a *App) guardFor(tenant int64) netguard.Guard {
+	if tenant == 0 || a.settings.Security().AllowPrivateTargetsForTenants {
+		return netguard.Allow
+	}
+	return netguard.Strict
 }

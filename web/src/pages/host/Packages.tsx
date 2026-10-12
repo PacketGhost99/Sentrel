@@ -6,6 +6,7 @@ import { errorMessage, get, post } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { ago } from '@/lib/format'
 import type { HostDetail, Job, Package } from '@/lib/types'
+import { WritePolicyNote } from '@/components/OperatorSign'
 import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, Input, Loading, Modal, Note, Segmented, Select, Table, Td, Th, useToast } from '@/components/ui'
 
 export function HostPackages({ host }: { host: HostDetail }) {
@@ -76,7 +77,7 @@ export function UpgradeDialog({ host, packages, onClose }: { host: HostDetail; p
         host_id: host.id, type: 'upgrade', params, dry_run: dry, confirm: !dry,
         schedule: dry ? 'now' : schedule, run_at: schedule === 'at' && at ? Math.floor(new Date(at).getTime() / 1000) : 0,
       })
-      toast(dry ? 'Dry run started' : schedule === 'now' ? 'Upgrade started' : 'Upgrade scheduled')
+      toast(j.status === 'awaiting_signature' ? 'Waiting for your operator signature' : dry ? 'Dry run started' : schedule === 'now' ? 'Upgrade started' : 'Upgrade scheduled')
       onClose()
       nav(`/jobs/${j.id}`)
     } catch (e) {
@@ -89,12 +90,13 @@ export function UpgradeDialog({ host, packages, onClose }: { host: HostDetail; p
     <Modal open onClose={onClose} title={`Upgrade packages on ${host.name}`} size="lg"
       footer={<>
         <Button onClick={onClose}>Cancel</Button>
-        <Button icon={<FlaskConical className="size-4" />} loading={busy} onClick={() => create(true)}>Dry run</Button>
-        <Button variant="danger" loading={busy} disabled={!host.allow_upgrades || typed !== host.name || (schedule === 'at' && !at)} onClick={() => create(false)}>
+        <Button icon={<FlaskConical className="size-4" />} loading={busy} disabled={host.write_policy === 'none'} onClick={() => create(true)}>Dry run</Button>
+        <Button variant="danger" loading={busy} disabled={!host.allow_upgrades || host.write_policy === 'none' || typed !== host.name || (schedule === 'at' && !at)} onClick={() => create(false)}>
           {schedule === 'now' ? 'Upgrade now' : 'Schedule upgrade'}
         </Button>
       </>}>
       <div className="space-y-4">
+        <WritePolicyNote host={host} />
         <Field label="What to upgrade">
           <Segmented value={scope} onChange={setScope} options={[
             { id: 'all', label: 'All updates' }, { id: 'security', label: 'Security only' },

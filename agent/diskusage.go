@@ -51,19 +51,19 @@ const duTopFiles = 20
 
 type entryHeap []DUEntry
 
-func (h entryHeap) Len() int { return len(h) }
+func (h entryHeap) Len() int           { return len(h) }
 func (h entryHeap) Less(i, j int) bool { return h[i].Bytes < h[j].Bytes }
-func (h entryHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
-func (h *entryHeap) Push(x any) { *h = append(*h, x.(DUEntry)) }
-func (h *entryHeap) Pop() any { o := *h; x := o[len(o)-1]; *h = o[:len(o)-1]; return x }
+func (h entryHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
+func (h *entryHeap) Push(x any)        { *h = append(*h, x.(DUEntry)) }
+func (h *entryHeap) Pop() any          { o := *h; x := o[len(o)-1]; *h = o[:len(o)-1]; return x }
 
 type fileHeap []DUFile
 
-func (h fileHeap) Len() int { return len(h) }
+func (h fileHeap) Len() int           { return len(h) }
 func (h fileHeap) Less(i, j int) bool { return h[i].Bytes < h[j].Bytes }
-func (h fileHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
-func (h *fileHeap) Push(x any) { *h = append(*h, x.(DUFile)) }
-func (h *fileHeap) Pop() any { o := *h; x := o[len(o)-1]; *h = o[:len(o)-1]; return x }
+func (h fileHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
+func (h *fileHeap) Push(x any)        { *h = append(*h, x.(DUFile)) }
+func (h *fileHeap) Pop() any          { o := *h; x := o[len(o)-1]; *h = o[:len(o)-1]; return x }
 
 type duWalker struct {
 	ctx      context.Context
@@ -238,10 +238,50 @@ func normalizeDiskPath(p string) (string, error) {
 	return filepath.Clean(p), nil
 }
 
+// isMountPoint reports whether path equals one of the mount points (or "/").
+func isMountPoint(path string, mounts []string) bool {
+	norm := func(s string) string {
+		s = strings.TrimRight(filepath.Clean(s), `\/`)
+		if runtime.GOOS == "windows" {
+			s = strings.ToLower(s)
+		}
+		return s
+	}
+	want := norm(path)
+	if runtime.GOOS != "windows" && want == "" {
+		return true // "/"
+	}
+	for _, m := range mounts {
+		if m != "" && norm(m) == want {
+			return true
+		}
+	}
+	return false
+}
+
+// requireMountPoint restricts the root-run disk walk to filesystem roots.
+func requireMountPoint(ctx context.Context, path string) error {
+	parts, err := disk.PartitionsWithContext(ctx, false)
+	if err != nil {
+		return fmt.Errorf("list mount points: %w", err)
+	}
+	mounts := make([]string, 0, len(parts))
+	for _, p := range parts {
+		mounts = append(mounts, p.Mountpoint)
+	}
+	if !isMountPoint(path, mounts) {
+		return fmt.Errorf("%q is not a mount point; disk usage can only scan a mount point", path)
+	}
+	return nil
+}
+
 // privDiskUsage implements the privileged `disk-usage` verb: JSON on w.
 func privDiskUsage(ctx context.Context, w io.Writer, args []string) error {
 	path, depth, top, secs, err := parseDiskUsageArgs(args)
 	if err != nil {
+		return err
+	}
+	if err := requireMountPoint(ctx, path); err != nil {
 		return err
 	}
 	cctx, cancel := context.WithTimeout(ctx, time.Duration(secs)*time.Second)

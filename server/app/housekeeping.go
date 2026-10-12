@@ -48,6 +48,7 @@ func (a *App) cleanup(ctx context.Context) {
 		q    string
 		args []any
 	}{
+		{`DELETE FROM agent_hello WHERE updated_at < ?`, []any{now.Unix() - day}},
 		{`DELETE FROM sessions WHERE expires_at < ?`, []any{now.Unix()}},
 		{`DELETE FROM enrollment_tokens WHERE (used_at=0 AND expires_at < ?) OR (used_at>0 AND used_at < ?)`, []any{now.Unix() - day, now.Unix() - 30*day}},
 		{`DELETE FROM alert_events WHERE created_at < ?`, []any{now.Unix() - int64(r.AlertHistoryDays)*day}},

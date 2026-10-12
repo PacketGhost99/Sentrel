@@ -7,11 +7,16 @@ import { useAuth } from '@/lib/auth'
 import { ago, dateTime, duration } from '@/lib/format'
 import type { HostDetail, Job } from '@/lib/types'
 import { useTenantFilter } from '@/components/Layout'
-import { Badge, Button, Card, Empty, ErrorBox, KV, Loading, PageHeader, Select, Spinner, Table, Td, Th, statusTone, useConfirm, useToast } from '@/components/ui'
+import { Badge, Button, Card, Empty, ErrorBox, KV, Loading, Note, PageHeader, Select, Spinner, Table, Td, Th, statusTone, useConfirm, useToast } from '@/components/ui'
 import { UpgradeDialog } from './host/Packages'
+import { OperatorSignPanel } from '@/components/OperatorSign'
 
 const jobLabel: Record<string, string> = {
   upgrade: 'Package upgrade', refresh_inventory: 'Refresh inventory', block_ip: 'Block IP', unblock_ip: 'Unblock IP', self_update: 'Agent update', script: 'Script', collect_now: 'Collect now', disk_usage: 'Disk usage analysis', disk_cleanup: 'Disk cleanup',
+}
+
+export function statusLabel(s: string): string {
+  return s === 'awaiting_signature' ? 'Awaiting operator signature' : s
 }
 
 export function jobSummary(j: Job): string {
@@ -54,7 +59,7 @@ export function JobsTable({ hostId }: { hostId?: number }) {
       <div className="flex flex-wrap gap-2 border-b border-line/70 p-4">
         <div className="w-44"><Select value={type} onChange={(e) => setType(e.target.value)}><option value="">All types</option>{Object.entries(jobLabel).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</Select></div>
         <div className="w-40"><Select value={status} onChange={(e) => setStatus(e.target.value)}>
-          <option value="">Any status</option>{['scheduled', 'queued', 'sent', 'running', 'succeeded', 'failed', 'cancelled', 'expired', 'rejected'].map((s) => <option key={s}>{s}</option>)}
+          <option value="">Any status</option>{['awaiting_signature', 'scheduled', 'queued', 'sent', 'running', 'succeeded', 'failed', 'cancelled', 'expired', 'rejected'].map((s) => <option key={s}>{s}</option>)}
         </Select></div>
       </div>
       {jobs.isLoading ? <Loading /> : !jobs.data?.length ? <Empty title="No jobs" icon={<PlayCircle className="size-8" />} /> : (
@@ -65,7 +70,7 @@ export function JobsTable({ hostId }: { hostId?: number }) {
               <tr key={j.id}>
                 <Td><Link to={`/jobs/${j.id}`} className="font-medium hover:underline">{jobLabel[j.type] || j.type}</Link>{j.dry_run && <Badge className="ml-1">dry run</Badge>}<div className="max-w-xs truncate text-xs text-muted">{jobSummary(j)}</div></Td>
                 {!hostId && <Td className="hidden text-xs md:table-cell"><Link to={`/hosts/${j.host_id}`} className="hover:underline">{j.host_name}</Link></Td>}
-                <Td><Badge tone={statusTone(j.status)}>{j.status}</Badge>{j.schedule !== 'now' && j.status === 'scheduled' && <div className="text-[11px] text-muted">{j.schedule === 'maintenance' ? 'next maintenance window' : dateTime(j.run_after)}</div>}</Td>
+                <Td><Badge tone={statusTone(j.status)}>{statusLabel(j.status)}</Badge>{j.schedule !== 'now' && j.status === 'scheduled' && <div className="text-[11px] text-muted">{j.schedule === 'maintenance' ? 'next maintenance window' : dateTime(j.run_after)}</div>}</Td>
                 <Td className="hidden text-xs text-muted lg:table-cell">{j.requested_by}</Td>
                 <Td className="text-xs text-muted" title={dateTime(j.created_at)}>{ago(j.created_at)}</Td>
                 <Td className="hidden text-xs text-muted md:table-cell">{j.finished_at && j.started_at ? duration(j.finished_at - j.started_at) : j.status === 'running' ? <Spinner className="size-3.5" /> : '–'}</Td>
@@ -100,10 +105,10 @@ export function JobDetail() {
   return (
     <div>
       <PageHeader back={<Link to="/jobs" className="mb-1 inline-flex items-center gap-1 text-xs text-muted hover:text-fg"><ArrowLeft className="size-3" />Jobs</Link>}
-        title={<span className="flex items-center gap-2">{jobLabel[j.type] || j.type}{j.dry_run && <Badge>dry run</Badge>}<Badge tone={statusTone(j.status)}>{j.status}</Badge></span>}
+        title={<span className="flex items-center gap-2">{jobLabel[j.type] || j.type}{j.dry_run && <Badge>dry run</Badge>}<Badge tone={statusTone(j.status)}>{statusLabel(j.status)}</Badge></span>}
         subtitle={<>on <Link to={`/hosts/${j.host_id}`} className="text-accent hover:underline">{j.host_name}</Link> · {jobSummary(j)}</>}
         actions={<>
-          {can('jobs') && ['queued', 'scheduled'].includes(j.status) && <Button icon={<Ban className="size-4" />} onClick={async () => {
+          {can('jobs') && ['queued', 'scheduled', 'awaiting_signature'].includes(j.status) && <Button icon={<Ban className="size-4" />} onClick={async () => {
             if (!(await confirm({ title: 'Cancel job', confirmLabel: 'Cancel job', danger: true, body: <p>Cancel this job before it runs?</p> }))) return
             try { await post(`/jobs/${j.id}/cancel`); toast('Job cancelled'); job.refetch() } catch (e) { toast(errorMessage(e), 'crit') }
           }}>Cancel</Button>}
@@ -112,6 +117,8 @@ export function JobDetail() {
       <div className="grid gap-4 xl:grid-cols-3">
         <div className="space-y-4 xl:col-span-2">
           {j.error && <ErrorBox error={j.error} />}
+          {j.status === 'awaiting_signature' && can('jobs') && <OperatorSignPanel job={j} />}
+          {j.status === 'awaiting_signature' && !can('jobs') && <Note tone="warn">Awaiting operator signature.</Note>}
           {changes.length > 0 && (
             <Card title={`${changes.length} package(s) would change`} bodyClass="p-0">
               <Table className="max-h-72 overflow-y-auto">
@@ -120,14 +127,15 @@ export function JobDetail() {
               </Table>
             </Card>
           )}
-          <Card title="Output" actions={!done && <span className="flex items-center gap-2 text-xs text-muted"><Spinner className="size-3.5" />{j.status === 'scheduled' ? 'waiting for schedule' : j.status === 'queued' ? 'waiting for agent' : 'live'}</span>}>
+          <Card title="Output" actions={!done && <span className="flex items-center gap-2 text-xs text-muted"><Spinner className="size-3.5" />{j.status === 'awaiting_signature' ? 'waiting for operator signature' : j.status === 'scheduled' ? 'waiting for schedule' : j.status === 'queued' ? 'waiting for agent' : 'live'}</span>}>
             <pre ref={out} className="mono max-h-[60vh] min-h-48 overflow-auto whitespace-pre-wrap break-all rounded-xl bg-[#0b0f17] p-4 text-xs text-[#d6deeb]">{j.output || (done ? '(no output)' : '…')}</pre>
           </Card>
         </div>
         <Card title="Details">
           <KV items={[
             ['ID', <span key="i" className="mono text-xs">{j.id}</span>],
-            ['Status', j.status],
+            ['Status', statusLabel(j.status)],
+            ...(j.operator_key_id ? [['Operator key', <span key="ok" className="mono text-xs">{j.operator_key_id}</span>] as [string, React.ReactNode]] : []),
             ['Exit code', j.exit_code ?? '–'],
             ['Requested by', j.requested_by],
             ['Confirmed by', j.confirmed_by || '–'],

@@ -10,6 +10,8 @@ export interface PublicInfo {
   tenant_name?: string
   ldap: boolean
   radius: boolean
+  oidc_enabled?: boolean
+  oidc_label?: string
   server_url: string
   tls_mode: string
 }

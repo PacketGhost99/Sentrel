@@ -18,6 +18,8 @@ func (a *App) registerRoutes(r *apiRouter) {
 	r.add(routeDef{Method: POST, Path: "/auth/login", Summary: "Log in with username and password", Tag: "auth", Public: true, Req: loginReq{}, Resp: loginResp{}}, s.login)
 	r.add(routeDef{Method: POST, Path: "/auth/passkey/begin", Summary: "Begin passwordless passkey login", Tag: "auth", Public: true}, s.passkeyLoginBegin)
 	r.add(routeDef{Method: POST, Path: "/auth/passkey/finish", Summary: "Finish passwordless passkey login", Tag: "auth", Public: true, Query: []string{"challenge_id"}}, s.passkeyLoginFinish)
+	r.add(routeDef{Method: GET, Path: "/auth/oidc/start", Summary: "Begin OpenID Connect single sign-on (redirects to the provider)", Tag: "auth", Public: true}, s.oidcStart)
+	r.add(routeDef{Method: GET, Path: "/auth/oidc/callback", Summary: "OpenID Connect redirect URI", Tag: "auth", Public: true, Query: []string{"code", "state"}}, s.oidcCallback)
 	r.add(routeDef{Method: POST, Path: "/auth/logout", Summary: "Log out", Tag: "auth", MFAOK: true}, s.logout)
 	r.add(routeDef{Method: GET, Path: "/auth/me", Summary: "Current user and permissions", Tag: "auth", MFAOK: true, Resp: MeResp{}}, a.apiMe)
 	r.add(routeDef{Method: PUT, Path: "/auth/me", Summary: "Update own profile", Tag: "auth", Req: profileReq{}}, a.apiUpdateMe)
@@ -71,6 +73,7 @@ func (a *App) registerRoutes(r *apiRouter) {
 	r.add(routeDef{Method: POST, Path: "/enrollment-tokens", Summary: "Create a one-time enrolment token", Tag: "enrolment", Perm: PermHosts, Req: tokenReq{}, Resp: tokenResp{}}, a.apiCreateToken)
 	r.add(routeDef{Method: GET, Path: "/enrollment-tokens", Summary: "List unused enrolment tokens", Tag: "enrolment", Perm: PermHosts, Resp: []EnrollmentToken{}}, a.apiListTokens)
 	r.add(routeDef{Method: DELETE, Path: "/enrollment-tokens/{id}", Summary: "Delete an enrolment token", Tag: "enrolment", Perm: PermHosts}, a.apiDeleteToken)
+	r.add(routeDef{Method: POST, Path: "/push/ssh/fingerprint", Summary: "Fetch an SSH host key fingerprint (no authentication)", Tag: "enrolment", Perm: PermHosts, Req: pushFingerprintReq{}}, a.apiPushSSHFingerprint)
 	r.add(routeDef{Method: POST, Path: "/push/ssh", Summary: "Push-install the agent over SSH", Tag: "enrolment", Perm: PermHosts, Req: pushSSHReq{}, Resp: PushInstall{}}, a.apiPushSSH)
 	r.add(routeDef{Method: POST, Path: "/push/winrm", Summary: "Push-install the agent over WinRM", Tag: "enrolment", Perm: PermHosts, Req: pushWinRMReq{}, Resp: PushInstall{}}, a.apiPushWinRM)
 	r.add(routeDef{Method: GET, Path: "/push", Summary: "List push installs", Tag: "enrolment", Perm: PermHosts, Resp: []PushInstall{}}, a.apiListPush)
@@ -129,6 +132,8 @@ func (a *App) registerRoutes(r *apiRouter) {
 	r.add(routeDef{Method: POST, Path: "/jobs", Summary: "Create a job (upgrade, block_ip, script...)", Tag: "jobs", Perm: PermJobs, Req: JobRequest{}, Resp: Job{}}, a.apiCreateJob)
 	r.add(routeDef{Method: POST, Path: "/jobs/bulk", Summary: "Create the same job on several hosts", Tag: "jobs", Perm: PermJobs, Req: bulkJobReq{}}, a.apiBulkJobs)
 	r.add(routeDef{Method: GET, Path: "/jobs/{id}", Summary: "Job detail with output", Tag: "jobs", Perm: PermRead, Resp: Job{}}, a.apiGetJob)
+	r.add(routeDef{Method: GET, Path: "/jobs/{id}/spec", Summary: "Exact job spec bytes (base64) for offline operator signing", Tag: "jobs", Perm: PermJobs, Resp: JobSpecInfo{}}, a.apiJobSpec)
+	r.add(routeDef{Method: POST, Path: "/jobs/{id}/operator-signature", Summary: "Post an operator signature for a job awaiting one", Tag: "jobs", Perm: PermJobs, Req: OperatorSignRequest{}, Resp: Job{}}, a.apiOperatorSignature)
 	r.add(routeDef{Method: POST, Path: "/jobs/{id}/cancel", Summary: "Cancel a job that has not started", Tag: "jobs", Perm: PermJobs}, a.apiCancelJob)
 
 	// Vulnerabilities.
@@ -175,6 +180,7 @@ func (a *App) registerRoutes(r *apiRouter) {
 	r.add(routeDef{Method: PUT, Path: "/settings/{section}", Summary: "Update a settings section", Tag: "settings", Perm: PermSettings}, a.apiPutSettings)
 	r.add(routeDef{Method: POST, Path: "/settings/smtp/test", Summary: "Send a test email", Tag: "settings", Perm: PermSettings, Req: testMailReq{}}, a.apiTestSMTP)
 	r.add(routeDef{Method: POST, Path: "/settings/ldap/test", Summary: "Test LDAP settings", Tag: "settings", Perm: PermSettings, Req: loginReq{}}, a.apiTestLDAP)
+	r.add(routeDef{Method: POST, Path: "/settings/oidc/test", Summary: "Test OIDC discovery", Tag: "settings", Perm: PermSettings}, a.apiTestOIDC)
 	r.add(routeDef{Method: POST, Path: "/settings/radius/test", Summary: "Test RADIUS settings", Tag: "settings", Perm: PermSettings, Req: loginReq{}}, a.apiTestRADIUS)
 	r.add(routeDef{Method: GET, Path: "/branding", Summary: "Branding for the caller's tenant", Tag: "settings", Perm: PermRead, Resp: Branding{}, Query: []string{"tenant_id"}}, a.apiGetBranding)
 	r.add(routeDef{Method: PUT, Path: "/branding", Summary: "Update branding", Tag: "settings", Perm: PermBranding, Req: Branding{}, Query: []string{"tenant_id"}}, a.apiPutBranding)

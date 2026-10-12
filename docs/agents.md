@@ -34,14 +34,14 @@ From an elevated PowerShell:
 & ([scriptblock]::Create((irm https://monitor.example.com/install/agent.ps1))) -Server https://monitor.example.com -Token ABCD-1234-EFGH
 ```
 
-Parameters: `-Server`, `-Token`, `-CaFingerprint`, `-BinaryPath`, `-Name`, `-InsecureDownload`, `-Uninstall`. The script installs to `C:\Program Files\Heartbeat Agent\heartbeat-agent.exe`, keeps config and keys in `C:\ProgramData\Heartbeat Agent` (restricted to SYSTEM and Administrators), registers the `HeartbeatAgent` service (automatic delayed start, restart on failure) and starts it.
+Parameters: `-Server`, `-Token`, `-CaFingerprint`, `-BinaryPath`, `-Name`, `-WriteJobs`, `-ReadOnly`, `-OperatorKey`, `-InsecureDownload`, `-Uninstall`. The script installs to `C:\Program Files\Heartbeat Agent\heartbeat-agent.exe`, keeps config and keys in `C:\ProgramData\Heartbeat Agent` (restricted to SYSTEM and Administrators), registers the `HeartbeatAgent` service (automatic delayed start, restart on failure) and starts it.
 
-For fleet deployment an MSI can be built (`msiexec /i heartbeat-agent-<version>-x64.msi SERVER=https://monitor.example.com TOKEN=ABCD-1234-EFGH /qn`). `scripts/build.sh` builds it from `deploy/agent.wxs` when `wixl` (msitools) is installed; otherwise the release has no MSI.
+For fleet deployment an MSI can be built (`msiexec /i heartbeat-agent-<version>-x64.msi SERVER=https://monitor.example.com TOKEN=ABCD-1234-EFGH /qn`). `scripts/build.sh` builds it from `deploy/agent.wxs` when `wixl` (msitools) is installed; otherwise the release has no MSI. Optional properties: `CAFINGERPRINT`, `NAME`, `WRITEJOBS=server|operator|none` and `OPERATORKEY=<key>[,<key>...]`.
 
 ### Push install, manual install
 
-- **Push install** (Add host): the server connects over SSH (Linux, key or password, optional host-key fingerprint pin, sudo password) or WinRM (Windows Server), uploads the agent and runs the installer. The credentials are used for that session only; the server stores the target, user name and log, not the secrets.
-- **Manual**: `heartbeat-agent register SERVER_URL TOKEN [--ca-fingerprint FP] [--name NAME] [--config FILE] [--state-dir DIR]`, then `heartbeat-agent service install` and `service start` on Windows, or run `heartbeat-agent run` under your own supervisor.
+- **Push install** (Add host): the server connects over SSH (Linux, key or password, a required, confirmed host-key fingerprint, sudo password) or WinRM (Windows Server), uploads the agent and runs the installer. The credentials are used for that session only; the server stores the target, user name and log, not the secrets.
+- **Manual**: `heartbeat-agent register SERVER_URL TOKEN [--ca-fingerprint FP] [--name NAME] [--write-jobs server|operator|none] [--operator-key B64]... [--read-only] [--config FILE] [--state-dir DIR]`, then `heartbeat-agent service install` and `service start` on Windows, or run `heartbeat-agent run` under your own supervisor.
 
 ## Collected data
 
@@ -75,6 +75,29 @@ Script jobs run as the unprivileged agent user. Note that membership of the `doc
 
 Remote actions (upgrade, IP block, scripts, disk cleanup) are disabled for every host until an operator enables them in the host settings; see [security.md](security.md).
 
+## Write policy: read-only and operator-signed agents
+
+By default the server's signature is enough for any job. To limit what a compromised server could do to a host, choose a write policy when you install (it can only be changed locally, by re-registering or editing the root-owned `agent.yaml`; the server cannot change it):
+
+- `--read-only` (same as `--write-jobs none`): the agent runs only SAFE jobs (`refresh_inventory`, `collect_now`, `disk_usage`, `unblock_ip`) and answers every other job with `rejected: agent is read-only`.
+- `--write-jobs operator --operator-key KEY`: jobs that change the host also need a signature from an operator key. `--operator-key` can be repeated (the installers accept a list; the MSI property takes a comma-separated list).
+
+Linux: `curl -fsSL https://SERVER/install/agent.sh | sudo sh -s -- --server https://SERVER --token TOKEN --write-jobs operator --operator-key KEY` (or `--read-only`). Windows: `-WriteJobs operator -OperatorKey KEY` or `-ReadOnly`.
+
+### Operator workflow
+
+1. On a trusted machine (not the server): `hb-sign keygen-operator -out operator.key`. This writes the private key (PKCS#8 PEM, mode 0600) and `operator.key.pub`, and prints the public key and its 16-character key id. Keep the private key safe and offline.
+2. Install agents with `--write-jobs operator --operator-key <public key>`. The host page shows an "Operator-signed jobs" badge and lists the key ids the agent reported.
+3. Start any WRITE action (upgrade, script, disk cleanup, IP block, agent update) as usual. The job is created with status `awaiting_signature` and is not sent. On a read-only host the server answers `403`.
+4. Sign it, either:
+   - on the command line: `hb-sign sign-job --key operator.key --spec <base64 spec>` (the spec is shown on the job page and returned by `GET /api/v1/jobs/{id}/spec`; `--spec` also accepts a file containing it), then paste the printed signature on the job page or `POST /api/v1/jobs/{id}/operator-signature` with `{"signature": "...", "key_id": ""}`; or
+   - in the browser: on the job page choose "Sign in browser" and pick `operator.key`. The file is read locally and the job bytes are signed with WebCrypto (Ed25519, needs a current browser); only the signature is sent.
+5. The server checks the signature against the keys the agent reported, queues the job and sends it with both signatures. Unsigned jobs expire (24 hours by default).
+
+The server's job signature is still required. Hosts on `operator` or `none` are skipped by automatic updates; update them with an explicit job.
+
+Config keys (`agent.yaml`): `write_jobs: server|operator|none` and `operator_keys: [base64 raw Ed25519 public keys]`.
+
 ## Configuration file
 
 `/etc/heartbeat-agent/agent.yaml` (Windows: `C:\ProgramData\Heartbeat Agent\agent.yaml`) is written by `register`:
@@ -86,6 +109,8 @@ state_dir: /var/lib/heartbeat-agent
 ca_fingerprint: sha256:...   # only when pinned
 name: web-1                  # optional display name
 log_level: info              # debug | info | warn (optional)
+write_jobs: operator         # server (default) | operator | none; local policy for jobs that change the host
+operator_keys: ["base64..."] # operator public keys, for write_jobs: operator
 ```
 
 What to collect is not configured here; it comes from the server and changes apply to connected agents immediately. State directory contents: `agent.key`, `agent.crt`, `ca.pem`, update staging and `update-pending.json` during an update. Use `heartbeat-agent run --config FILE` to start with a different file.

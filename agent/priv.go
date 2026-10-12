@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"crypto/ed25519"
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
@@ -13,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -157,8 +159,71 @@ func readMarker(stateDir string) (*updateMarker, error) {
 }
 
 func writeMarker(stateDir string, m *updateMarker) error {
+	return writeMarkerOwned(stateDir, m, -1, -1)
+}
+
+// writeMarkerOwned writes the marker and, when uid >= 0, hands it to that
+// owner. It is used by root-run verbs inside a directory owned by the
+// unprivileged agent user, so it must never follow a link planted there: a
+// non-regular file at the path is refused, and the content goes to an
+// exclusively created temp file (fchown'd by descriptor) that is renamed over
+// the marker, so even a racing symlink or hard link is replaced, not written.
+func writeMarkerOwned(stateDir string, m *updateMarker, uid, gid int) error {
 	b, _ := json.Marshal(m)
-	return os.WriteFile(markerPath(stateDir), b, 0o600)
+	return safeWriteFile(markerPath(stateDir), b, 0o600, uid, gid)
+}
+
+// safeWriteFile atomically replaces path without following symlinks. uid < 0
+// leaves ownership alone.
+func safeWriteFile(path string, data []byte, mode os.FileMode, uid, gid int) error {
+	if fi, err := os.Lstat(path); err == nil {
+		if !fi.Mode().IsRegular() {
+			return fmt.Errorf("refusing to write %s: not a regular file", path)
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	var f *os.File
+	var tmp string
+	for i := 0; ; i++ {
+		var rnd [6]byte
+		_, _ = rand.Read(rnd[:])
+		tmp = fmt.Sprintf("%s.%x.tmp", path, rnd)
+		var err error
+		// O_EXCL also fails on an existing symlink, dangling or not.
+		f, err = os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
+		if err == nil {
+			break
+		}
+		if !errors.Is(err, os.ErrExist) || i >= 5 {
+			return err
+		}
+	}
+	fail := func(err error) error {
+		f.Close()
+		os.Remove(tmp)
+		return err
+	}
+	if uid >= 0 {
+		if err := f.Chown(uid, gid); err != nil {
+			return fail(err)
+		}
+	}
+	if err := f.Chmod(mode); err != nil && runtime.GOOS != "windows" {
+		return fail(err)
+	}
+	if _, err := f.Write(data); err != nil {
+		return fail(err)
+	}
+	if err := f.Close(); err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	return nil
 }
 
 // copyFile copies src to dst with mode.
@@ -168,6 +233,11 @@ func copyFile(src, dst string, mode os.FileMode) error {
 		return err
 	}
 	defer in.Close()
+	return copyReader(in, dst, mode)
+}
+
+// copyReader writes r to dst (via a temp file renamed into place) with mode.
+func copyReader(in io.Reader, dst string, mode os.FileMode) error {
 	tmp := dst + ".tmp"
 	out, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
 	if err != nil {

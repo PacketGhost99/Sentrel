@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"heartbeat/server/netguard"
 )
 
 func msg() Message {
@@ -51,7 +53,7 @@ func TestValidate(t *testing.T) {
 
 func TestWebhookDefaultAndTemplate(t *testing.T) {
 	s, body, _ := capture(t)
-	if err := Send(context.Background(), "webhook", json.RawMessage(`{"url":"`+s.URL+`"}`), SMTP{}, msg()); err != nil {
+	if err := Send(context.Background(), netguard.Allow, "webhook", json.RawMessage(`{"url":"`+s.URL+`"}`), SMTP{}, msg()); err != nil {
 		t.Fatal(err)
 	}
 	var m Message
@@ -59,7 +61,7 @@ func TestWebhookDefaultAndTemplate(t *testing.T) {
 		t.Fatalf("default payload: %s", *body)
 	}
 	cfg := `{"url":"` + s.URL + `","template":"{\"text\": {{json .Subject}}, \"n\": {{len .Items}}}"}`
-	if err := Send(context.Background(), "webhook", json.RawMessage(cfg), SMTP{}, msg()); err != nil {
+	if err := Send(context.Background(), netguard.Allow, "webhook", json.RawMessage(cfg), SMTP{}, msg()); err != nil {
 		t.Fatal(err)
 	}
 	var out map[string]any
@@ -70,19 +72,19 @@ func TestWebhookDefaultAndTemplate(t *testing.T) {
 
 func TestPresetsShape(t *testing.T) {
 	s, body, hdr := capture(t)
-	if err := Send(context.Background(), "discord", json.RawMessage(`{"url":"`+s.URL+`"}`), SMTP{}, msg()); err != nil {
+	if err := Send(context.Background(), netguard.Allow, "discord", json.RawMessage(`{"url":"`+s.URL+`"}`), SMTP{}, msg()); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(*body), `"embeds"`) {
 		t.Errorf("discord: %s", *body)
 	}
-	if err := Send(context.Background(), "teams", json.RawMessage(`{"url":"`+s.URL+`"}`), SMTP{}, msg()); err != nil {
+	if err := Send(context.Background(), netguard.Allow, "teams", json.RawMessage(`{"url":"`+s.URL+`"}`), SMTP{}, msg()); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(*body), "AdaptiveCard") {
 		t.Errorf("teams: %s", *body)
 	}
-	if err := Send(context.Background(), "ntfy", json.RawMessage(`{"server":"`+s.URL+`","topic":"ops","token":"tk"}`), SMTP{}, msg()); err != nil {
+	if err := Send(context.Background(), netguard.Allow, "ntfy", json.RawMessage(`{"server":"`+s.URL+`","topic":"ops","token":"tk"}`), SMTP{}, msg()); err != nil {
 		t.Fatal(err)
 	}
 	if (*hdr).Get("Priority") != "5" || (*hdr).Get("Authorization") != "Bearer tk" {
@@ -91,7 +93,28 @@ func TestPresetsShape(t *testing.T) {
 	// Errors from the endpoint surface.
 	fail := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.Error(w, "nope", 400) }))
 	defer fail.Close()
-	if err := Send(context.Background(), "slack", json.RawMessage(`{"url":"`+fail.URL+`"}`), SMTP{}, msg()); err == nil || !strings.Contains(err.Error(), "400") {
+	if err := Send(context.Background(), netguard.Allow, "slack", json.RawMessage(`{"url":"`+fail.URL+`"}`), SMTP{}, msg()); err == nil || !strings.Contains(err.Error(), "400") {
 		t.Errorf("expected HTTP 400 error, got %v", err)
+	}
+}
+
+func TestTenantChannelsBlockedFromPrivateTargets(t *testing.T) {
+	s, _, _ := capture(t) // listens on 127.0.0.1
+	cfgs := map[string]string{
+		"webhook": `{"url":"` + s.URL + `"}`,
+		"slack":   `{"url":"` + s.URL + `"}`,
+		"teams":   `{"url":"` + s.URL + `"}`,
+		"discord": `{"url":"` + s.URL + `"}`,
+		"ntfy":    `{"server":"` + s.URL + `","topic":"ops"}`,
+		"gotify":  `{"server":"` + s.URL + `","token":"tk"}`,
+	}
+	for typ, cfg := range cfgs {
+		err := Send(context.Background(), netguard.Strict, typ, json.RawMessage(cfg), SMTP{}, msg())
+		if err == nil || !strings.Contains(err.Error(), "not allowed") {
+			t.Errorf("%s: tenant send to loopback should be blocked, got %v", typ, err)
+		}
+		if err := Send(context.Background(), netguard.Allow, typ, json.RawMessage(cfg), SMTP{}, msg()); err != nil {
+			t.Errorf("%s: provider send to loopback failed: %v", typ, err)
+		}
 	}
 }

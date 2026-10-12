@@ -94,7 +94,9 @@ func (a *App) decorateHosts(ctx context.Context, hosts []Host) {
 		N        int    `db:"n"`
 	}
 	var vcs []vc
-	_ = a.db.SelectContext(ctx, &vcs, `SELECT host_id, severity, COUNT(DISTINCT vuln_id) AS n FROM vuln_findings WHERE status='open' AND severity IN ('Critical','High') GROUP BY host_id, severity`)
+	if a.vuln.Enabled() {
+		_ = a.db.SelectContext(ctx, &vcs, `SELECT host_id, severity, COUNT(DISTINCT vuln_id) AS n FROM vuln_findings WHERE status='open' AND severity IN ('Critical','High') GROUP BY host_id, severity`)
+	}
 	vmap := map[int64][2]int{}
 	for _, v := range vcs {
 		x := vmap[v.HostID]
@@ -142,6 +144,7 @@ type HostDetail struct {
 	LatestAgent  string           `json:"latest_agent_version"`
 	CheckCount   int              `json:"check_count"`
 	OpenFindings map[string]int   `json:"open_findings"`
+	VulnEnabled  bool             `json:"vuln_enabled"`
 }
 
 func (a *App) apiGetHost(c *Ctx) (any, error) {
@@ -176,7 +179,10 @@ func (a *App) apiGetHost(c *Ctx) (any, error) {
 		N        int    `db:"n"`
 	}
 	var scs []sc
-	_ = a.db.SelectContext(c.ctx(), &scs, `SELECT severity, COUNT(DISTINCT vuln_id) AS n FROM vuln_findings WHERE host_id=? AND status='open' GROUP BY severity`, h.ID)
+	d.VulnEnabled = a.vuln.Enabled()
+	if d.VulnEnabled {
+		_ = a.db.SelectContext(c.ctx(), &scs, `SELECT severity, COUNT(DISTINCT vuln_id) AS n FROM vuln_findings WHERE host_id=? AND status='open' GROUP BY severity`, h.ID)
+	}
 	for _, s := range scs {
 		d.OpenFindings[strings.ToLower(s.Severity)] = s.N
 	}
@@ -810,8 +816,8 @@ func (a *App) apiScanHost(c *Ctx) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !a.settings.Vuln().Enabled {
-		return nil, badRequest("vulnerability scanning is disabled in settings")
+	if !a.vuln.Enabled() {
+		return nil, conflict(msgVulnDisabled)
 	}
 	if !a.vuln.enqueue(h.ID, "manual") {
 		return map[string]any{"queued": false, "message": "a scan is already queued for this host"}, nil

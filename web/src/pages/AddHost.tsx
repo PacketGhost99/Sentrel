@@ -5,7 +5,7 @@ import { ArrowLeft, CheckCircle2, KeyRound, Network, Router, Server, Target, Ter
 import { del, errorMessage, get, post } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { ago, until } from '@/lib/format'
-import type { Host, HostGroup, Tenant } from '@/lib/types'
+import type { Host, HostGroup, PushFingerprint, Tenant } from '@/lib/types'
 import { SnmpForm, defaultSnmp, type SnmpConfig } from '@/components/SnmpForm'
 import { useTenantFilter } from '@/components/Layout'
 import { Badge, Button, Card, CodeBlock, ErrorBox, Field, Input, Note, PageHeader, Segmented, Select, Spinner, Table, TagInput, Td, Textarea, Th, Toggle, cx, useToast } from '@/components/ui'
@@ -158,7 +158,27 @@ function AgentInstall({ p, setP }: { p: Placement; setP: (p: Placement) => void 
 
 function PushInstall({ p, setP }: { p: Placement; setP: (p: Placement) => void }) {
   const [mode, setMode] = useState<'ssh' | 'winrm'>('ssh')
-  const [f, setF] = useState({ host: '', port: '', username: 'root', password: '', private_key: '', key_passphrase: '', sudo_password: '', host_key_fingerprint: '', https: true, insecure: true, ntlm: true })
+  const [f, setF] = useState({ host: '', port: '', username: 'root', password: '', private_key: '', key_passphrase: '', sudo_password: '', host_key_fingerprint: '', https: true, insecure: false, ntlm: true })
+  const [fp, setFp] = useState<{ fingerprint: string; key_type: string } | null>(null)
+  const [fpOK, setFpOK] = useState(false)
+  const [fpBusy, setFpBusy] = useState(false)
+  const [ack, setAck] = useState(false)
+  const insecureWinrm = mode === 'winrm' && (!f.https || f.insecure)
+  // A new target invalidates any fingerprint the user already confirmed.
+  useEffect(() => { setFp(null); setFpOK(false) }, [f.host, f.port, mode])
+  const fetchFp = async () => {
+    setFpBusy(true)
+    setErr(null)
+    try {
+      const r = await post<PushFingerprint>('/push/ssh/fingerprint', { host: f.host.trim(), port: Number(f.port) || 0 })
+      setFp(r)
+      setFpOK(false)
+    } catch (e) {
+      setErr(e)
+    } finally {
+      setFpBusy(false)
+    }
+  }
   const [auth, setAuth] = useState<'password' | 'key'>('password')
   const [pushId, setPushId] = useState<number | null>(null)
   const [err, setErr] = useState<unknown>(null)
@@ -172,8 +192,8 @@ function PushInstall({ p, setP }: { p: Placement; setP: (p: Placement) => void }
     try {
       const common = { tenant_id: p.tenant_id, group_id: p.group_id || null, tags: p.tags, name: p.name }
       const body = mode === 'ssh'
-        ? { ...common, host: f.host, port: Number(f.port) || 0, username: f.username, password: auth === 'password' ? f.password : '', private_key: auth === 'key' ? f.private_key : '', key_passphrase: f.key_passphrase, sudo_password: f.sudo_password, host_key_fingerprint: f.host_key_fingerprint }
-        : { ...common, host: f.host, port: Number(f.port) || 0, https: f.https, insecure: f.insecure, username: f.username, password: f.password, ntlm: f.ntlm }
+        ? { ...common, host: f.host, port: Number(f.port) || 0, username: f.username, password: auth === 'password' ? f.password : '', private_key: auth === 'key' ? f.private_key : '', key_passphrase: f.key_passphrase, sudo_password: f.sudo_password, host_key: fp?.fingerprint }
+        : { ...common, host: f.host, port: Number(f.port) || 0, https: f.https, insecure: f.insecure, allow_insecure: insecureWinrm && ack, username: f.username, password: f.password, ntlm: f.ntlm }
       const r = await post<any>(`/push/${mode}`, body)
       setPushId(r.id)
     } catch (e) {
@@ -201,7 +221,18 @@ function PushInstall({ p, setP }: { p: Placement; setP: (p: Placement) => void }
                 </>
               )}
               <Field label="sudo password" hint="If the user is not root; defaults to the login password"><Input type="password" autoComplete="off" value={f.sudo_password} onChange={(e) => set('sudo_password', e.target.value)} /></Field>
-              <Field label="Expected host key (optional)" hint="SHA256:… fingerprint; the connection is refused if it differs"><Input className="mono" value={f.host_key_fingerprint} onChange={(e) => set('host_key_fingerprint', e.target.value)} /></Field>
+              <Field label="Host key" hint="Fetch the fingerprint, compare it with the one on the machine (ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub), then confirm. The install only connects to a host presenting this key.">
+                <div className="space-y-2">
+                  <Button loading={fpBusy} disabled={!f.host.trim()} onClick={fetchFp}>Fetch fingerprint</Button>
+                  {fp && (
+                    <div className="rounded-xl bg-panel-2 p-3 text-xs">
+                      <div className="text-muted">{fp.key_type}</div>
+                      <div className="mono break-all">{fp.fingerprint}</div>
+                      <div className="mt-2"><Toggle checked={fpOK} onChange={setFpOK} label="This fingerprint is correct" /></div>
+                    </div>
+                  )}
+                </div>
+              </Field>
             </>
           ) : (
             <>
@@ -209,13 +240,19 @@ function PushInstall({ p, setP }: { p: Placement; setP: (p: Placement) => void }
               <Toggle checked={f.https} onChange={(v) => set('https', v)} label="Use HTTPS (port 5986)" />
               <Toggle checked={f.insecure} onChange={(v) => set('insecure', v)} label="Accept self-signed WinRM certificate" />
               <Toggle checked={f.ntlm} onChange={(v) => set('ntlm', v)} label="NTLM authentication" hint="Required for domain and most local accounts" />
+              {insecureWinrm && (
+                <>
+                  <Note tone="warn">{f.https ? 'Certificate checks are off, so the connection can be intercepted.' : 'Plain HTTP WinRM sends the administrator password over the network without encryption.'} Prefer HTTPS with a trusted certificate.</Note>
+                  <Toggle checked={ack} onChange={setAck} label="I accept this risk" />
+                </>
+              )}
               <Note>WinRM is enabled by default on Windows Server (2012 R2+) but not on Windows 10/11. For client editions use the PowerShell install command instead.</Note>
             </>
           )}
           <PlacementFields p={p} onChange={setP} />
           <Note>Credentials are used once for this install and are never stored.</Note>
           <ErrorBox error={err} />
-          <Button variant="primary" loading={busy} disabled={!f.host || !f.username} onClick={start} icon={<Network className="size-4" />}>Install agent</Button>
+          <Button variant="primary" loading={busy} disabled={!f.host || !f.username || (mode === 'ssh' && !(fp && fpOK)) || (insecureWinrm && !ack)} onClick={start} icon={<Network className="size-4" />}>Install agent</Button>
         </div>
       </Card>
       <Card title="Progress" subtitle={push.data ? `${push.data.method} → ${push.data.target}` : undefined}

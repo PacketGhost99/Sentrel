@@ -171,6 +171,10 @@ type Host struct {
 	AllowScripts      bool    `db:"allow_scripts" json:"allow_scripts"`
 	AllowCleanup      bool    `db:"allow_cleanup" json:"allow_cleanup"`
 	AutoBlock         bool    `db:"auto_block" json:"auto_block"`
+	// Reported by the agent from its local config; the server cannot change it.
+	WritePolicy       string  `db:"write_policy" json:"write_policy"`
+	OperatorKeys      StrList `db:"operator_keys" json:"-"`
+	OperatorKeyIDs    StrList `db:"operator_key_ids" json:"operator_key_ids"`
 	SNMPConfig        JSON    `db:"snmp_config" json:"-"`
 	SNMPInfo          JSON    `db:"snmp_info" json:"snmp_info"`
 	StorageBytes      int64   `db:"storage_bytes" json:"storage_bytes"`
@@ -203,7 +207,7 @@ type HostSummary struct {
 const hostCols = `h.id, h.tenant_id, h.kind, h.name, h.address, h.group_id, h.tags, h.notes, h.agent_id, h.cert_serial,
  h.cert_expires_at, h.revoked, h.agent_version, h.host_info, h.status, h.last_seen_at, h.connected, h.reboot_required,
  h.interval_seconds, h.inventory_interval, h.retention_days, h.agent_options, h.allow_upgrades, h.allow_ip_block,
- h.allow_scripts, h.allow_cleanup, h.auto_block, h.snmp_config, h.snmp_info, h.storage_bytes, h.storage_computed_at, h.created_at, h.updated_at`
+ h.allow_scripts, h.allow_cleanup, h.auto_block, h.write_policy, h.operator_keys, h.operator_key_ids, h.snmp_config, h.snmp_info, h.storage_bytes, h.storage_computed_at, h.created_at, h.updated_at`
 
 // AgentOptions are per-host overrides of AgentDefaults (nil = inherit).
 type AgentOptions struct {
@@ -366,13 +370,14 @@ type Job struct {
 	FinishedAt     int64  `db:"finished_at" json:"finished_at"`
 	ExitCode       *int   `db:"exit_code" json:"exit_code"`
 	Error          string `db:"error" json:"error"`
+	OperatorKeyID  string `db:"operator_key_id" json:"operator_key_id,omitempty"`
 	Output         string `db:"output" json:"output,omitempty"`
 	ResultJSON     string `db:"result_json" json:"result_json,omitempty"`
 	HostName       string `db:"host_name" json:"host_name,omitempty"`
 }
 
 const jobCols = `j.id, j.tenant_id, j.host_id, j.type, j.params, j.dry_run, j.status, j.schedule, j.run_after, j.expires_at,
- j.timeout_seconds, j.requested_by, j.confirmed_by, j.created_at, j.sent_at, j.started_at, j.finished_at, j.exit_code, j.error`
+ j.timeout_seconds, j.requested_by, j.confirmed_by, j.created_at, j.sent_at, j.started_at, j.finished_at, j.exit_code, j.error, j.operator_key_id`
 
 type Package struct {
 	TenantID   int64  `db:"tenant_id" json:"-"`

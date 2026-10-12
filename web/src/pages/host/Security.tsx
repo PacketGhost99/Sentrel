@@ -140,7 +140,7 @@ function BlockDialog({ hostId, hostName, ip, onClose }: { hostId: number; hostNa
     <Modal open onClose={onClose} title={`Block an IP on ${hostName}`} size="sm"
       footer={<><Button onClick={onClose}>Cancel</Button><Button variant="danger" loading={busy} onClick={async () => {
         setBusy(true)
-        try { await post(`/hosts/${hostId}/block`, { ip: addr, minutes: Number(minutes), reason, confirm: true }); toast(`Blocking ${addr}`); onClose() } catch (e) { toast(errorMessage(e), 'crit') } finally { setBusy(false) }
+        try { const j = await post<{ status?: string }>(`/hosts/${hostId}/block`, { ip: addr, minutes: Number(minutes), reason, confirm: true }); toast(j?.status === 'awaiting_signature' ? `Blocking ${addr} is waiting for your operator signature (see Jobs)` : `Blocking ${addr}`); onClose() } catch (e) { toast(errorMessage(e), 'crit') } finally { setBusy(false) }
       }}>Block</Button></>}>
       <div className="space-y-3">
         <Field label="IP address"><Input className="mono" value={addr} onChange={(e) => setAddr(e.target.value)} /></Field>

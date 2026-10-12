@@ -1,20 +1,21 @@
 # Heartbeat server image. Build from the repository root:
 #   docker build -f deploy/Dockerfile -t heartbeat .
-FROM node:22-bookworm-slim AS web
+FROM --platform=$BUILDPLATFORM node:22-bookworm-slim AS web
 WORKDIR /src/web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY web/ ./
 RUN npm run build
 
-FROM golang:1.26-bookworm AS build
+FROM --platform=$BUILDPLATFORM golang:1.26-bookworm AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 COPY --from=web /src/web/dist ./web/dist
 ARG VERSION=dev
-RUN scripts/build.sh --skip-web --version "$VERSION" && cp dist/heartbeat-server-linux-$(go env GOARCH) /heartbeat-server
+ARG TARGETARCH
+RUN scripts/build.sh --skip-web --server-arch "$TARGETARCH" --version "$VERSION" && cp "dist/heartbeat-server-linux-$TARGETARCH" /heartbeat-server
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates tzdata libcap2-bin \

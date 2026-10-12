@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -175,6 +176,26 @@ func TestParseHumanSize(t *testing.T) {
 	for in, want := range cases {
 		if got := parseHumanSize(in); got != want {
 			t.Errorf("%q: got %d want %d", in, got, want)
+		}
+	}
+}
+
+func TestIsMountPoint(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		if !isMountPoint(`c:\`, []string{"C:"}) || isMountPoint(`C:\Windows`, []string{"C:"}) {
+			t.Error("windows mount matching")
+		}
+		return
+	}
+	mounts := []string{"/", "/boot", "/mnt/data"}
+	for _, ok := range []string{"/", "/boot", "/mnt/data/", "/mnt//data"} {
+		if !isMountPoint(ok, mounts) {
+			t.Errorf("%q rejected", ok)
+		}
+	}
+	for _, bad := range []string{"/etc", "/root", "/var/lib/heartbeat-agent", "/mnt", "/boot/../etc"} {
+		if isMountPoint(bad, mounts) {
+			t.Errorf("%q accepted", bad)
 		}
 	}
 }

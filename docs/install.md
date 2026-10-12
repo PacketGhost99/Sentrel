@@ -1,6 +1,6 @@
 # Installing the server
 
-Heartbeat runs on Linux. The release artifacts (built by `scripts/build.sh`) are `heartbeat-server-linux-<arch>`, `install-server.sh`, `install-agent.sh`, `install-agent.ps1` and `SHA256SUMS`. The server binary embeds the web UI and the agent builds (Linux amd64/arm64, Windows amd64), so a single file is all you deploy.
+Heartbeat runs on Linux. The release artifacts (built by `scripts/build.sh`) are `heartbeat-server-linux-<arch>`, the `.deb`/`.rpm` packages, `install-server.sh`, `install-agent.sh`, `install-agent.ps1` and `SHA256SUMS`. The server binary embeds the web UI and the agent builds (Linux amd64/arm64, Windows amd64), so a single file is all you deploy.
 
 ## Linux with systemd
 
@@ -38,6 +38,78 @@ Logs: `journalctl -u heartbeat -f`. Set `HEARTBEAT_LOG_LEVEL` (`debug`, `info`, 
 | `cap_net_bind_service` | Binding ports 80/443 (Let's Encrypt mode, or `--listen :443`). |
 
 If `setcap` is missing (install `libcap2-bin`), the systemd ambient capabilities still apply. A `setcap` grant is lost whenever the binary is replaced; the installer re-applies it on every run.
+
+## Linux packages (.deb and .rpm)
+
+Each release attaches `.deb` and `.rpm` packages for the agent and the server, for amd64 and arm64. Download them from the GitHub release page (and verify them, see [Verifying downloads](#verifying-downloads)).
+
+```sh
+# Debian, Ubuntu
+sudo apt install ./heartbeat-server_<version>_amd64.deb
+# RHEL, Rocky, Alma, Fedora
+sudo dnf install ./heartbeat-server-<version>-1.x86_64.rpm
+```
+
+Server package: installs `/usr/local/bin/heartbeat-server` (with `cap_net_raw` and `cap_net_bind_service` when `setcap` is available), the systemd unit `heartbeat.service`, the `heartbeat` user and `/var/lib/heartbeat`. It does not start the service on a fresh install (an upgrade restarts a running one):
+
+```sh
+sudo systemctl enable --now heartbeat
+sudo cat /var/lib/heartbeat/setup-token
+```
+
+Agent package (`heartbeat-agent`): installs `/usr/local/bin/heartbeat-agent`, the `heartbeat-agent` user (added to `adm` and `systemd-journal` when they exist), the sudoers rule that lets the agent run only `heartbeat-agent priv *` as root, and the systemd unit. It does not register the host. Take a one-time token from "Add host" in the UI and run:
+
+```sh
+sudo heartbeat-agent register --server https://SERVER --token ABCD-1234
+sudo systemctl enable --now heartbeat-agent
+```
+
+Removing the package stops and disables the service. Config, state and the user are kept. Container monitoring needs the agent user in the `docker` group, which is root-equivalent: add it yourself (`sudo usermod -aG docker heartbeat-agent`) if you want it.
+
+Build the packages yourself with `scripts/build.sh --packages` (needs Go; nfpm is fetched with `go run`). All product, binary and package names are variables at the top of that script.
+
+### APT and YUM repositories
+
+TODO: there is no hosted repository yet; install the packages from the release page. A signed repository (for example on GitHub Pages) would let `apt upgrade` and `dnf upgrade` keep hosts current.
+
+## Container image (GHCR)
+
+Images are published for linux/amd64 and linux/arm64 as `ghcr.io/notspark1999/Heartbeat` (the repository name in lower case) with tags `edge` (latest main), the release tag (for example `v1.2.0`) and `latest` (latest release).
+
+```sh
+docker run -d --name heartbeat --cap-add NET_RAW -p 8080:8080 -v heartbeat-data:/data \
+  ghcr.io/notspark1999/Heartbeat:latest
+```
+
+In the compose file, replace the `build:` section with `image: ghcr.io/notspark1999/Heartbeat:latest`.
+
+## Verifying downloads
+
+Releases carry several independent checks:
+
+- `SHA256SUMS` lists every binary, package and installer: `sha256sum -c SHA256SUMS --ignore-missing`.
+- `SHA256SUMS.sig` is the project's own signature (checked by the server and agents when they self-update, with `hb-sign verify`).
+- `SHA256SUMS.cosign.bundle` is a keyless [Sigstore](https://www.sigstore.dev) signature made by the release workflow. Check that the checksums came from this repository's workflow, then check the files against them:
+
+```sh
+cosign verify-blob \
+  --bundle SHA256SUMS.cosign.bundle \
+  --certificate-identity-regexp '^https://github.com/notspark1999/Heartbeat/\.github/workflows/ci\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  SHA256SUMS
+sha256sum -c SHA256SUMS --ignore-missing
+```
+
+- `<binary>.spdx.json` is an SPDX software bill of materials for each binary.
+- The container image is signed keyless as well:
+
+```sh
+cosign verify ghcr.io/notspark1999/Heartbeat:<tag> \
+  --certificate-identity-regexp '^https://github.com/notspark1999/Heartbeat/\.github/workflows/ci\.yml@' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+Replace `notspark1999/Heartbeat` with the GitHub repository (case-sensitive in the certificate identity).
 
 ## Docker
 

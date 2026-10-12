@@ -438,9 +438,10 @@ var settingSecrets = map[string][]string{
 	keySMTP:   {"password"},
 	keyLDAP:   {"bind_password"},
 	keyRADIUS: {"secret"},
+	keyOIDC:   {"client_secret"},
 }
 
-var editableSections = []string{keyGeneral, keyTLS, keySMTP, keyLDAP, keyRADIUS, keySecurity, keyRetention, keyAgent, keyAlerting, keyVuln}
+var editableSections = []string{keyGeneral, keyTLS, keySMTP, keyLDAP, keyRADIUS, keyOIDC, keyProxyAuth, keySecurity, keyRetention, keyAgent, keyAlerting, keyVuln}
 
 func (a *App) apiGetSettings(c *Ctx) (any, error) {
 	out := map[string]any{}
@@ -517,6 +518,11 @@ func (a *App) apiPutSettings(c *Ctx) (any, error) {
 		if s.Listen == "" {
 			s.Listen = "0.0.0.0:8080"
 		}
+		tp, err := normalizeProxyList(s.TrustedProxies)
+		if err != nil {
+			return nil, err
+		}
+		s.TrustedProxies = tp
 		warn = "Listeners are restarting with the new TLS settings. If the page stops responding, reload it at the new address."
 	case *SecuritySettings:
 		if s.Require2FA != "none" && s.Require2FA != "admins" && s.Require2FA != "all" {
@@ -557,6 +563,14 @@ func (a *App) apiPutSettings(c *Ctx) (any, error) {
 		if s.Enabled && (s.Server == "" || s.Secret == "") {
 			return nil, badRequest("RADIUS needs a server and shared secret")
 		}
+	case *OIDCSettings:
+		if err := validateOIDCSettings(s); err != nil {
+			return nil, err
+		}
+	case *ProxyAuthSettings:
+		if err := validateProxyAuthSettings(s); err != nil {
+			return nil, err
+		}
 	}
 	if err := a.settings.Save(ctx, 0, section, v); err != nil {
 		return nil, err
@@ -570,8 +584,20 @@ func (a *App) apiPutSettings(c *Ctx) (any, error) {
 	case keyAgent:
 		go a.hub.PushConfigAll(context.Background())
 	case keyVuln:
-		if v.(*VulnSettings).Enabled && !a.vuln.Status().Available {
-			_ = a.vuln.SyncNow()
+		nv := v.(*VulnSettings)
+		if nv.Enabled {
+			if !a.vuln.Status().Available {
+				_ = a.vuln.SyncNow()
+			}
+		} else {
+			// Deleting the DB files is an explicit opt-in, never automatic.
+			var extra struct {
+				DeleteDB bool `json:"delete_db"`
+			}
+			_ = json.Unmarshal(raw, &extra)
+			if err := a.vuln.Disable(extra.DeleteDB); err != nil {
+				warn = "Vulnerability scanning is off, but the database files were not deleted: " + err.Error()
+			}
 		}
 	case keySecurity:
 		w := time.Duration(v.(*SecuritySettings).LockoutMinutes) * time.Minute

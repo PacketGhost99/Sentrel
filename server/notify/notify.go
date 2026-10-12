@@ -21,6 +21,8 @@ import (
 	"strings"
 	"text/template"
 	"time"
+
+	"heartbeat/server/netguard"
 )
 
 // Item is one alert in a (possibly grouped) notification.
@@ -82,24 +84,25 @@ type Config struct {
 	SkipVerify  bool              `json:"skip_verify"`
 	Username    string            `json:"username"` // webhook basic auth / discord display name
 	Password    string            `json:"password"`
+
+	guard netguard.Guard // set by Send; the zero value is the strict tenant policy
 }
 
 // Secret field names stripped by the API on read.
 var SecretFields = []string{"bot_token", "token", "user_key", "password"}
 
-var client = &http.Client{Timeout: 20 * time.Second}
-
 // Types lists the supported channel types.
 var Types = []string{"webhook", "discord", "slack", "teams", "telegram", "ntfy", "gotify", "pushover", "email"}
 
 // Send delivers msg via the given channel type.
-func Send(ctx context.Context, typ string, raw json.RawMessage, smtpCfg SMTP, msg Message) error {
+func Send(ctx context.Context, g netguard.Guard, typ string, raw json.RawMessage, smtpCfg SMTP, msg Message) error {
 	var c Config
 	if len(raw) > 0 {
 		if err := json.Unmarshal(raw, &c); err != nil {
 			return fmt.Errorf("config: %w", err)
 		}
 	}
+	c.guard = g
 	msg.SentAt = time.Now().Unix()
 	switch typ {
 	case "webhook":
@@ -197,10 +200,12 @@ func post(ctx context.Context, c Config, method, u, contentType string, body []b
 	if c.Username != "" && c.Password != "" {
 		req.SetBasicAuth(c.Username, c.Password)
 	}
-	cl := client
+	tr := c.guard.Transport(&http.Transport{})
 	if c.SkipVerify {
-		cl = &http.Client{Timeout: client.Timeout, Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}}
+		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
+	defer tr.CloseIdleConnections()
+	cl := &http.Client{Timeout: 20 * time.Second, Transport: tr}
 	resp, err := cl.Do(req)
 	if err != nil {
 		return err
@@ -355,7 +360,7 @@ func sendDiscord(ctx context.Context, c Config, msg Message) error {
 	if c.Username != "" {
 		body["username"] = c.Username
 	}
-	return postJSON(ctx, Config{Headers: c.Headers}, c.URL, body)
+	return postJSON(ctx, Config{Headers: c.Headers, guard: c.guard}, c.URL, body)
 }
 
 func eventSuffix(it Item) string {
@@ -425,7 +430,7 @@ func sendTelegram(ctx context.Context, c Config, msg Message) error {
 		base = strings.TrimRight(c.Server, "/")
 	}
 	u := base + "/bot" + c.BotToken + "/sendMessage"
-	return postJSON(ctx, Config{}, u, map[string]any{"chat_id": c.ChatID, "text": truncate(b.String(), 4000), "parse_mode": "HTML", "disable_web_page_preview": true})
+	return postJSON(ctx, Config{guard: c.guard}, u, map[string]any{"chat_id": c.ChatID, "text": truncate(b.String(), 4000), "parse_mode": "HTML", "disable_web_page_preview": true})
 }
 
 func sendNtfy(ctx context.Context, c Config, msg Message) error {
@@ -482,7 +487,7 @@ func sendGotify(ctx context.Context, c Config, msg Message) error {
 	if msg.URL != "" {
 		body["extras"] = map[string]any{"client::notification": map[string]any{"click": map[string]any{"url": msg.URL}}}
 	}
-	return postJSON(ctx, Config{SkipVerify: c.SkipVerify}, u, body)
+	return postJSON(ctx, Config{SkipVerify: c.SkipVerify, guard: c.guard}, u, body)
 }
 
 func sendPushover(ctx context.Context, c Config, msg Message) error {
@@ -507,7 +512,7 @@ func sendPushover(ctx context.Context, c Config, msg Message) error {
 	if c.Server != "" {
 		u = c.Server
 	}
-	return post(ctx, Config{}, http.MethodPost, u, "application/x-www-form-urlencoded", []byte(form.Encode()), nil)
+	return post(ctx, Config{guard: c.guard}, http.MethodPost, u, "application/x-www-form-urlencoded", []byte(form.Encode()), nil)
 }
 
 func sendEmail(ctx context.Context, c Config, s SMTP, msg Message) error {

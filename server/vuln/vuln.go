@@ -140,7 +140,24 @@ func (s *Scanner) Close() {
 	if s.provider != nil {
 		s.provider.Close()
 		s.provider = nil
+		s.status.Available = false
 	}
+}
+
+// Delete releases the DB and removes its files from disk. It refuses while an
+// update is running.
+func (s *Scanner) Delete() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.updating {
+		return errors.New("a database update is running; try again when it finishes")
+	}
+	if s.provider != nil {
+		s.provider.Close()
+		s.provider = nil
+	}
+	s.status = Status{}
+	return os.RemoveAll(s.dir)
 }
 
 // Package is an inventory entry.

@@ -50,6 +50,26 @@ type agentConn struct {
 	viaMTLS     bool
 }
 
+// acceptHello records ms as the newest hello for the agent and reports false if
+// it is not newer than the last accepted one. The value is persisted so a
+// restart does not reopen the replay window.
+func (h *Hub) acceptHello(ctx context.Context, agentID string, ms int64) bool {
+	h.helloMu.Lock()
+	defer h.helloMu.Unlock()
+	last, ok := h.lastHello[agentID]
+	if !ok {
+		_ = h.app.db.GetContext(ctx, &last, `SELECT last_ms FROM agent_hello WHERE agent_id=?`, agentID)
+	}
+	if ms <= last {
+		h.lastHello[agentID] = last
+		return false
+	}
+	h.lastHello[agentID] = ms
+	_, _ = h.app.db.ExecContext(ctx, `INSERT INTO agent_hello (agent_id, last_ms, updated_at) VALUES (?,?,?)
+		ON CONFLICT(agent_id) DO UPDATE SET last_ms=excluded.last_ms, updated_at=excluded.updated_at`, agentID, ms, db.Now())
+	return true
+}
+
 func newHub(a *App) *Hub {
 	return &Hub{
 		app:        a,
@@ -177,14 +197,9 @@ func (h *Hub) authenticate(ctx context.Context, hello *pb.Hello) (*Host, bool, e
 		if skew > 5*time.Minute || skew < -5*time.Minute {
 			return nil, false, fmt.Errorf("clock skew too large (%s); check NTP on the agent host", skew.Round(time.Second))
 		}
-		h.helloMu.Lock()
-		last := h.lastHello[hello.AgentId]
-		if hello.UnixMs <= last {
-			h.helloMu.Unlock()
+		if !h.acceptHello(ctx, hello.AgentId, hello.UnixMs) {
 			return nil, false, errors.New("replayed hello")
 		}
-		h.lastHello[hello.AgentId] = hello.UnixMs
-		h.helloMu.Unlock()
 		cert = c
 	}
 	agentID, serial, err := h.app.ca.VerifyAgentCert(cert)

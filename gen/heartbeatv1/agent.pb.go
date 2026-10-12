@@ -420,7 +420,12 @@ type Hello struct {
 	// Set when the agent was just upgraded and this is its first connection.
 	UpdatedFrom string `protobuf:"bytes,8,opt,name=updated_from,json=updatedFrom,proto3" json:"updated_from,omitempty"`
 	// Set by `heartbeat-agent self-test`: the server verifies auth then closes.
-	SelfTest      bool `protobuf:"varint,9,opt,name=self_test,json=selfTest,proto3" json:"self_test,omitempty"`
+	SelfTest bool `protobuf:"varint,9,opt,name=self_test,json=selfTest,proto3" json:"self_test,omitempty"`
+	// The agent's local write-job policy (server, operator or none) and the
+	// base64 Ed25519 operator public keys it trusts. Read from the root-owned
+	// agent.yaml; the server cannot change either.
+	WritePolicy   string   `protobuf:"bytes,10,opt,name=write_policy,json=writePolicy,proto3" json:"write_policy,omitempty"`
+	OperatorKeys  []string `protobuf:"bytes,11,rep,name=operator_keys,json=operatorKeys,proto3" json:"operator_keys,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -516,6 +521,20 @@ func (x *Hello) GetSelfTest() bool {
 		return x.SelfTest
 	}
 	return false
+}
+
+func (x *Hello) GetWritePolicy() string {
+	if x != nil {
+		return x.WritePolicy
+	}
+	return ""
+}
+
+func (x *Hello) GetOperatorKeys() []string {
+	if x != nil {
+		return x.OperatorKeys
+	}
+	return nil
 }
 
 type HostInfo struct {
@@ -2685,11 +2704,15 @@ func (x *AgentConfig) GetRefreshPackageIndex() bool {
 // those exact bytes. Agents verify the signature with the key received at
 // registration and refuse anything else.
 type SignedJob struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Spec          []byte                 `protobuf:"bytes,1,opt,name=spec,proto3" json:"spec,omitempty"`
-	Signature     []byte                 `protobuf:"bytes,2,opt,name=signature,proto3" json:"signature,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Spec      []byte                 `protobuf:"bytes,1,opt,name=spec,proto3" json:"spec,omitempty"`
+	Signature []byte                 `protobuf:"bytes,2,opt,name=signature,proto3" json:"signature,omitempty"`
+	// Second signature over the same spec bytes by an operator key, required by
+	// agents whose write policy is "operator" for write-class jobs.
+	OperatorSignature []byte `protobuf:"bytes,3,opt,name=operator_signature,json=operatorSignature,proto3" json:"operator_signature,omitempty"`
+	OperatorKeyId     string `protobuf:"bytes,4,opt,name=operator_key_id,json=operatorKeyId,proto3" json:"operator_key_id,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *SignedJob) Reset() {
@@ -2734,6 +2757,20 @@ func (x *SignedJob) GetSignature() []byte {
 		return x.Signature
 	}
 	return nil
+}
+
+func (x *SignedJob) GetOperatorSignature() []byte {
+	if x != nil {
+		return x.OperatorSignature
+	}
+	return nil
+}
+
+func (x *SignedJob) GetOperatorKeyId() string {
+	if x != nil {
+		return x.OperatorKeyId
+	}
+	return ""
 }
 
 type JobSpec struct {
@@ -2960,7 +2997,7 @@ const file_heartbeat_v1_agent_proto_rawDesc = "" +
 	"\n" +
 	"job_result\x18\a \x01(\v2\x17.heartbeat.v1.JobResultH\x00R\tjobResult\x12(\n" +
 	"\x04pong\x18\b \x01(\v2\x12.heartbeat.v1.PongH\x00R\x04pongB\x05\n" +
-	"\x03msg\"\xac\x02\n" +
+	"\x03msg\"\xf4\x02\n" +
 	"\x05Hello\x12\x19\n" +
 	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12%\n" +
 	"\x0eschema_version\x18\x02 \x01(\rR\rschemaVersion\x12#\n" +
@@ -2970,7 +3007,10 @@ const file_heartbeat_v1_agent_proto_rawDesc = "" +
 	"\aunix_ms\x18\x06 \x01(\x03R\x06unixMs\x12\x1c\n" +
 	"\tsignature\x18\a \x01(\fR\tsignature\x12!\n" +
 	"\fupdated_from\x18\b \x01(\tR\vupdatedFrom\x12\x1b\n" +
-	"\tself_test\x18\t \x01(\bR\bselfTest\"\xfe\x03\n" +
+	"\tself_test\x18\t \x01(\bR\bselfTest\x12!\n" +
+	"\fwrite_policy\x18\n" +
+	" \x01(\tR\vwritePolicy\x12#\n" +
+	"\roperator_keys\x18\v \x03(\tR\foperatorKeys\"\xfe\x03\n" +
 	"\bHostInfo\x12\x1a\n" +
 	"\bhostname\x18\x01 \x01(\tR\bhostname\x12\x0e\n" +
 	"\x02os\x18\x02 \x01(\tR\x02os\x12\x1a\n" +
@@ -3181,10 +3221,12 @@ const file_heartbeat_v1_agent_proto_rawDesc = "" +
 	"\x10watched_services\x18\n" +
 	" \x03(\tR\x0fwatchedServices\x121\n" +
 	"\x14collect_temperatures\x18\v \x01(\bR\x13collectTemperatures\x122\n" +
-	"\x15refresh_package_index\x18\f \x01(\bR\x13refreshPackageIndex\"=\n" +
+	"\x15refresh_package_index\x18\f \x01(\bR\x13refreshPackageIndex\"\x94\x01\n" +
 	"\tSignedJob\x12\x12\n" +
 	"\x04spec\x18\x01 \x01(\fR\x04spec\x12\x1c\n" +
-	"\tsignature\x18\x02 \x01(\fR\tsignature\"\xc4\x02\n" +
+	"\tsignature\x18\x02 \x01(\fR\tsignature\x12-\n" +
+	"\x12operator_signature\x18\x03 \x01(\fR\x11operatorSignature\x12&\n" +
+	"\x0foperator_key_id\x18\x04 \x01(\tR\roperatorKeyId\"\xc4\x02\n" +
 	"\aJobSpec\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x19\n" +
 	"\bagent_id\x18\x02 \x01(\tR\aagentId\x12\x12\n" +

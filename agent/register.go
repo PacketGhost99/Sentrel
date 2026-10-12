@@ -8,12 +8,14 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
 	pb "heartbeat/gen/heartbeatv1"
+	"heartbeat/internal/jobpolicy"
 )
 
 // RegisterOptions are the inputs to Register.
@@ -24,6 +26,8 @@ type RegisterOptions struct {
 	StateDir      string
 	CAFingerprint string
 	Name          string
+	WriteJobs     string   // server (default), operator or none
+	OperatorKeys  []string // base64 Ed25519 public keys for the operator policy
 }
 
 // Register enrols this host: it generates a key pair, sends a CSR with the
@@ -35,8 +39,25 @@ func Register(ctx context.Context, o RegisterOptions) (*Config, error) {
 	if o.StateDir == "" {
 		o.StateDir = DefaultStateDir()
 	}
+	policy, err := jobpolicy.NormalizePolicy(o.WriteJobs)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := jobpolicy.ParseKeys(o.OperatorKeys); err != nil {
+		return nil, err
+	}
+	if policy == jobpolicy.PolicyOperator && len(o.OperatorKeys) == 0 {
+		return nil, errors.New("write-jobs operator needs at least one --operator-key")
+	}
 	if err := os.MkdirAll(o.StateDir, 0o700); err != nil {
 		return nil, err
+	}
+	if err := os.MkdirAll(filepath.Dir(o.ConfigPath), 0o750); err != nil {
+		return nil, err
+	}
+	// Windows: lock the folders down before any key material is written.
+	if err := hardenStateDirs(o.StateDir, o.ConfigPath); err != nil {
+		return nil, fmt.Errorf("protect state directory: %w", err)
 	}
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -70,7 +91,13 @@ func Register(ctx context.Context, o RegisterOptions) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	cfg := &Config{ServerURL: o.ServerURL, AgentID: resp.AgentId, StateDir: o.StateDir, CAFingerprint: o.CAFingerprint, Name: o.Name}
+	cfg := &Config{ServerURL: o.ServerURL, AgentID: resp.AgentId, StateDir: o.StateDir, CAFingerprint: o.CAFingerprint, Name: o.Name, WriteJobs: policy}
+	if policy == jobpolicy.PolicyServer {
+		cfg.WriteJobs = ""
+	}
+	if policy == jobpolicy.PolicyOperator {
+		cfg.OperatorKeys = o.OperatorKeys
+	}
 	if err := os.WriteFile(cfg.keyFile(), pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER}), 0o600); err != nil {
 		return nil, err
 	}
@@ -87,5 +114,6 @@ func Register(ctx context.Context, o RegisterOptions) (*Config, error) {
 	if err := os.WriteFile(filepath.Join(filepath.Dir(o.ConfigPath), "job.pub"), pub, 0o644); err != nil {
 		return nil, err
 	}
+	_ = hardenStateDirs(o.StateDir, o.ConfigPath) // cover files created above
 	return cfg, nil
 }

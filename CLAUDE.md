@@ -25,7 +25,12 @@ A self-hosted monitoring server, an agent and a React UI in one Go module (`sent
 - `docs/*.md`: user docs. Keep them in step with features.
 
 ## Build and test
-There's no Go or Node on the Windows laptop. Build and test on the VPS (`HeartbeatSandbox`):
+**Build and test locally first.** The Windows laptop has Go and Node, and is much faster than the VPS: a warm `go build` takes about 35 s. In PowerShell, if a shell predates the install, prefix `$env:Path = "C:\Program Files\Go\bin;C:\Program Files\nodejs;$env:Path"`.
+- Go: `go build ./... && go vet ./... && go test ./...`. This also runs the Windows-only tests, which the VPS never does.
+- Cross-check Linux: `$env:GOOS="linux"; go vet ./...; Remove-Item Env:GOOS`.
+- Web: `cd web; npm run build; npx vitest run`. `web/dist` must exist for the Go embed.
+
+Use the VPS (`HeartbeatSandbox`) only for Linux-only tests (e.g. priv/symlink tests), release builds (nfpm, wixl), deploys and e2e:
 - `scripts/sync.sh push`: copy the tree to `~/heartbeat`.
 - `scripts/sync.sh run '<cmd>'`: run in that dir, e.g.:
   - `go build ./... && go vet ./... && go test ./server/... ./agent/...`

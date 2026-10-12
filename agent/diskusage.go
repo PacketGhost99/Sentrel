@@ -241,11 +241,15 @@ func normalizeDiskPath(p string) (string, error) {
 // isMountPoint reports whether path equals one of the mount points (or "/").
 func isMountPoint(path string, mounts []string) bool {
 	norm := func(s string) string {
-		s = strings.TrimRight(filepath.Clean(s), `\/`)
 		if runtime.GOOS == "windows" {
-			s = strings.ToLower(s)
+			// filepath.Clean("C:") is "C:." on Windows, so compare a bare
+			// volume ("C:", "c:\") by its volume name.
+			if v := filepath.VolumeName(s); v != "" && strings.Trim(s[len(v):], `\/`) == "" {
+				return strings.ToLower(v)
+			}
+			return strings.ToLower(strings.TrimRight(filepath.Clean(s), `\/`))
 		}
-		return s
+		return strings.TrimRight(filepath.Clean(s), `\/`)
 	}
 	want := norm(path)
 	if runtime.GOOS != "windows" && want == "" {

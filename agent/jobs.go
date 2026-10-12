@@ -22,8 +22,8 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	pb "heartbeat/gen/heartbeatv1"
-	"heartbeat/internal/jobpolicy"
+	pb "sentrel/gen/sentrelv1"
+	"sentrel/internal/jobpolicy"
 )
 
 func slogDiscard() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
@@ -314,7 +314,7 @@ func runScript(ctx context.Context, interpreter, script string, w io.Writer) err
 	case runtime.GOOS == "windows" && (interpreter == "" || interpreter == "powershell"):
 		cmd = exec.CommandContext(ctx, "powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", "-")
 	case runtime.GOOS == "windows" && interpreter == "cmd":
-		f, err := os.CreateTemp("", "hb-*.cmd")
+		f, err := os.CreateTemp("", "sentrel-*.cmd")
 		if err != nil {
 			return err
 		}

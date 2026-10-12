@@ -24,8 +24,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
 
-	pb "heartbeat/gen/heartbeatv1"
-	"heartbeat/web"
+	pb "sentrel/gen/sentrelv1"
+	"sentrel/web"
 )
 
 type httpServer struct {

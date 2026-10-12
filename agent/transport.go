@@ -104,7 +104,7 @@ func dial(ctx context.Context, serverURL string, caPEM []byte, clientCert *tls.C
 		grpc.WithTransportCredentials(creds),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{Time: 30 * time.Second, Timeout: 15 * time.Second, PermitWithoutStream: true}),
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(16<<20), grpc.MaxCallSendMsgSize(64<<20)),
-		grpc.WithUserAgent("heartbeat-agent"),
+		grpc.WithUserAgent("sentrel-agent"),
 	}
 	// grpc-go honours HTTPS_PROXY / NO_PROXY from the environment.
 	return grpc.NewClient(target, opts...)

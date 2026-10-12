@@ -1,6 +1,6 @@
 # Single sign-on
 
-Heartbeat supports two kinds of single sign-on, both configured under **Settings → Single sign-on**:
+Sentrel supports two kinds of single sign-on, both configured under **Settings → Single sign-on**:
 
 - **OpenID Connect (OIDC)**: a "Sign in with ..." button on the login page. Works with Authentik, Authelia, Keycloak, Google, Microsoft Entra and other providers.
 - **Forward-auth headers**: a reverse proxy (Authelia, an Authentik proxy outpost, oauth2-proxy) authenticates the user and passes the identity in headers.
@@ -12,8 +12,8 @@ Users created by SSO have `auth_source` of `oidc` or `proxy`. They cannot sign i
 ### How it works
 
 1. The login page shows the button when OIDC is enabled. It links to `/api/v1/auth/oidc/start`.
-2. Heartbeat sets a short-lived signed cookie holding the state, nonce and PKCE verifier, then redirects to the provider (authorization code flow with PKCE S256).
-3. The provider redirects back to `/api/v1/auth/oidc/callback`. Heartbeat checks the state, exchanges the code with the PKCE verifier, verifies the ID token signature, issuer, audience and nonce, and reads the claims. Groups missing from the ID token are read from the userinfo endpoint.
+2. Sentrel sets a short-lived signed cookie holding the state, nonce and PKCE verifier, then redirects to the provider (authorization code flow with PKCE S256).
+3. The provider redirects back to `/api/v1/auth/oidc/callback`. Sentrel checks the state, exchanges the code with the PKCE verifier, verifies the ID token signature, issuer, audience and nonce, and reads the claims. Groups missing from the ID token are read from the userinfo endpoint.
 4. The user is created or updated, the role is mapped from their groups, and a normal session is issued.
 
 ### Redirect URI
@@ -43,7 +43,7 @@ The server URL is the **Public URL** in Settings → General (for example `https
 | `require_verified_email` | off | Refuse users whose `email_verified` claim is not true |
 | `trust_idp_mfa` | on | An `amr` claim containing `mfa`, `otp` or `hwk` counts as the second factor |
 
-When `trust_idp_mfa` is off, or the provider does not assert MFA, Heartbeat applies its normal two-factor policy (Settings → Security). **Test discovery** checks the issuer and shows warnings; save first.
+When `trust_idp_mfa` is off, or the provider does not assert MFA, Sentrel applies its normal two-factor policy (Settings → Security). **Test discovery** checks the issuer and shows warnings; save first.
 
 Roles and groups are refreshed at every login, so removing someone from a group takes effect at their next sign-in.
 
@@ -52,7 +52,7 @@ Roles and groups are refreshed at every login, so removing someone from a group 
 1. Create an OAuth2/OpenID provider: client type **Confidential**, redirect URI `https://monitor.example.com/api/v1/auth/oidc/callback` (strict match).
 2. Scopes: `openid`, `profile`, `email`. Authentik includes `groups` through its default profile mapping.
 3. Create an application using the provider. Issuer URL: `https://auth.example.com/application/o/<application-slug>/` (keep the trailing slash: it must match the issuer exactly).
-4. In Heartbeat map your Authentik group names, e.g. `heartbeat-admins` to Administrator.
+4. In Sentrel map your Authentik group names, e.g. `sentrel-admins` to Administrator.
 
 ### Authelia
 
@@ -60,9 +60,9 @@ Roles and groups are refreshed at every login, so removing someone from a group 
 identity_providers:
   oidc:
     clients:
-      - client_id: heartbeat
-        client_name: Heartbeat
-        client_secret: '$pbkdf2-sha512$...'   # hash of the secret you enter in Heartbeat
+      - client_id: sentrel
+        client_name: Sentrel
+        client_secret: '$pbkdf2-sha512$...'   # hash of the secret you enter in Sentrel
         public: false
         authorization_policy: two_factor
         redirect_uris:
@@ -86,16 +86,16 @@ Both work with the default settings except that neither sends groups: use `defau
 
 ## Forward-auth headers
 
-For setups where the proxy in front of Heartbeat already enforces login.
+For setups where the proxy in front of Sentrel already enforces login.
 
-**Warning: the proxy must strip these headers from client requests and set them itself.** If a client can send `Remote-User` straight through, it can sign in as anyone. Heartbeat only believes the headers when the request's direct TCP peer is in the trusted proxy list (Settings → TLS & access: **Trust reverse proxy headers** on, and **Trusted proxies**; empty means loopback only), but it cannot tell whether the proxy sanitised them.
+**Warning: the proxy must strip these headers from client requests and set them itself.** If a client can send `Remote-User` straight through, it can sign in as anyone. Sentrel only believes the headers when the request's direct TCP peer is in the trusted proxy list (Settings → TLS & access: **Trust reverse proxy headers** on, and **Trusted proxies**; empty means loopback only), but it cannot tell whether the proxy sanitised them.
 
 Behaviour:
 
 - A GET or HEAD request with no session and the user header present from a trusted peer creates a session (`auth_source` `proxy`) and sets the normal session cookie. Writes are never authenticated by headers alone; the UI loads the session first.
 - A request with a valid session or API key ignores the headers.
 - Headers from other peers are ignored entirely.
-- Proxy sign-in is treated as fully authenticated: Heartbeat does not ask for a second factor, because the proxy is responsible for it.
+- Proxy sign-in is treated as fully authenticated: Sentrel does not ask for a second factor, because the proxy is responsible for it.
 
 Settings (`proxy_auth`): `enabled`, `user_header` (default `Remote-User`), `email_header`, `name_header`, `groups_header` (comma separated), `group_role_map`, `default_role`, `default_tenant`, `allow_provision`.
 

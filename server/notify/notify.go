@@ -22,7 +22,7 @@ import (
 	"text/template"
 	"time"
 
-	"heartbeat/server/netguard"
+	"sentrel/server/netguard"
 )
 
 // Item is one alert in a (possibly grouped) notification.
@@ -193,7 +193,7 @@ func post(ctx context.Context, c Config, method, u, contentType string, body []b
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
 	}
-	req.Header.Set("User-Agent", "Heartbeat-Notifier/1")
+	req.Header.Set("User-Agent", "Sentrel-Notifier/1")
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}

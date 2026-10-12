@@ -8,10 +8,10 @@ import (
 	"sync"
 	"time"
 
-	"heartbeat/deploy"
-	"heartbeat/server/agentdist"
-	"heartbeat/server/db"
-	"heartbeat/server/pushinstall"
+	"sentrel/deploy"
+	"sentrel/server/agentdist"
+	"sentrel/server/db"
+	"sentrel/server/pushinstall"
 )
 
 type tokenReq struct {
@@ -67,7 +67,7 @@ func (a *App) installCommands(serverURL, token string) (map[string]string, strin
 	cmds := map[string]string{
 		"linux":   fmt.Sprintf("curl -fsSL%s %s/install/agent.sh | sudo sh -s -- --server %s --token %s%s", k, serverURL, serverURL, token, shExtra),
 		"windows": fmt.Sprintf("%s[Net.ServicePointManager]::SecurityProtocol='Tls12'; & ([scriptblock]::Create((irm %s/install/agent.ps1))) -Server %s -Token %s%s", psPre, serverURL, serverURL, token, psExtra),
-		"manual":  fmt.Sprintf("heartbeat-agent register %s %s", serverURL, token),
+		"manual":  fmt.Sprintf("sentrel-agent register %s %s", serverURL, token),
 	}
 	if fp != "" {
 		cmds["manual"] += " --ca-fingerprint " + fp

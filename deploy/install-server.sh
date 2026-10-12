@@ -1,15 +1,15 @@
 #!/bin/sh
-# Heartbeat server installer for Linux (systemd).
+# Sentrel server installer for Linux (systemd).
 #
-#   curl -fsSL https://example.com/install-server.sh | sudo sh -s -- --url https://.../heartbeat-server-linux-amd64
-#   sudo sh install-server.sh --binary ./heartbeat-server
+#   curl -fsSL https://example.com/install-server.sh | sudo sh -s -- --url https://.../sentrel-server-linux-amd64
+#   sudo sh install-server.sh --binary ./sentrel-server
 #
 # Options:
 #   --binary PATH     install a local binary
 #   --url URL         download the binary from URL
 #   --sha256 HEX      verify the downloaded binary
 #   --listen ADDR     listen address (default 0.0.0.0:8080)
-#   --data-dir DIR    data directory (default /var/lib/heartbeat)
+#   --data-dir DIR    data directory (default /var/lib/sentrel)
 #   --uninstall       stop and remove (keeps the data directory)
 set -eu
 
@@ -17,7 +17,7 @@ BINARY=""
 URL=""
 SHA=""
 LISTEN="0.0.0.0:8080"
-DATA=/var/lib/heartbeat
+DATA=/var/lib/sentrel
 UNINSTALL=0
 
 while [ $# -gt 0 ]; do
@@ -32,8 +32,8 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-BIN=/usr/local/bin/heartbeat-server
-UNIT=/etc/systemd/system/heartbeat.service
+BIN=/usr/local/bin/sentrel-server
+UNIT=/etc/systemd/system/sentrel.service
 say() { printf '==> %s\n' "$*"; }
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 
@@ -41,7 +41,7 @@ die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 command -v systemctl >/dev/null 2>&1 || die "systemd is required (or use the Docker image)"
 
 if [ "$UNINSTALL" = 1 ]; then
-  systemctl disable --now heartbeat 2>/dev/null || true
+  systemctl disable --now sentrel 2>/dev/null || true
   rm -f "$UNIT" "$BIN"
   systemctl daemon-reload
   say "removed; data kept in $DATA"
@@ -53,8 +53,8 @@ trap 'rm -rf "$TMP"' EXIT
 if [ -z "$BINARY" ]; then
   [ -n "$URL" ] || die "--binary or --url is required"
   say "downloading $URL"
-  curl -fsSL -o "$TMP/heartbeat-server" "$URL" || die "download failed"
-  BINARY="$TMP/heartbeat-server"
+  curl -fsSL -o "$TMP/sentrel-server" "$URL" || die "download failed"
+  BINARY="$TMP/sentrel-server"
 fi
 if [ -n "$SHA" ]; then
   echo "$SHA  $BINARY" | sha256sum -c - >/dev/null || die "checksum mismatch"
@@ -62,11 +62,11 @@ fi
 chmod 0755 "$BINARY"
 "$BINARY" version >/dev/null || die "binary does not run on this system"
 
-say "creating user heartbeat"
-id heartbeat >/dev/null 2>&1 || useradd --system --no-create-home --home-dir "$DATA" --shell /usr/sbin/nologin heartbeat
-install -d -o heartbeat -g heartbeat -m 0750 "$DATA"
+say "creating user sentrel"
+id sentrel >/dev/null 2>&1 || useradd --system --no-create-home --home-dir "$DATA" --shell /usr/sbin/nologin sentrel
+install -d -o sentrel -g sentrel -m 0750 "$DATA"
 
-if systemctl is-active --quiet heartbeat 2>/dev/null; then systemctl stop heartbeat; fi
+if systemctl is-active --quiet sentrel 2>/dev/null; then systemctl stop sentrel; fi
 install -o root -g root -m 0755 "$BINARY" "$BIN"
 
 # ICMP ping checks need raw sockets; ports 80/443 are needed for Let's Encrypt.
@@ -78,13 +78,13 @@ fi
 
 cat > "$UNIT" <<EOF
 [Unit]
-Description=Heartbeat monitoring server
+Description=Sentrel monitoring server
 After=network-online.target
 Wants=network-online.target
 
 [Service]
-User=heartbeat
-Group=heartbeat
+User=sentrel
+Group=sentrel
 ExecStart=$BIN serve --data-dir $DATA --listen $LISTEN
 Restart=always
 RestartSec=3
@@ -108,7 +108,7 @@ LimitNOFILE=65536
 WantedBy=multi-user.target
 EOF
 systemctl daemon-reload
-systemctl enable --now heartbeat >/dev/null 2>&1
+systemctl enable --now sentrel >/dev/null 2>&1
 
 say "waiting for the server to start"
 PORT=${LISTEN##*:}
@@ -117,12 +117,12 @@ while [ $i -lt 30 ]; do
   "$BIN" healthcheck --url "http://127.0.0.1:$PORT/healthz" >/dev/null 2>&1 && break
   sleep 1; i=$((i+1))
 done
-systemctl is-active --quiet heartbeat || { journalctl -u heartbeat -n 30 --no-pager; die "server failed to start"; }
+systemctl is-active --quiet sentrel || { journalctl -u sentrel -n 30 --no-pager; die "server failed to start"; }
 
 IP=$(hostname -I 2>/dev/null | awk '{print $1}')
 echo
-say "Heartbeat is running: http://${IP:-localhost}:$PORT/"
+say "Sentrel is running: http://${IP:-localhost}:$PORT/"
 if [ -f "$DATA/setup-token" ]; then
   say "one-time setup token: $(cat "$DATA/setup-token")"
 fi
-say "logs: journalctl -u heartbeat -f    backups: $BIN backup --data-dir $DATA"
+say "logs: journalctl -u sentrel -f    backups: $BIN backup --data-dir $DATA"

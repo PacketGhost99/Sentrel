@@ -146,7 +146,7 @@ function SMTP({ data }: { data: any }) {
         <Field label="Host"><Input value={v.host} onChange={(e) => set({ host: e.target.value })} placeholder="smtp.gmail.com" /></Field>
         <Field label="Port"><Input type="number" value={v.port} onChange={(e) => set({ port: num(e.target.value) })} /></Field>
         <Field label="Security"><Select value={v.tls_mode} onChange={(e) => set({ tls_mode: e.target.value })}><option value="starttls">STARTTLS (587)</option><option value="tls">Implicit TLS (465)</option><option value="none">None</option></Select></Field>
-        <Field label="From address"><Input value={v.from} onChange={(e) => set({ from: e.target.value })} placeholder="Heartbeat <alerts@example.com>" /></Field>
+        <Field label="From address"><Input value={v.from} onChange={(e) => set({ from: e.target.value })} placeholder="Sentrel <alerts@example.com>" /></Field>
         <Field label="Username"><Input value={v.username} onChange={(e) => set({ username: e.target.value })} /></Field>
         <Field label="Password" hint={secretHint(v.password_set)}><Input type="password" autoComplete="new-password" value={v.password || ''} onChange={(e) => set({ password: e.target.value })} /></Field>
         <div className="sm:col-span-2"><Toggle checked={!!v.skip_verify} onChange={(x) => set({ skip_verify: x })} label="Skip certificate verification" /></div>
@@ -177,7 +177,7 @@ function Directory({ ldap, radius }: { ldap: any; radius: any }) {
           <Toggle checked={!!L.v.enabled} onChange={(x) => L.set({ enabled: x })} label="Enable LDAP sign-in" />
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="URL" className="sm:col-span-2" hint="ldaps://dc1.example.com:636 or ldap://…:389"><Input value={L.v.url} onChange={(e) => L.set({ url: e.target.value })} /></Field>
-            <Field label="Bind DN"><Input value={L.v.bind_dn} onChange={(e) => L.set({ bind_dn: e.target.value })} placeholder="CN=svc-heartbeat,OU=Service,DC=example,DC=com" /></Field>
+            <Field label="Bind DN"><Input value={L.v.bind_dn} onChange={(e) => L.set({ bind_dn: e.target.value })} placeholder="CN=svc-sentrel,OU=Service,DC=example,DC=com" /></Field>
             <Field label="Bind password" hint={secretHint(L.v.bind_password_set)}><Input type="password" autoComplete="new-password" value={L.v.bind_password || ''} onChange={(e) => L.set({ bind_password: e.target.value })} /></Field>
             <Field label="Base DN"><Input value={L.v.base_dn} onChange={(e) => L.set({ base_dn: e.target.value })} placeholder="DC=example,DC=com" /></Field>
             <Field label="User filter" hint="%s is the username. AD: (&(objectClass=user)(sAMAccountName=%s))"><Input value={L.v.user_filter} onChange={(e) => L.set({ user_filter: e.target.value })} /></Field>
@@ -222,7 +222,7 @@ function Directory({ ldap, radius }: { ldap: any; radius: any }) {
             <Field label="Shared secret" hint={secretHint(R.v.secret_set)}><Input type="password" autoComplete="new-password" value={R.v.secret || ''} onChange={(e) => R.set({ secret: e.target.value })} /></Field>
             <Field label="NAS identifier"><Input value={R.v.nas_identifier} onChange={(e) => R.set({ nas_identifier: e.target.value })} /></Field>
             <Field label="Timeout (s)"><Input type="number" value={R.v.timeout_seconds} onChange={(e) => R.set({ timeout_seconds: num(e.target.value) })} /></Field>
-            <Field label="Role attribute" hint="Filter-Id or Class may carry “heartbeat:admin”"><Select value={R.v.role_attribute} onChange={(e) => R.set({ role_attribute: e.target.value })}><option>Filter-Id</option><option>Class</option></Select></Field>
+            <Field label="Role attribute" hint="Filter-Id or Class may carry “sentrel:admin”"><Select value={R.v.role_attribute} onChange={(e) => R.set({ role_attribute: e.target.value })}><option>Filter-Id</option><option>Class</option></Select></Field>
             <Field label="Default tenant"><Select value={R.v.default_tenant || 0} onChange={(e) => R.set({ default_tenant: Number(e.target.value), default_role: '' })}>{tenants.data?.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</Select></Field>
             <Field label="Default role"><Select value={R.v.default_role} onChange={(e) => R.set({ default_role: e.target.value })}><option value="">Refuse unless attribute sets a role</option>{roles(R.v.default_tenant || 0).map((r) => <option key={r} value={r}>{roleInfo[r].label}</option>)}</Select></Field>
           </div>
@@ -418,7 +418,7 @@ function Server() {
         <div className="space-y-3 text-sm">
           <p>Download the configuration database, PKI (CA, signing keys) and custom SNMP profiles. Metrics are not included; use the CLI with <code className="mono">--with-tsdb</code> for a full copy.</p>
           <a href="/api/v1/server/backup"><Button variant="primary" icon={<Download className="size-4" />}>Download backup</Button></a>
-          <CodeBlock code={`# CLI (works while the server runs)\nheartbeat-server backup --data-dir ${x.data_dir} --out backup.tar.gz\n# restore onto a stopped or new server\nheartbeat-server restore --data-dir ${x.data_dir} --in backup.tar.gz`} />
+          <CodeBlock code={`# CLI (works while the server runs)\nsentrel-server backup --data-dir ${x.data_dir} --out backup.tar.gz\n# restore onto a stopped or new server\nsentrel-server restore --data-dir ${x.data_dir} --in backup.tar.gz`} />
           <Note tone="warn">The backup contains the CA private key and job signing key. Store it securely.</Note>
           {x.tls_mode === 'http' && <Note tone="warn">This server is running without HTTPS. The backup contains the CA and job-signing keys; download it only over a trusted network.</Note>}
         </div>
@@ -454,7 +454,7 @@ export function BrandingPage() {
       <div className="grid gap-4 xl:grid-cols-2">
         <Card title="Appearance">
           <div className="space-y-3">
-            <Field label="Product name"><Input value={v.product_name} onChange={(e) => setV({ ...v, product_name: e.target.value })} placeholder={tid ? 'inherit' : 'Heartbeat'} /></Field>
+            <Field label="Product name"><Input value={v.product_name} onChange={(e) => setV({ ...v, product_name: e.target.value })} placeholder={tid ? 'inherit' : 'Sentrel'} /></Field>
             <Field label="Accent colour"><div className="flex items-center gap-2"><input type="color" value={v.accent_color || '#e11d48'} onChange={(e) => setV({ ...v, accent_color: e.target.value })} className="h-9 w-14 rounded border border-line bg-panel" /><Input className="w-32 mono" value={v.accent_color} onChange={(e) => setV({ ...v, accent_color: e.target.value })} /></div></Field>
             <Field label="Logo (PNG/SVG/JPEG, max 500 KB)"><div className="flex items-center gap-2"><input type="file" accept="image/*" onChange={file('logo_data_url')} className="text-sm" />{v.logo_data_url && <Button size="sm" variant="ghost" onClick={() => setV({ ...v, logo_data_url: '' })}>Remove</Button>}</div></Field>
             <Field label="Favicon"><div className="flex items-center gap-2"><input type="file" accept="image/*" onChange={file('favicon_data_url')} className="text-sm" />{v.favicon_data_url && <Button size="sm" variant="ghost" onClick={() => setV({ ...v, favicon_data_url: '' })}>Remove</Button>}</div></Field>
@@ -471,7 +471,7 @@ export function BrandingPage() {
           <div className="rounded-2xl border border-line bg-bg p-6">
             <div className="mx-auto max-w-xs rounded-2xl border border-line bg-panel p-5 text-center">
               {v.logo_data_url ? <img src={v.logo_data_url} alt="" className="mx-auto h-10 max-w-[180px] object-contain" /> : <div className="mx-auto size-10 rounded-lg" style={{ background: v.accent_color || 'var(--accent)' }} />}
-              <div className="mt-2 font-semibold">{v.product_name || 'Heartbeat'}</div>
+              <div className="mt-2 font-semibold">{v.product_name || 'Sentrel'}</div>
               {v.login_text && <p className="mt-2 text-xs text-muted">{v.login_text}</p>}
               <div className="mt-4 rounded-md py-2 text-sm text-white" style={{ background: v.accent_color || 'var(--accent)' }}>Sign in</div>
             </div>
@@ -528,7 +528,7 @@ function SSO({ oidc, proxy, serverUrl }: { oidc: any; proxy: any; serverUrl?: st
             <div className="flex items-center gap-2"><Input readOnly value={callback} className="mono" /><CopyButton text={callback} /></div>
           </Field>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Issuer URL" className="sm:col-span-2" hint="The address that serves /.well-known/openid-configuration"><Input value={O.v.issuer_url} onChange={(e) => O.set({ issuer_url: e.target.value })} placeholder="https://auth.example.com/application/o/heartbeat" /></Field>
+            <Field label="Issuer URL" className="sm:col-span-2" hint="The address that serves /.well-known/openid-configuration"><Input value={O.v.issuer_url} onChange={(e) => O.set({ issuer_url: e.target.value })} placeholder="https://auth.example.com/application/o/sentrel" /></Field>
             <Field label="Client ID"><Input value={O.v.client_id} onChange={(e) => O.set({ client_id: e.target.value })} /></Field>
             <Field label="Client secret" hint={secretHint(O.v.client_secret_set)}><Input type="password" autoComplete="new-password" value={O.v.client_secret || ''} onChange={(e) => O.set({ client_secret: e.target.value })} /></Field>
             <Field label="Scopes"><Input value={O.v.scopes} onChange={(e) => O.set({ scopes: e.target.value })} /></Field>
@@ -537,7 +537,7 @@ function SSO({ oidc, proxy, serverUrl }: { oidc: any; proxy: any; serverUrl?: st
             <Field label="Groups claim"><Input value={O.v.groups_claim} onChange={(e) => O.set({ groups_claim: e.target.value })} /></Field>
           </div>
           <Field label="Group → role mapping" hint="The most privileged matching mapping wins. Users matching none get the default role, or are refused if none.">
-            <GroupMap maps={O.v.group_role_map || []} onChange={(m) => O.set({ group_role_map: m })} tenants={tenants.data} groupPlaceholder="heartbeat-admins" />
+            <GroupMap maps={O.v.group_role_map || []} onChange={(m) => O.set({ group_role_map: m })} tenants={tenants.data} groupPlaceholder="sentrel-admins" />
           </Field>
           <DefaultRole v={O.v} set={O.set} tenants={tenants.data} none="Refuse sign-in" />
           <div className="space-y-2">

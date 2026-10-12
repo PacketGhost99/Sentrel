@@ -24,13 +24,13 @@ export function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [tenant, setTenantState] = useState<number | null>(() => {
-    const v = sessionStorage.getItem('hb-tenant')
+    const v = sessionStorage.getItem('sentrel-tenant')
     return v ? Number(v) : null
   })
   const setTenant = (t: number | null) => {
     setTenantState(t)
-    if (t === null) sessionStorage.removeItem('hb-tenant')
-    else sessionStorage.setItem('hb-tenant', String(t))
+    if (t === null) sessionStorage.removeItem('sentrel-tenant')
+    else sessionStorage.setItem('sentrel-tenant', String(t))
     qc.invalidateQueries()
   }
   const loc = useLocation()
@@ -93,18 +93,18 @@ export function Layout() {
 
   const b = me?.branding
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
-    try { return JSON.parse(localStorage.getItem('hb-nav-collapsed') || '{}') } catch { return {} }
+    try { return JSON.parse(localStorage.getItem('sentrel-nav-collapsed') || '{}') } catch { return {} }
   })
   const toggleSection = (t: string) => setCollapsed((c) => {
     const n = { ...c, [t]: !c[t] }
-    try { localStorage.setItem('hb-nav-collapsed', JSON.stringify(n)) } catch { /* storage unavailable */ }
+    try { localStorage.setItem('sentrel-nav-collapsed', JSON.stringify(n)) } catch { /* storage unavailable */ }
     return n
   })
   const sidebar = (
     <nav className="flex h-full flex-col">
       <div className="flex h-16 items-center gap-2.5 px-5">
         {b?.logo_data_url ? <img src={b.logo_data_url} alt="" className="h-7 max-w-[140px] object-contain" /> : <Logo />}
-        {!b?.logo_data_url && <span className="truncate text-[17px] font-semibold tracking-tight">{b?.product_name || 'Heartbeat'}</span>}
+        {!b?.logo_data_url && <span className="truncate text-[17px] font-semibold tracking-tight">{b?.product_name || 'Sentrel'}</span>}
       </div>
       <div className="scrollbar-thin flex-1 overflow-y-auto px-3 pb-3">
         {sections.map((s) => {

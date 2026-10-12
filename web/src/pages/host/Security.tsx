@@ -55,7 +55,7 @@ export function HostSecurity({ host }: { host: HostDetail }) {
       <Card bodyClass="p-5">
         <Toggle checked={x.notify_failed_logins !== false} onChange={setNotify} disabled={!can('host_settings') && !can('hosts')}
           label="Send notifications for failed-login alerts"
-          hint="When off, failed-login alerts still appear in Heartbeat, but no emails or webhooks are sent for this host." />
+          hint="When off, failed-login alerts still appear in Sentrel, but no emails or webhooks are sent for this host." />
       </Card>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap gap-2 text-sm">

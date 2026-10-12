@@ -169,7 +169,7 @@ export function PublicStatus() {
             ))}
           </ul>
         </Card>
-        <p className="mt-6 text-center text-xs text-muted">Updated {new Date(x.updated_at * 1000).toLocaleString()} · {b.footer_text || `Powered by ${b.product_name || 'Heartbeat'}`}</p>
+        <p className="mt-6 text-center text-xs text-muted">Updated {new Date(x.updated_at * 1000).toLocaleString()} · {b.footer_text || `Powered by ${b.product_name || 'Sentrel'}`}</p>
       </div>
     </div>
   )

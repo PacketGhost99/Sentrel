@@ -1,4 +1,4 @@
-// Command heartbeat-agent is the Heartbeat monitoring agent.
+// Command sentrel-agent is the Sentrel monitoring agent.
 package main
 
 import (
@@ -15,20 +15,20 @@ import (
 
 	"github.com/kardianos/service"
 
-	"heartbeat/agent"
-	"heartbeat/internal/version"
+	"sentrel/agent"
+	"sentrel/internal/version"
 )
 
-const usage = `Heartbeat agent %s
+const usage = `Sentrel agent %s
 
 Usage:
-  heartbeat-agent register SERVER_URL TOKEN [--ca-fingerprint FP] [--name NAME]
+  sentrel-agent register SERVER_URL TOKEN [--ca-fingerprint FP] [--name NAME]
                            [--write-jobs server|operator|none] [--operator-key B64]... [--read-only]
-  heartbeat-agent run [--config FILE]
-  heartbeat-agent self-test [--config FILE]
-  heartbeat-agent status [--config FILE]
-  heartbeat-agent service install|uninstall|start|stop|restart [--config FILE]
-  heartbeat-agent version [--short]
+  sentrel-agent run [--config FILE]
+  sentrel-agent self-test [--config FILE]
+  sentrel-agent status [--config FILE]
+  sentrel-agent service install|uninstall|start|stop|restart [--config FILE]
+  sentrel-agent version [--short]
 
 Register with the command shown in the web UI under "Add host".
 `
@@ -64,7 +64,7 @@ func main() {
 		if len(args) > 0 && args[0] == "--short" {
 			fmt.Println(version.Version)
 		} else {
-			fmt.Println("heartbeat-agent", version.String())
+			fmt.Println("sentrel-agent", version.String())
 		}
 	case "help", "-h", "--help":
 		fmt.Printf(usage, version.Version)
@@ -226,9 +226,9 @@ func (p *program) Stop(s service.Service) error {
 
 func svcConfig(cfgPath string) *service.Config {
 	return &service.Config{
-		Name:        "HeartbeatAgent",
-		DisplayName: "Heartbeat Agent",
-		Description: "Heartbeat monitoring agent: collects metrics and runs signed jobs from the Heartbeat server.",
+		Name:        "SentrelAgent",
+		DisplayName: "Sentrel Agent",
+		Description: "Sentrel monitoring agent: collects metrics and runs signed jobs from the Sentrel server.",
 		Arguments:   []string{"run", "--config", cfgPath},
 		Option: service.KeyValue{
 			"OnFailure":              "restart",

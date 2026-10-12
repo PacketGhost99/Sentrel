@@ -118,7 +118,7 @@ func (ca *CA) create(certPath, keyPath string) error {
 	}
 	tmpl := &x509.Certificate{
 		SerialNumber:          randSerial(),
-		Subject:               pkix.Name{CommonName: "Heartbeat Internal CA", Organization: []string{"Heartbeat"}},
+		Subject:               pkix.Name{CommonName: "Sentrel Internal CA", Organization: []string{"Sentrel"}},
 		NotBefore:             time.Now().Add(-time.Hour),
 		NotAfter:              time.Now().Add(20 * 365 * 24 * time.Hour),
 		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign | x509.KeyUsageDigitalSignature,
@@ -197,7 +197,7 @@ func (ca *CA) SignAgentCSR(csrPEM []byte, agentID string) (certPEM []byte, seria
 	notAfter = time.Now().Add(AgentCertValidity)
 	tmpl := &x509.Certificate{
 		SerialNumber: sn,
-		Subject:      pkix.Name{CommonName: agentID, OrganizationalUnit: []string{"heartbeat-agent"}},
+		Subject:      pkix.Name{CommonName: agentID, OrganizationalUnit: []string{"sentrel-agent"}},
 		NotBefore:    time.Now().Add(-time.Hour),
 		NotAfter:     notAfter,
 		KeyUsage:     x509.KeyUsageDigitalSignature,
@@ -291,7 +291,7 @@ func (ca *CA) ServerCertificate(names []string) (*tls.Certificate, error) {
 	}
 	tmpl := &x509.Certificate{
 		SerialNumber: randSerial(),
-		Subject:      pkix.Name{CommonName: names[0], Organization: []string{"Heartbeat"}},
+		Subject:      pkix.Name{CommonName: names[0], Organization: []string{"Sentrel"}},
 		NotBefore:    time.Now().Add(-time.Hour),
 		NotAfter:     time.Now().Add(397 * 24 * time.Hour),
 		KeyUsage:     x509.KeyUsageDigitalSignature,

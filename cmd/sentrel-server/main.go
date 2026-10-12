@@ -1,4 +1,4 @@
-// Command heartbeat-server runs the Heartbeat monitoring server.
+// Command sentrel-server runs the Sentrel monitoring server.
 package main
 
 import (
@@ -17,34 +17,34 @@ import (
 	"syscall"
 	"time"
 
-	"heartbeat/internal/version"
-	"heartbeat/server/app"
-	"heartbeat/server/authn"
-	"heartbeat/server/db"
+	"sentrel/internal/version"
+	"sentrel/server/app"
+	"sentrel/server/authn"
+	"sentrel/server/db"
 )
 
-const usage = `Heartbeat server %s
+const usage = `Sentrel server %s
 
 Usage:
-  heartbeat-server serve      [--data-dir DIR] [--listen ADDR] [--force-http]
-  heartbeat-server backup     [--data-dir DIR] --out FILE [--with-tsdb]
-  heartbeat-server restore    [--data-dir DIR] --in FILE [--force]
-  heartbeat-server reset-password [--data-dir DIR] --user NAME
-  heartbeat-server healthcheck [--url URL]
-  heartbeat-server version
+  sentrel-server serve      [--data-dir DIR] [--listen ADDR] [--force-http]
+  sentrel-server backup     [--data-dir DIR] --out FILE [--with-tsdb]
+  sentrel-server restore    [--data-dir DIR] --in FILE [--force]
+  sentrel-server reset-password [--data-dir DIR] --user NAME
+  sentrel-server healthcheck [--url URL]
+  sentrel-server version
 
-Environment: HEARTBEAT_DATA_DIR, HEARTBEAT_LISTEN, HEARTBEAT_LOG_LEVEL (debug|info|warn), HEARTBEAT_LOG_FORMAT (text|json)
+Environment: SENTREL_DATA_DIR, SENTREL_LISTEN, SENTREL_LOG_LEVEL (debug|info|warn), SENTREL_LOG_FORMAT (text|json)
 `
 
 func defaultDataDir() string {
-	if d := os.Getenv("HEARTBEAT_DATA_DIR"); d != "" {
+	if d := os.Getenv("SENTREL_DATA_DIR"); d != "" {
 		return d
 	}
-	if os.Geteuid() == 0 || dirWritable("/var/lib/heartbeat") {
-		return "/var/lib/heartbeat"
+	if os.Geteuid() == 0 || dirWritable("/var/lib/sentrel") {
+		return "/var/lib/sentrel"
 	}
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".heartbeat")
+	return filepath.Join(home, ".sentrel")
 }
 
 func dirWritable(d string) bool {
@@ -59,7 +59,7 @@ func dirWritable(d string) bool {
 
 func newLogger() *slog.Logger {
 	lvl := slog.LevelInfo
-	switch strings.ToLower(os.Getenv("HEARTBEAT_LOG_LEVEL")) {
+	switch strings.ToLower(os.Getenv("SENTREL_LOG_LEVEL")) {
 	case "debug":
 		lvl = slog.LevelDebug
 	case "warn":
@@ -68,7 +68,7 @@ func newLogger() *slog.Logger {
 		lvl = slog.LevelError
 	}
 	opts := &slog.HandlerOptions{Level: lvl}
-	if strings.ToLower(os.Getenv("HEARTBEAT_LOG_FORMAT")) == "json" {
+	if strings.ToLower(os.Getenv("SENTREL_LOG_FORMAT")) == "json" {
 		return slog.New(slog.NewJSONHandler(os.Stderr, opts))
 	}
 	return slog.New(slog.NewTextHandler(os.Stderr, opts))
@@ -93,7 +93,7 @@ func main() {
 	case "healthcheck":
 		err = healthcheck(args)
 	case "version", "--version", "-v":
-		fmt.Println("heartbeat-server", version.String())
+		fmt.Println("sentrel-server", version.String())
 	case "help", "-h", "--help":
 		fmt.Printf(usage, version.Version)
 	default:
@@ -109,14 +109,14 @@ func main() {
 func serve(args []string) error {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	dataDir := fs.String("data-dir", defaultDataDir(), "data directory")
-	listen := fs.String("listen", os.Getenv("HEARTBEAT_LISTEN"), "listen address (overrides the stored setting)")
+	listen := fs.String("listen", os.Getenv("SENTREL_LISTEN"), "listen address (overrides the stored setting)")
 	forceHTTP := fs.Bool("force-http", false, "ignore the stored TLS mode and serve plain HTTP (recovery)")
 	devUI := fs.String("dev-ui", "", "serve the UI from this directory (development)")
 	agentDir := fs.String("agent-bin-dir", "", "serve agent binaries from this directory instead of the embedded ones")
 	fs.Parse(args)
 	log := newLogger()
 	slog.SetDefault(log)
-	log.Info("starting Heartbeat server", "version", version.String(), "data_dir", *dataDir)
+	log.Info("starting Sentrel server", "version", version.String(), "data_dir", *dataDir)
 	a, err := app.New(app.Config{DataDir: *dataDir, Listen: *listen, ForceHTTP: *forceHTTP, DevUIDir: *devUI, AgentBinDir: *agentDir, Log: log})
 	if err != nil {
 		return err
@@ -134,7 +134,7 @@ func backup(args []string) error {
 	withTSDB := fs.Bool("with-tsdb", false, "include metrics (stop the server first for a consistent copy)")
 	fs.Parse(args)
 	if *out == "" {
-		*out = fmt.Sprintf("heartbeat-backup-%s.tar.gz", time.Now().UTC().Format("20060102-150405"))
+		*out = fmt.Sprintf("sentrel-backup-%s.tar.gz", time.Now().UTC().Format("20060102-150405"))
 	}
 	d, err := db.Open(*dataDir)
 	if err != nil {

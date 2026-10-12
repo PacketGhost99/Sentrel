@@ -2,7 +2,7 @@
 
 ## Disk usage analysis
 
-Open a host, choose a mount and run an analysis (or call the API). The agent walks that one filesystem the way `du -x` does: it does not cross into other mounts and skips `/proc`, `/sys` and `/dev`. Unreadable entries are counted and skipped, and the walk stops at its time limit and returns what it found. On Linux the walk runs through the privileged helper (`heartbeat-agent priv disk-usage`) so it can read every directory.
+Open a host, choose a mount and run an analysis (or call the API). The agent walks that one filesystem the way `du -x` does: it does not cross into other mounts and skips `/proc`, `/sys` and `/dev`. Unreadable entries are counted and skipped, and the walk stops at its time limit and returns what it found. On Linux the walk runs through the privileged helper (`sentrel-agent priv disk-usage`) so it can read every directory.
 
 The report lists the biggest directories (sizes aggregated up to a depth, default 3) and the 20 largest files. The newest five reports per host and mount are kept.
 

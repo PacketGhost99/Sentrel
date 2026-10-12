@@ -1,6 +1,6 @@
 # Security model
 
-This page describes what Heartbeat protects, how, and where the limits are. To report a vulnerability, contact the maintainers privately rather than opening a public issue.
+This page describes what Sentrel protects, how, and where the limits are. To report a vulnerability, contact the maintainers privately rather than opening a public issue.
 
 ## Threat model
 
@@ -11,7 +11,7 @@ This page describes what Heartbeat protects, how, and where the limits are. To r
 | Agent identity | enrolling a rogue host, replaying a captured session | one-time enrolment tokens, client certificates, signed hello with replay guard, revocation |
 | Operators and API clients | credential stuffing, CSRF, privilege escalation across tenants | lockout, 2FA and passkeys, CSRF tokens, RBAC, tenant isolation, audit log |
 
-Important limits. Whoever controls the server (or holds `pki/ca.key` and `pki/job.key`) can enrol agents and sign jobs. With the default `server` write policy the per-host opt-ins are the only protection that remains; agents installed as read-only or operator-signed (see below) stay safe even then. Heartbeat does not encrypt its database at rest. A TLS-terminating proxy or plain HTTP mode removes transport confidentiality between agent and server (see below).
+Important limits. Whoever controls the server (or holds `pki/ca.key` and `pki/job.key`) can enrol agents and sign jobs. With the default `server` write policy the per-host opt-ins are the only protection that remains; agents installed as read-only or operator-signed (see below) stay safe even then. Sentrel does not encrypt its database at rest. A TLS-terminating proxy or plain HTTP mode removes transport confidentiality between agent and server (see below).
 
 ## Enrolment
 
@@ -62,7 +62,7 @@ The agent reports its policy and the fingerprints of its operator keys to the se
 
 ## Privilege boundary and opt-in remote actions
 
-Linux agents run unprivileged. The only sudo rule allows `heartbeat-agent priv *`; each verb validates its arguments (see [agents.md](agents.md)). Because the helper trusts nothing from the caller, a compromised agent process can at worst run the limited verbs: refresh or upgrade packages, add or remove an IP block, read fail2ban status, install a validly signed agent update.
+Linux agents run unprivileged. The only sudo rule allows `sentrel-agent priv *`; each verb validates its arguments (see [agents.md](agents.md)). Because the helper trusts nothing from the caller, a compromised agent process can at worst run the limited verbs: refresh or upgrade packages, add or remove an IP block, read fail2ban status, install a validly signed agent update.
 
 Remote actions are denied unless enabled per host:
 
@@ -98,18 +98,18 @@ Sign-in sources: local password (Argon2id, minimum length 10 by default and at l
 
 ## Two-factor authentication
 
-Users can enrol TOTP (with recovery codes) and passkeys (WebAuthn, usable as a second factor or for password-less login). **Settings, Security, Require 2FA** can enforce it for `none`, `admins` or `all`; users who are required but not enrolled are held in a limited session that can only enrol. An administrator can reset another user's second factors, and `heartbeat-server reset-password --disable-2fa` does so from the console.
+Users can enrol TOTP (with recovery codes) and passkeys (WebAuthn, usable as a second factor or for password-less login). **Settings, Security, Require 2FA** can enforce it for `none`, `admins` or `all`; users who are required but not enrolled are held in a limited session that can only enrol. An administrator can reset another user's second factors, and `sentrel-server reset-password --disable-2fa` does so from the console.
 
 ## Sessions, CSRF and brute force
 
-- The session cookie `hb_session` is `HttpOnly`, `SameSite=Lax`, `Secure` over HTTPS; the token is stored hashed. Lifetime defaults to 12 hours (`session_hours`). Users can list sessions and revoke the others.
+- The session cookie `sentrel_session` is `HttpOnly`, `SameSite=Lax`, `Secure` over HTTPS; the token is stored hashed. Lifetime defaults to 12 hours (`session_hours`). Users can list sessions and revoke the others.
 - Cookie-authenticated requests that change state must carry the `X-CSRF-Token` header (issued at login); requests authenticated with an API key (`Authorization: Bearer`) are not subject to CSRF checks.
 - Lockout: 8 failed logins (default) within 15 minutes for the same username and IP return HTTP 429; a per-IP ceiling of five times that applies across usernames. Counters follow the client IP, so configure `trust_proxy` correctly ([tls-and-proxies.md](tls-and-proxies.md)).
 - Responses carry `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options: DENY` (except public status pages, which may be embedded) and, over TLS, HSTS. The UI is served with a strict Content-Security-Policy.
 
 ## API keys
 
-Keys look like `hb_<prefix>_<secret>`; only a hash of the secret is stored and the key is shown once. A key acts as its owner, limited to the intersection of the owner's role and the key's scopes (`read`, `write`, `jobs`, `admin`); it can expire; keys cannot create keys; a disabled owner disables the key. See [api.md](api.md).
+Keys look like `sentrel_<prefix>_<secret>`; only a hash of the secret is stored and the key is shown once. A key acts as its owner, limited to the intersection of the owner's role and the key's scopes (`read`, `write`, `jobs`, `admin`); it can expire; keys cannot create keys; a disabled owner disables the key. See [api.md](api.md).
 
 ## Audit log
 
@@ -117,7 +117,7 @@ The audit log records sign-ins and failures, setup, user, tenant, key, host, che
 
 ## Handling of secrets
 
-- **Stored in clear text in `heartbeat.db`** (the database is not encrypted): SMTP, LDAP bind and RADIUS secrets, notification channel tokens and webhook credentials, SNMP communities and v3 passwords, HTTP-check basic-auth passwords, TOTP secrets. They are redacted from every API response, and sending a redacted or omitted value on update keeps the stored one.
+- **Stored in clear text in `sentrel.db`** (the database is not encrypted): SMTP, LDAP bind and RADIUS secrets, notification channel tokens and webhook credentials, SNMP communities and v3 passwords, HTTP-check basic-auth passwords, TOTP secrets. They are redacted from every API response, and sending a redacted or omitted value on update keeps the stored one.
 - **Stored hashed**: user passwords (Argon2id), session tokens, API keys, enrolment tokens.
 - **Not stored**: SSH/WinRM credentials used for push install (only target, user name and install log are kept).
 - **Key files**: `pki/ca.key`, `pki/job.key`, `pki/server.key` are mode `0600`; the data directory is `0750`.

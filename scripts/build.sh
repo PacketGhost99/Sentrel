@@ -13,19 +13,19 @@ cd "$(dirname "$0")/.."
 
 # ---- Names: the only place product, binary and package names are defined. ----
 # Each can be overridden from the environment (the CI workflow does this).
-PRODUCT_TITLE="${PRODUCT_TITLE:-Heartbeat}"
-AGENT_BIN="${AGENT_BIN:-heartbeat-agent}"        # binary name, ./cmd/<AGENT_BIN>
-SERVER_BIN="${SERVER_BIN:-heartbeat-server}"     # binary name, ./cmd/<SERVER_BIN>
+PRODUCT_TITLE="${PRODUCT_TITLE:-Sentrel}"
+AGENT_BIN="${AGENT_BIN:-sentrel-agent}"        # binary name, ./cmd/<AGENT_BIN>
+SERVER_BIN="${SERVER_BIN:-sentrel-server}"     # binary name, ./cmd/<SERVER_BIN>
 AGENT_PKG="${AGENT_PKG:-$AGENT_BIN}"             # deb/rpm package names
 SERVER_PKG="${SERVER_PKG:-$SERVER_BIN}"
-AGENT_USER="${AGENT_USER:-heartbeat-agent}"      # system user
-SERVER_USER="${SERVER_USER:-heartbeat}"
-SERVER_UNIT="${SERVER_UNIT:-heartbeat}"          # systemd unit name of the server
-FW_TABLE="${FW_TABLE:-heartbeat}"                # nft table created by the agent
-GO_MODULE="${GO_MODULE:-heartbeat}"              # module path in go.mod
-HOMEPAGE="${HOMEPAGE:-https://github.com/notspark1999/Heartbeat}"
+AGENT_USER="${AGENT_USER:-sentrel-agent}"      # system user
+SERVER_USER="${SERVER_USER:-sentrel}"
+SERVER_UNIT="${SERVER_UNIT:-sentrel}"          # systemd unit name of the server
+FW_TABLE="${FW_TABLE:-sentrel}"                # nft table created by the agent
+GO_MODULE="${GO_MODULE:-sentrel}"              # module path in go.mod
+HOMEPAGE="${HOMEPAGE:-https://github.com/notspark1999/Sentrel}"
 DOCS_URL="${DOCS_URL:-$HOMEPAGE}"
-MAINTAINER="${MAINTAINER:-Heartbeat maintainers <noreply@users.noreply.github.com>}"
+MAINTAINER="${MAINTAINER:-Sentrel maintainers <noreply@users.noreply.github.com>}"
 LICENSE="${LICENSE:-proprietary}"
 NFPM_VERSION="${NFPM_VERSION:-v2.41.3}"
 # Install locations. The agent path is referenced by the sudoers rule.
@@ -70,7 +70,7 @@ fi
 [ -f web/dist/index.html ] || { echo "web/dist missing: build the UI or drop --skip-web" >&2; exit 1; }
 
 echo "==> agents"
-rm -f server/agentdist/bin/$AGENT_BIN-* server/agentdist/bin/VERSION
+find server/agentdist/bin -type f ! -name README.txt ! -name .gitignore -delete
 for target in linux/amd64 linux/arm64 windows/amd64; do
   os=${target%/*}; arch=${target#*/}
   out="dist/$AGENT_BIN-$os-$arch"

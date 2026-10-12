@@ -19,7 +19,7 @@ import (
 
 	probing "github.com/prometheus-community/pro-bing"
 
-	"heartbeat/server/netguard"
+	"sentrel/server/netguard"
 )
 
 // Result of one probe.
@@ -137,7 +137,7 @@ func HTTP(ctx context.Context, g netguard.Guard, cfg HTTPConfig, timeout time.Du
 	if err != nil {
 		return down("%v", err)
 	}
-	req.Header.Set("User-Agent", "Heartbeat-Monitor/1")
+	req.Header.Set("User-Agent", "Sentrel-Monitor/1")
 	for k, v := range cfg.Headers {
 		req.Header.Set(k, v)
 	}

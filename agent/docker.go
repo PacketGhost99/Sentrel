@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	pb "heartbeat/gen/heartbeatv1"
+	pb "sentrel/gen/sentrelv1"
 )
 
 // dockerClient talks to the Docker Engine API over its local socket.

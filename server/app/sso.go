@@ -25,7 +25,7 @@ import (
 // headers from a trusted reverse proxy. Both map external groups to roles the
 // same way the LDAP integration does and provision users on first login.
 
-const oidcStateCookie = "hb_oidc"
+const oidcStateCookie = "sentrel_oidc"
 
 var (
 	ssoKeyOnce sync.Once
@@ -111,7 +111,7 @@ func validateOIDCSettings(s *OIDCSettings) error {
 	if s.Enabled {
 		u, err := url.Parse(s.IssuerURL)
 		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
-			return badRequest("OIDC needs an issuer URL like https://auth.example.com/application/o/heartbeat")
+			return badRequest("OIDC needs an issuer URL like https://auth.example.com/application/o/sentrel")
 		}
 		if s.ClientID == "" {
 			return badRequest("OIDC needs a client ID")

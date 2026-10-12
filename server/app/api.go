@@ -389,8 +389,8 @@ func (r *apiRouter) openAPI(serverURL string) map[string]any {
 	}
 	return map[string]any{
 		"openapi": "3.0.3",
-		"info": map[string]any{"title": "Heartbeat API", "version": "1",
-			"description": "Every UI action uses this API. Authenticate with a session cookie (plus X-CSRF-Token header) or an API key: `Authorization: Bearer hb_...`."},
+		"info": map[string]any{"title": "Sentrel API", "version": "1",
+			"description": "Every UI action uses this API. Authenticate with a session cookie (plus X-CSRF-Token header) or an API key: `Authorization: Bearer sentrel_...`."},
 		"servers": []map[string]any{{"url": strings.TrimRight(serverURL, "/")}},
 		"paths":   paths,
 		"components": map[string]any{

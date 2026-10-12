@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"heartbeat/server/db"
-	"heartbeat/server/notify"
+	"sentrel/server/db"
+	"sentrel/server/notify"
 )
 
 // Notifier routes alert events to channels, grouping events that arrive

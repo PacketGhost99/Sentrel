@@ -1,4 +1,4 @@
-// Heartbeat agent <-> server protocol.
+// Sentrel agent <-> server protocol.
 //
 // Versioning: SCHEMA_VERSION is bumped on any breaking change. Fields are only
 // ever added, never renumbered. Agents send their schema version in Register
@@ -8,9 +8,9 @@
 // versions:
 // 	protoc-gen-go v1.36.12
 // 	protoc        v3.21.12
-// source: heartbeat/v1/agent.proto
+// source: sentrel/v1/agent.proto
 
-package heartbeatv1
+package sentrelv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -57,11 +57,11 @@ func (x SchemaVersion) String() string {
 }
 
 func (SchemaVersion) Descriptor() protoreflect.EnumDescriptor {
-	return file_heartbeat_v1_agent_proto_enumTypes[0].Descriptor()
+	return file_sentrel_v1_agent_proto_enumTypes[0].Descriptor()
 }
 
 func (SchemaVersion) Type() protoreflect.EnumType {
-	return &file_heartbeat_v1_agent_proto_enumTypes[0]
+	return &file_sentrel_v1_agent_proto_enumTypes[0]
 }
 
 func (x SchemaVersion) Number() protoreflect.EnumNumber {
@@ -70,7 +70,7 @@ func (x SchemaVersion) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use SchemaVersion.Descriptor instead.
 func (SchemaVersion) EnumDescriptor() ([]byte, []int) {
-	return file_heartbeat_v1_agent_proto_rawDescGZIP(), []int{0}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{0}
 }
 
 type RegisterRequest struct {
@@ -87,7 +87,7 @@ type RegisterRequest struct {
 
 func (x *RegisterRequest) Reset() {
 	*x = RegisterRequest{}
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[0]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -99,7 +99,7 @@ func (x *RegisterRequest) String() string {
 func (*RegisterRequest) ProtoMessage() {}
 
 func (x *RegisterRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[0]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -112,7 +112,7 @@ func (x *RegisterRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterRequest.ProtoReflect.Descriptor instead.
 func (*RegisterRequest) Descriptor() ([]byte, []int) {
-	return file_heartbeat_v1_agent_proto_rawDescGZIP(), []int{0}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *RegisterRequest) GetToken() string {
@@ -164,7 +164,7 @@ type RegisterResponse struct {
 
 func (x *RegisterResponse) Reset() {
 	*x = RegisterResponse{}
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[1]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -176,7 +176,7 @@ func (x *RegisterResponse) String() string {
 func (*RegisterResponse) ProtoMessage() {}
 
 func (x *RegisterResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[1]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -189,7 +189,7 @@ func (x *RegisterResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterResponse.ProtoReflect.Descriptor instead.
 func (*RegisterResponse) Descriptor() ([]byte, []int) {
-	return file_heartbeat_v1_agent_proto_rawDescGZIP(), []int{1}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *RegisterResponse) GetAgentId() string {
@@ -246,7 +246,7 @@ type AgentMessage struct {
 
 func (x *AgentMessage) Reset() {
 	*x = AgentMessage{}
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[2]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -258,7 +258,7 @@ func (x *AgentMessage) String() string {
 func (*AgentMessage) ProtoMessage() {}
 
 func (x *AgentMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[2]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -271,7 +271,7 @@ func (x *AgentMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AgentMessage.ProtoReflect.Descriptor instead.
 func (*AgentMessage) Descriptor() ([]byte, []int) {
-	return file_heartbeat_v1_agent_proto_rawDescGZIP(), []int{2}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *AgentMessage) GetMsg() isAgentMessage_Msg {
@@ -413,13 +413,13 @@ type Hello struct {
 	Host          *HostInfo              `protobuf:"bytes,4,opt,name=host,proto3" json:"host,omitempty"`
 	// Application-level proof of possession, used when mTLS is terminated by a
 	// proxy in front of the server (e.g. a Cloudflare tunnel). The agent signs
-	// "heartbeat-hello|<agent_id>|<unix_ms>" with its private key.
+	// "sentrel-hello|<agent_id>|<unix_ms>" with its private key.
 	CertPem   []byte `protobuf:"bytes,5,opt,name=cert_pem,json=certPem,proto3" json:"cert_pem,omitempty"`
 	UnixMs    int64  `protobuf:"varint,6,opt,name=unix_ms,json=unixMs,proto3" json:"unix_ms,omitempty"`
 	Signature []byte `protobuf:"bytes,7,opt,name=signature,proto3" json:"signature,omitempty"`
 	// Set when the agent was just upgraded and this is its first connection.
 	UpdatedFrom string `protobuf:"bytes,8,opt,name=updated_from,json=updatedFrom,proto3" json:"updated_from,omitempty"`
-	// Set by `heartbeat-agent self-test`: the server verifies auth then closes.
+	// Set by `sentrel-agent self-test`: the server verifies auth then closes.
 	SelfTest bool `protobuf:"varint,9,opt,name=self_test,json=selfTest,proto3" json:"self_test,omitempty"`
 	// The agent's local write-job policy (server, operator or none) and the
 	// base64 Ed25519 operator public keys it trusts. Read from the root-owned
@@ -432,7 +432,7 @@ type Hello struct {
 
 func (x *Hello) Reset() {
 	*x = Hello{}
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[3]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -444,7 +444,7 @@ func (x *Hello) String() string {
 func (*Hello) ProtoMessage() {}
 
 func (x *Hello) ProtoReflect() protoreflect.Message {
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[3]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -457,7 +457,7 @@ func (x *Hello) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Hello.ProtoReflect.Descriptor instead.
 func (*Hello) Descriptor() ([]byte, []int) {
-	return file_heartbeat_v1_agent_proto_rawDescGZIP(), []int{3}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *Hello) GetAgentId() string {
@@ -562,7 +562,7 @@ type HostInfo struct {
 
 func (x *HostInfo) Reset() {
 	*x = HostInfo{}
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[4]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -574,7 +574,7 @@ func (x *HostInfo) String() string {
 func (*HostInfo) ProtoMessage() {}
 
 func (x *HostInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[4]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -587,7 +587,7 @@ func (x *HostInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HostInfo.ProtoReflect.Descriptor instead.
 func (*HostInfo) Descriptor() ([]byte, []int) {
-	return file_heartbeat_v1_agent_proto_rawDescGZIP(), []int{4}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *HostInfo) GetHostname() string {
@@ -714,7 +714,7 @@ type Sample struct {
 
 func (x *Sample) Reset() {
 	*x = Sample{}
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[5]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -726,7 +726,7 @@ func (x *Sample) String() string {
 func (*Sample) ProtoMessage() {}
 
 func (x *Sample) ProtoReflect() protoreflect.Message {
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[5]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -739,7 +739,7 @@ func (x *Sample) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Sample.ProtoReflect.Descriptor instead.
 func (*Sample) Descriptor() ([]byte, []int) {
-	return file_heartbeat_v1_agent_proto_rawDescGZIP(), []int{5}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *Sample) GetName() string {
@@ -779,7 +779,7 @@ type MetricBatch struct {
 
 func (x *MetricBatch) Reset() {
 	*x = MetricBatch{}
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[6]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -791,7 +791,7 @@ func (x *MetricBatch) String() string {
 func (*MetricBatch) ProtoMessage() {}
 
 func (x *MetricBatch) ProtoReflect() protoreflect.Message {
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[6]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -804,7 +804,7 @@ func (x *MetricBatch) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MetricBatch.ProtoReflect.Descriptor instead.
 func (*MetricBatch) Descriptor() ([]byte, []int) {
-	return file_heartbeat_v1_agent_proto_rawDescGZIP(), []int{6}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *MetricBatch) GetSamples() []*Sample {
@@ -840,7 +840,7 @@ type HostState struct {
 
 func (x *HostState) Reset() {
 	*x = HostState{}
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[7]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -852,7 +852,7 @@ func (x *HostState) String() string {
 func (*HostState) ProtoMessage() {}
 
 func (x *HostState) ProtoReflect() protoreflect.Message {
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[7]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -865,7 +865,7 @@ func (x *HostState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HostState.ProtoReflect.Descriptor instead.
 func (*HostState) Descriptor() ([]byte, []int) {
-	return file_heartbeat_v1_agent_proto_rawDescGZIP(), []int{7}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *HostState) GetTsMs() int64 {
@@ -999,7 +999,7 @@ type Disk struct {
 
 func (x *Disk) Reset() {
 	*x = Disk{}
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[8]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1011,7 +1011,7 @@ func (x *Disk) String() string {
 func (*Disk) ProtoMessage() {}
 
 func (x *Disk) ProtoReflect() protoreflect.Message {
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[8]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1024,7 +1024,7 @@ func (x *Disk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Disk.ProtoReflect.Descriptor instead.
 func (*Disk) Descriptor() ([]byte, []int) {
-	return file_heartbeat_v1_agent_proto_rawDescGZIP(), []int{8}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *Disk) GetMountpoint() string {
@@ -1113,7 +1113,7 @@ type NetInterface struct {
 
 func (x *NetInterface) Reset() {
 	*x = NetInterface{}
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[9]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1125,7 +1125,7 @@ func (x *NetInterface) String() string {
 func (*NetInterface) ProtoMessage() {}
 
 func (x *NetInterface) ProtoReflect() protoreflect.Message {
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[9]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1138,7 +1138,7 @@ func (x *NetInterface) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NetInterface.ProtoReflect.Descriptor instead.
 func (*NetInterface) Descriptor() ([]byte, []int) {
-	return file_heartbeat_v1_agent_proto_rawDescGZIP(), []int{9}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *NetInterface) GetName() string {
@@ -1210,7 +1210,7 @@ type Service struct {
 
 func (x *Service) Reset() {
 	*x = Service{}
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[10]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1222,7 +1222,7 @@ func (x *Service) String() string {
 func (*Service) ProtoMessage() {}
 
 func (x *Service) ProtoReflect() protoreflect.Message {
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[10]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1235,7 +1235,7 @@ func (x *Service) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Service.ProtoReflect.Descriptor instead.
 func (*Service) Descriptor() ([]byte, []int) {
-	return file_heartbeat_v1_agent_proto_rawDescGZIP(), []int{10}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *Service) GetName() string {
@@ -1286,7 +1286,7 @@ type ListeningPort struct {
 
 func (x *ListeningPort) Reset() {
 	*x = ListeningPort{}
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[11]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1298,7 +1298,7 @@ func (x *ListeningPort) String() string {
 func (*ListeningPort) ProtoMessage() {}
 
 func (x *ListeningPort) ProtoReflect() protoreflect.Message {
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[11]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1311,7 +1311,7 @@ func (x *ListeningPort) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListeningPort.ProtoReflect.Descriptor instead.
 func (*ListeningPort) Descriptor() ([]byte, []int) {
-	return file_heartbeat_v1_agent_proto_rawDescGZIP(), []int{11}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ListeningPort) GetProtocol() string {
@@ -1364,7 +1364,7 @@ type Process struct {
 
 func (x *Process) Reset() {
 	*x = Process{}
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[12]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1376,7 +1376,7 @@ func (x *Process) String() string {
 func (*Process) ProtoMessage() {}
 
 func (x *Process) ProtoReflect() protoreflect.Message {
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[12]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1389,7 +1389,7 @@ func (x *Process) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Process.ProtoReflect.Descriptor instead.
 func (*Process) Descriptor() ([]byte, []int) {
-	return file_heartbeat_v1_agent_proto_rawDescGZIP(), []int{12}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *Process) GetPid() int32 {
@@ -1460,7 +1460,7 @@ type Container struct {
 
 func (x *Container) Reset() {
 	*x = Container{}
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[13]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1472,7 +1472,7 @@ func (x *Container) String() string {
 func (*Container) ProtoMessage() {}
 
 func (x *Container) ProtoReflect() protoreflect.Message {
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[13]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1485,7 +1485,7 @@ func (x *Container) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Container.ProtoReflect.Descriptor instead.
 func (*Container) Descriptor() ([]byte, []int) {
-	return file_heartbeat_v1_agent_proto_rawDescGZIP(), []int{13}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *Container) GetId() string {
@@ -1575,7 +1575,7 @@ type Temperature struct {
 
 func (x *Temperature) Reset() {
 	*x = Temperature{}
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[14]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1587,7 +1587,7 @@ func (x *Temperature) String() string {
 func (*Temperature) ProtoMessage() {}
 
 func (x *Temperature) ProtoReflect() protoreflect.Message {
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[14]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1600,7 +1600,7 @@ func (x *Temperature) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Temperature.ProtoReflect.Descriptor instead.
 func (*Temperature) Descriptor() ([]byte, []int) {
-	return file_heartbeat_v1_agent_proto_rawDescGZIP(), []int{14}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *Temperature) GetSensor() string {
@@ -1629,7 +1629,7 @@ type BlockedIP struct {
 
 func (x *BlockedIP) Reset() {
 	*x = BlockedIP{}
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[15]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1641,7 +1641,7 @@ func (x *BlockedIP) String() string {
 func (*BlockedIP) ProtoMessage() {}
 
 func (x *BlockedIP) ProtoReflect() protoreflect.Message {
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[15]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1654,7 +1654,7 @@ func (x *BlockedIP) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BlockedIP.ProtoReflect.Descriptor instead.
 func (*BlockedIP) Descriptor() ([]byte, []int) {
-	return file_heartbeat_v1_agent_proto_rawDescGZIP(), []int{15}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *BlockedIP) GetIp() string {
@@ -1699,7 +1699,7 @@ type Inventory struct {
 
 func (x *Inventory) Reset() {
 	*x = Inventory{}
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[16]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1711,7 +1711,7 @@ func (x *Inventory) String() string {
 func (*Inventory) ProtoMessage() {}
 
 func (x *Inventory) ProtoReflect() protoreflect.Message {
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[16]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1724,7 +1724,7 @@ func (x *Inventory) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Inventory.ProtoReflect.Descriptor instead.
 func (*Inventory) Descriptor() ([]byte, []int) {
-	return file_heartbeat_v1_agent_proto_rawDescGZIP(), []int{16}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *Inventory) GetTsMs() int64 {
@@ -1786,7 +1786,7 @@ type Package struct {
 
 func (x *Package) Reset() {
 	*x = Package{}
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[17]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1798,7 +1798,7 @@ func (x *Package) String() string {
 func (*Package) ProtoMessage() {}
 
 func (x *Package) ProtoReflect() protoreflect.Message {
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[17]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1811,7 +1811,7 @@ func (x *Package) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Package.ProtoReflect.Descriptor instead.
 func (*Package) Descriptor() ([]byte, []int) {
-	return file_heartbeat_v1_agent_proto_rawDescGZIP(), []int{17}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *Package) GetName() string {
@@ -1891,7 +1891,7 @@ type SecurityReport struct {
 
 func (x *SecurityReport) Reset() {
 	*x = SecurityReport{}
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[18]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1903,7 +1903,7 @@ func (x *SecurityReport) String() string {
 func (*SecurityReport) ProtoMessage() {}
 
 func (x *SecurityReport) ProtoReflect() protoreflect.Message {
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[18]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1916,7 +1916,7 @@ func (x *SecurityReport) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SecurityReport.ProtoReflect.Descriptor instead.
 func (*SecurityReport) Descriptor() ([]byte, []int) {
-	return file_heartbeat_v1_agent_proto_rawDescGZIP(), []int{18}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *SecurityReport) GetWindowStartMs() int64 {
@@ -1973,7 +1973,7 @@ type FailedLogins struct {
 
 func (x *FailedLogins) Reset() {
 	*x = FailedLogins{}
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[19]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1985,7 +1985,7 @@ func (x *FailedLogins) String() string {
 func (*FailedLogins) ProtoMessage() {}
 
 func (x *FailedLogins) ProtoReflect() protoreflect.Message {
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[19]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1998,7 +1998,7 @@ func (x *FailedLogins) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FailedLogins.ProtoReflect.Descriptor instead.
 func (*FailedLogins) Descriptor() ([]byte, []int) {
-	return file_heartbeat_v1_agent_proto_rawDescGZIP(), []int{19}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *FailedLogins) GetIp() string {
@@ -2040,7 +2040,7 @@ type Fail2Ban struct {
 
 func (x *Fail2Ban) Reset() {
 	*x = Fail2Ban{}
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[20]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2052,7 +2052,7 @@ func (x *Fail2Ban) String() string {
 func (*Fail2Ban) ProtoMessage() {}
 
 func (x *Fail2Ban) ProtoReflect() protoreflect.Message {
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[20]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2065,7 +2065,7 @@ func (x *Fail2Ban) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Fail2Ban.ProtoReflect.Descriptor instead.
 func (*Fail2Ban) Descriptor() ([]byte, []int) {
-	return file_heartbeat_v1_agent_proto_rawDescGZIP(), []int{20}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *Fail2Ban) GetAvailable() bool {
@@ -2103,7 +2103,7 @@ type Fail2BanJail struct {
 
 func (x *Fail2BanJail) Reset() {
 	*x = Fail2BanJail{}
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[21]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2115,7 +2115,7 @@ func (x *Fail2BanJail) String() string {
 func (*Fail2BanJail) ProtoMessage() {}
 
 func (x *Fail2BanJail) ProtoReflect() protoreflect.Message {
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[21]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2128,7 +2128,7 @@ func (x *Fail2BanJail) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Fail2BanJail.ProtoReflect.Descriptor instead.
 func (*Fail2BanJail) Descriptor() ([]byte, []int) {
-	return file_heartbeat_v1_agent_proto_rawDescGZIP(), []int{21}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *Fail2BanJail) GetName() string {
@@ -2184,7 +2184,7 @@ type JobOutput struct {
 
 func (x *JobOutput) Reset() {
 	*x = JobOutput{}
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[22]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2196,7 +2196,7 @@ func (x *JobOutput) String() string {
 func (*JobOutput) ProtoMessage() {}
 
 func (x *JobOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[22]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2209,7 +2209,7 @@ func (x *JobOutput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JobOutput.ProtoReflect.Descriptor instead.
 func (*JobOutput) Descriptor() ([]byte, []int) {
-	return file_heartbeat_v1_agent_proto_rawDescGZIP(), []int{22}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *JobOutput) GetJobId() string {
@@ -2249,7 +2249,7 @@ type JobResult struct {
 
 func (x *JobResult) Reset() {
 	*x = JobResult{}
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[23]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2261,7 +2261,7 @@ func (x *JobResult) String() string {
 func (*JobResult) ProtoMessage() {}
 
 func (x *JobResult) ProtoReflect() protoreflect.Message {
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[23]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2274,7 +2274,7 @@ func (x *JobResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JobResult.ProtoReflect.Descriptor instead.
 func (*JobResult) Descriptor() ([]byte, []int) {
-	return file_heartbeat_v1_agent_proto_rawDescGZIP(), []int{23}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *JobResult) GetJobId() string {
@@ -2335,7 +2335,7 @@ type Pong struct {
 
 func (x *Pong) Reset() {
 	*x = Pong{}
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[24]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2347,7 +2347,7 @@ func (x *Pong) String() string {
 func (*Pong) ProtoMessage() {}
 
 func (x *Pong) ProtoReflect() protoreflect.Message {
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[24]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2360,7 +2360,7 @@ func (x *Pong) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Pong.ProtoReflect.Descriptor instead.
 func (*Pong) Descriptor() ([]byte, []int) {
-	return file_heartbeat_v1_agent_proto_rawDescGZIP(), []int{24}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *Pong) GetUnixMs() int64 {
@@ -2386,7 +2386,7 @@ type ServerMessage struct {
 
 func (x *ServerMessage) Reset() {
 	*x = ServerMessage{}
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[25]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2398,7 +2398,7 @@ func (x *ServerMessage) String() string {
 func (*ServerMessage) ProtoMessage() {}
 
 func (x *ServerMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[25]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2411,7 +2411,7 @@ func (x *ServerMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerMessage.ProtoReflect.Descriptor instead.
 func (*ServerMessage) Descriptor() ([]byte, []int) {
-	return file_heartbeat_v1_agent_proto_rawDescGZIP(), []int{25}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *ServerMessage) GetMsg() isServerMessage_Msg {
@@ -2512,7 +2512,7 @@ type Welcome struct {
 
 func (x *Welcome) Reset() {
 	*x = Welcome{}
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[26]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2524,7 +2524,7 @@ func (x *Welcome) String() string {
 func (*Welcome) ProtoMessage() {}
 
 func (x *Welcome) ProtoReflect() protoreflect.Message {
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[26]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2537,7 +2537,7 @@ func (x *Welcome) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Welcome.ProtoReflect.Descriptor instead.
 func (*Welcome) Descriptor() ([]byte, []int) {
-	return file_heartbeat_v1_agent_proto_rawDescGZIP(), []int{26}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *Welcome) GetHostId() string {
@@ -2588,7 +2588,7 @@ type AgentConfig struct {
 
 func (x *AgentConfig) Reset() {
 	*x = AgentConfig{}
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[27]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2600,7 +2600,7 @@ func (x *AgentConfig) String() string {
 func (*AgentConfig) ProtoMessage() {}
 
 func (x *AgentConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[27]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2613,7 +2613,7 @@ func (x *AgentConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AgentConfig.ProtoReflect.Descriptor instead.
 func (*AgentConfig) Descriptor() ([]byte, []int) {
-	return file_heartbeat_v1_agent_proto_rawDescGZIP(), []int{27}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *AgentConfig) GetIntervalSeconds() uint32 {
@@ -2717,7 +2717,7 @@ type SignedJob struct {
 
 func (x *SignedJob) Reset() {
 	*x = SignedJob{}
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[28]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2729,7 +2729,7 @@ func (x *SignedJob) String() string {
 func (*SignedJob) ProtoMessage() {}
 
 func (x *SignedJob) ProtoReflect() protoreflect.Message {
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[28]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2742,7 +2742,7 @@ func (x *SignedJob) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SignedJob.ProtoReflect.Descriptor instead.
 func (*SignedJob) Descriptor() ([]byte, []int) {
-	return file_heartbeat_v1_agent_proto_rawDescGZIP(), []int{28}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *SignedJob) GetSpec() []byte {
@@ -2789,7 +2789,7 @@ type JobSpec struct {
 
 func (x *JobSpec) Reset() {
 	*x = JobSpec{}
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[29]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2801,7 +2801,7 @@ func (x *JobSpec) String() string {
 func (*JobSpec) ProtoMessage() {}
 
 func (x *JobSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[29]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2814,7 +2814,7 @@ func (x *JobSpec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JobSpec.ProtoReflect.Descriptor instead.
 func (*JobSpec) Descriptor() ([]byte, []int) {
-	return file_heartbeat_v1_agent_proto_rawDescGZIP(), []int{29}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *JobSpec) GetId() string {
@@ -2882,7 +2882,7 @@ type Ping struct {
 
 func (x *Ping) Reset() {
 	*x = Ping{}
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[30]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2894,7 +2894,7 @@ func (x *Ping) String() string {
 func (*Ping) ProtoMessage() {}
 
 func (x *Ping) ProtoReflect() protoreflect.Message {
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[30]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2907,7 +2907,7 @@ func (x *Ping) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Ping.ProtoReflect.Descriptor instead.
 func (*Ping) Descriptor() ([]byte, []int) {
-	return file_heartbeat_v1_agent_proto_rawDescGZIP(), []int{30}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *Ping) GetUnixMs() int64 {
@@ -2927,7 +2927,7 @@ type Goodbye struct {
 
 func (x *Goodbye) Reset() {
 	*x = Goodbye{}
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[31]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2939,7 +2939,7 @@ func (x *Goodbye) String() string {
 func (*Goodbye) ProtoMessage() {}
 
 func (x *Goodbye) ProtoReflect() protoreflect.Message {
-	mi := &file_heartbeat_v1_agent_proto_msgTypes[31]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2952,7 +2952,7 @@ func (x *Goodbye) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Goodbye.ProtoReflect.Descriptor instead.
 func (*Goodbye) Descriptor() ([]byte, []int) {
-	return file_heartbeat_v1_agent_proto_rawDescGZIP(), []int{31}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *Goodbye) GetReason() string {
@@ -2969,40 +2969,41 @@ func (x *Goodbye) GetRevoked() bool {
 	return false
 }
 
-var File_heartbeat_v1_agent_proto protoreflect.FileDescriptor
+var File_sentrel_v1_agent_proto protoreflect.FileDescriptor
 
-const file_heartbeat_v1_agent_proto_rawDesc = "" +
+const file_sentrel_v1_agent_proto_rawDesc = "" +
 	"\n" +
-	"\x18heartbeat/v1/agent.proto\x12\fheartbeat.v1\"\xa7\x01\n" +
+	"\x16sentrel/v1/agent.proto\x12\n" +
+	"sentrel.v1\"\xa5\x01\n" +
 	"\x0fRegisterRequest\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\x12\x17\n" +
-	"\acsr_pem\x18\x02 \x01(\fR\x06csrPem\x12*\n" +
-	"\x04host\x18\x03 \x01(\v2\x16.heartbeat.v1.HostInfoR\x04host\x12%\n" +
+	"\acsr_pem\x18\x02 \x01(\fR\x06csrPem\x12(\n" +
+	"\x04host\x18\x03 \x01(\v2\x14.sentrel.v1.HostInfoR\x04host\x12%\n" +
 	"\x0eschema_version\x18\x04 \x01(\rR\rschemaVersion\x12\x12\n" +
-	"\x04mode\x18\x05 \x01(\tR\x04mode\"\xb8\x01\n" +
+	"\x04mode\x18\x05 \x01(\tR\x04mode\"\xb6\x01\n" +
 	"\x10RegisterResponse\x12\x19\n" +
 	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12\x19\n" +
 	"\bcert_pem\x18\x02 \x01(\fR\acertPem\x12\x15\n" +
 	"\x06ca_pem\x18\x03 \x01(\fR\x05caPem\x12$\n" +
-	"\x0ejob_public_key\x18\x04 \x01(\fR\fjobPublicKey\x121\n" +
-	"\x06config\x18\x05 \x01(\v2\x19.heartbeat.v1.AgentConfigR\x06config\"\xbd\x03\n" +
-	"\fAgentMessage\x12+\n" +
-	"\x05hello\x18\x01 \x01(\v2\x13.heartbeat.v1.HelloH\x00R\x05hello\x125\n" +
-	"\ametrics\x18\x02 \x01(\v2\x19.heartbeat.v1.MetricBatchH\x00R\ametrics\x12/\n" +
-	"\x05state\x18\x03 \x01(\v2\x17.heartbeat.v1.HostStateH\x00R\x05state\x127\n" +
-	"\tinventory\x18\x04 \x01(\v2\x17.heartbeat.v1.InventoryH\x00R\tinventory\x12:\n" +
-	"\bsecurity\x18\x05 \x01(\v2\x1c.heartbeat.v1.SecurityReportH\x00R\bsecurity\x128\n" +
+	"\x0ejob_public_key\x18\x04 \x01(\fR\fjobPublicKey\x12/\n" +
+	"\x06config\x18\x05 \x01(\v2\x17.sentrel.v1.AgentConfigR\x06config\"\xad\x03\n" +
+	"\fAgentMessage\x12)\n" +
+	"\x05hello\x18\x01 \x01(\v2\x11.sentrel.v1.HelloH\x00R\x05hello\x123\n" +
+	"\ametrics\x18\x02 \x01(\v2\x17.sentrel.v1.MetricBatchH\x00R\ametrics\x12-\n" +
+	"\x05state\x18\x03 \x01(\v2\x15.sentrel.v1.HostStateH\x00R\x05state\x125\n" +
+	"\tinventory\x18\x04 \x01(\v2\x15.sentrel.v1.InventoryH\x00R\tinventory\x128\n" +
+	"\bsecurity\x18\x05 \x01(\v2\x1a.sentrel.v1.SecurityReportH\x00R\bsecurity\x126\n" +
 	"\n" +
-	"job_output\x18\x06 \x01(\v2\x17.heartbeat.v1.JobOutputH\x00R\tjobOutput\x128\n" +
+	"job_output\x18\x06 \x01(\v2\x15.sentrel.v1.JobOutputH\x00R\tjobOutput\x126\n" +
 	"\n" +
-	"job_result\x18\a \x01(\v2\x17.heartbeat.v1.JobResultH\x00R\tjobResult\x12(\n" +
-	"\x04pong\x18\b \x01(\v2\x12.heartbeat.v1.PongH\x00R\x04pongB\x05\n" +
-	"\x03msg\"\xf4\x02\n" +
+	"job_result\x18\a \x01(\v2\x15.sentrel.v1.JobResultH\x00R\tjobResult\x12&\n" +
+	"\x04pong\x18\b \x01(\v2\x10.sentrel.v1.PongH\x00R\x04pongB\x05\n" +
+	"\x03msg\"\xf2\x02\n" +
 	"\x05Hello\x12\x19\n" +
 	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12%\n" +
 	"\x0eschema_version\x18\x02 \x01(\rR\rschemaVersion\x12#\n" +
-	"\ragent_version\x18\x03 \x01(\tR\fagentVersion\x12*\n" +
-	"\x04host\x18\x04 \x01(\v2\x16.heartbeat.v1.HostInfoR\x04host\x12\x19\n" +
+	"\ragent_version\x18\x03 \x01(\tR\fagentVersion\x12(\n" +
+	"\x04host\x18\x04 \x01(\v2\x14.sentrel.v1.HostInfoR\x04host\x12\x19\n" +
 	"\bcert_pem\x18\x05 \x01(\fR\acertPem\x12\x17\n" +
 	"\aunix_ms\x18\x06 \x01(\x03R\x06unixMs\x12\x1c\n" +
 	"\tsignature\x18\a \x01(\fR\tsignature\x12!\n" +
@@ -3029,39 +3030,39 @@ const file_heartbeat_v1_agent_proto_rawDesc = "" +
 	"\x05os_id\x18\x0e \x01(\tR\x04osId\x12\"\n" +
 	"\ros_version_id\x18\x0f \x01(\tR\vosVersionId\x12\x1d\n" +
 	"\n" +
-	"machine_id\x18\x10 \x01(\tR\tmachineId\"\xbc\x01\n" +
+	"machine_id\x18\x10 \x01(\tR\tmachineId\"\xba\x01\n" +
 	"\x06Sample\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x128\n" +
-	"\x06labels\x18\x02 \x03(\v2 .heartbeat.v1.Sample.LabelsEntryR\x06labels\x12\x14\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x126\n" +
+	"\x06labels\x18\x02 \x03(\v2\x1e.sentrel.v1.Sample.LabelsEntryR\x06labels\x12\x14\n" +
 	"\x05value\x18\x03 \x01(\x01R\x05value\x12\x13\n" +
 	"\x05ts_ms\x18\x04 \x01(\x03R\x04tsMs\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"=\n" +
-	"\vMetricBatch\x12.\n" +
-	"\asamples\x18\x01 \x03(\v2\x14.heartbeat.v1.SampleR\asamples\"\x86\x06\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\";\n" +
+	"\vMetricBatch\x12,\n" +
+	"\asamples\x18\x01 \x03(\v2\x12.sentrel.v1.SampleR\asamples\"\xf6\x05\n" +
 	"\tHostState\x12\x13\n" +
 	"\x05ts_ms\x18\x01 \x01(\x03R\x04tsMs\x12%\n" +
-	"\x0euptime_seconds\x18\x02 \x01(\x04R\ruptimeSeconds\x12(\n" +
-	"\x05disks\x18\x03 \x03(\v2\x12.heartbeat.v1.DiskR\x05disks\x12:\n" +
+	"\x0euptime_seconds\x18\x02 \x01(\x04R\ruptimeSeconds\x12&\n" +
+	"\x05disks\x18\x03 \x03(\v2\x10.sentrel.v1.DiskR\x05disks\x128\n" +
 	"\n" +
-	"interfaces\x18\x04 \x03(\v2\x1a.heartbeat.v1.NetInterfaceR\n" +
-	"interfaces\x121\n" +
-	"\bservices\x18\x05 \x03(\v2\x15.heartbeat.v1.ServiceR\bservices\x121\n" +
-	"\x05ports\x18\x06 \x03(\v2\x1b.heartbeat.v1.ListeningPortR\x05ports\x12:\n" +
-	"\rtop_processes\x18\a \x03(\v2\x15.heartbeat.v1.ProcessR\ftopProcesses\x127\n" +
+	"interfaces\x18\x04 \x03(\v2\x18.sentrel.v1.NetInterfaceR\n" +
+	"interfaces\x12/\n" +
+	"\bservices\x18\x05 \x03(\v2\x13.sentrel.v1.ServiceR\bservices\x12/\n" +
+	"\x05ports\x18\x06 \x03(\v2\x19.sentrel.v1.ListeningPortR\x05ports\x128\n" +
+	"\rtop_processes\x18\a \x03(\v2\x13.sentrel.v1.ProcessR\ftopProcesses\x125\n" +
 	"\n" +
-	"containers\x18\b \x03(\v2\x17.heartbeat.v1.ContainerR\n" +
-	"containers\x12=\n" +
-	"\ftemperatures\x18\t \x03(\v2\x19.heartbeat.v1.TemperatureR\ftemperatures\x12'\n" +
+	"containers\x18\b \x03(\v2\x15.sentrel.v1.ContainerR\n" +
+	"containers\x12;\n" +
+	"\ftemperatures\x18\t \x03(\v2\x17.sentrel.v1.TemperatureR\ftemperatures\x12'\n" +
 	"\x0freboot_required\x18\n" +
 	" \x01(\bR\x0erebootRequired\x128\n" +
 	"\x18reboot_required_packages\x18\v \x03(\tR\x16rebootRequiredPackages\x12#\n" +
 	"\rprocess_count\x18\f \x01(\rR\fprocessCount\x12#\n" +
 	"\rprocess_names\x18\r \x03(\tR\fprocessNames\x12+\n" +
 	"\x11collection_errors\x18\x0e \x03(\tR\x10collectionErrors\x12)\n" +
-	"\x10docker_available\x18\x0f \x01(\bR\x0fdockerAvailable\x128\n" +
-	"\vblocked_ips\x18\x10 \x03(\v2\x17.heartbeat.v1.BlockedIPR\n" +
+	"\x10docker_available\x18\x0f \x01(\bR\x0fdockerAvailable\x126\n" +
+	"\vblocked_ips\x18\x10 \x03(\v2\x15.sentrel.v1.BlockedIPR\n" +
 	"blockedIps\"\xc4\x02\n" +
 	"\x04Disk\x12\x1e\n" +
 	"\n" +
@@ -3133,13 +3134,13 @@ const file_heartbeat_v1_agent_proto_rawDesc = "" +
 	"\x02ip\x18\x01 \x01(\tR\x02ip\x12!\n" +
 	"\fexpires_unix\x18\x02 \x01(\x03R\vexpiresUnix\x12\x16\n" +
 	"\x06reason\x18\x03 \x01(\tR\x06reason\x12\x18\n" +
-	"\abackend\x18\x04 \x01(\tR\abackend\"\x81\x02\n" +
+	"\abackend\x18\x04 \x01(\tR\abackend\"\xfd\x01\n" +
 	"\tInventory\x12\x13\n" +
 	"\x05ts_ms\x18\x01 \x01(\x03R\x04tsMs\x12'\n" +
-	"\x0fpackage_manager\x18\x02 \x01(\tR\x0epackageManager\x123\n" +
-	"\tinstalled\x18\x03 \x03(\v2\x15.heartbeat.v1.PackageR\tinstalled\x125\n" +
+	"\x0fpackage_manager\x18\x02 \x01(\tR\x0epackageManager\x121\n" +
+	"\tinstalled\x18\x03 \x03(\v2\x13.sentrel.v1.PackageR\tinstalled\x123\n" +
 	"\n" +
-	"upgradable\x18\x04 \x03(\v2\x15.heartbeat.v1.PackageR\n" +
+	"upgradable\x18\x04 \x03(\v2\x13.sentrel.v1.PackageR\n" +
 	"upgradable\x12\x14\n" +
 	"\x05error\x18\x05 \x01(\tR\x05error\x124\n" +
 	"\x16security_updates_known\x18\x06 \x01(\bR\x14securityUpdatesKnown\"\xe2\x01\n" +
@@ -3153,12 +3154,12 @@ const file_heartbeat_v1_agent_proto_rawDesc = "" +
 	"\bsecurity\x18\x06 \x01(\bR\bsecurity\x12\x0e\n" +
 	"\x02kb\x18\a \x01(\tR\x02kb\x12\x12\n" +
 	"\x04type\x18\b \x01(\tR\x04type\x12\x1c\n" +
-	"\tpublisher\x18\t \x01(\tR\tpublisher\"\xff\x01\n" +
+	"\tpublisher\x18\t \x01(\tR\tpublisher\"\xfb\x01\n" +
 	"\x0eSecurityReport\x12&\n" +
 	"\x0fwindow_start_ms\x18\x01 \x01(\x03R\rwindowStartMs\x12\"\n" +
-	"\rwindow_end_ms\x18\x02 \x01(\x03R\vwindowEndMs\x12?\n" +
-	"\rfailed_logins\x18\x03 \x03(\v2\x1a.heartbeat.v1.FailedLoginsR\ffailedLogins\x122\n" +
-	"\bfail2ban\x18\x04 \x01(\v2\x16.heartbeat.v1.Fail2BanR\bfail2ban\x12\x16\n" +
+	"\rwindow_end_ms\x18\x02 \x01(\x03R\vwindowEndMs\x12=\n" +
+	"\rfailed_logins\x18\x03 \x03(\v2\x18.sentrel.v1.FailedLoginsR\ffailedLogins\x120\n" +
+	"\bfail2ban\x18\x04 \x01(\v2\x14.sentrel.v1.Fail2BanR\bfail2ban\x12\x16\n" +
 	"\x06source\x18\x05 \x01(\tR\x06source\x12\x14\n" +
 	"\x05error\x18\x06 \x01(\tR\x05error\"t\n" +
 	"\fFailedLogins\x12\x0e\n" +
@@ -3166,10 +3167,10 @@ const file_heartbeat_v1_agent_proto_rawDesc = "" +
 	"\x05count\x18\x02 \x01(\rR\x05count\x12\x1c\n" +
 	"\tusernames\x18\x03 \x03(\tR\tusernames\x12 \n" +
 	"\flast_seen_ms\x18\x04 \x01(\x03R\n" +
-	"lastSeenMs\"p\n" +
+	"lastSeenMs\"n\n" +
 	"\bFail2Ban\x12\x1c\n" +
-	"\tavailable\x18\x01 \x01(\bR\tavailable\x120\n" +
-	"\x05jails\x18\x02 \x03(\v2\x1a.heartbeat.v1.Fail2BanJailR\x05jails\x12\x14\n" +
+	"\tavailable\x18\x01 \x01(\bR\tavailable\x12.\n" +
+	"\x05jails\x18\x02 \x03(\v2\x18.sentrel.v1.Fail2BanJailR\x05jails\x12\x14\n" +
 	"\x05error\x18\x03 \x01(\tR\x05error\"\xdd\x01\n" +
 	"\fFail2BanJail\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12)\n" +
@@ -3195,17 +3196,17 @@ const file_heartbeat_v1_agent_proto_rawDesc = "" +
 	"\vresult_json\x18\a \x01(\fR\n" +
 	"resultJson\"\x1f\n" +
 	"\x04Pong\x12\x17\n" +
-	"\aunix_ms\x18\x01 \x01(\x03R\x06unixMs\"\x88\x02\n" +
-	"\rServerMessage\x121\n" +
-	"\awelcome\x18\x01 \x01(\v2\x15.heartbeat.v1.WelcomeH\x00R\awelcome\x123\n" +
-	"\x06config\x18\x02 \x01(\v2\x19.heartbeat.v1.AgentConfigH\x00R\x06config\x12+\n" +
-	"\x03job\x18\x03 \x01(\v2\x17.heartbeat.v1.SignedJobH\x00R\x03job\x12(\n" +
-	"\x04ping\x18\x04 \x01(\v2\x12.heartbeat.v1.PingH\x00R\x04ping\x121\n" +
-	"\agoodbye\x18\x05 \x01(\v2\x15.heartbeat.v1.GoodbyeH\x00R\agoodbyeB\x05\n" +
-	"\x03msg\"\xa2\x01\n" +
+	"\aunix_ms\x18\x01 \x01(\x03R\x06unixMs\"\xfe\x01\n" +
+	"\rServerMessage\x12/\n" +
+	"\awelcome\x18\x01 \x01(\v2\x13.sentrel.v1.WelcomeH\x00R\awelcome\x121\n" +
+	"\x06config\x18\x02 \x01(\v2\x17.sentrel.v1.AgentConfigH\x00R\x06config\x12)\n" +
+	"\x03job\x18\x03 \x01(\v2\x15.sentrel.v1.SignedJobH\x00R\x03job\x12&\n" +
+	"\x04ping\x18\x04 \x01(\v2\x10.sentrel.v1.PingH\x00R\x04ping\x12/\n" +
+	"\agoodbye\x18\x05 \x01(\v2\x13.sentrel.v1.GoodbyeH\x00R\agoodbyeB\x05\n" +
+	"\x03msg\"\xa0\x01\n" +
 	"\aWelcome\x12\x17\n" +
-	"\ahost_id\x18\x01 \x01(\tR\x06hostId\x121\n" +
-	"\x06config\x18\x02 \x01(\v2\x19.heartbeat.v1.AgentConfigR\x06config\x12$\n" +
+	"\ahost_id\x18\x01 \x01(\tR\x06hostId\x12/\n" +
+	"\x06config\x18\x02 \x01(\v2\x17.sentrel.v1.AgentConfigR\x06config\x12$\n" +
 	"\x0eserver_unix_ms\x18\x03 \x01(\x03R\fserverUnixMs\x12%\n" +
 	"\x0eserver_version\x18\x04 \x01(\tR\rserverVersion\"\xba\x04\n" +
 	"\vAgentConfig\x12)\n" +
@@ -3226,12 +3227,12 @@ const file_heartbeat_v1_agent_proto_rawDesc = "" +
 	"\x04spec\x18\x01 \x01(\fR\x04spec\x12\x1c\n" +
 	"\tsignature\x18\x02 \x01(\fR\tsignature\x12-\n" +
 	"\x12operator_signature\x18\x03 \x01(\fR\x11operatorSignature\x12&\n" +
-	"\x0foperator_key_id\x18\x04 \x01(\tR\roperatorKeyId\"\xc4\x02\n" +
+	"\x0foperator_key_id\x18\x04 \x01(\tR\roperatorKeyId\"\xc2\x02\n" +
 	"\aJobSpec\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x19\n" +
 	"\bagent_id\x18\x02 \x01(\tR\aagentId\x12\x12\n" +
-	"\x04type\x18\x03 \x01(\tR\x04type\x129\n" +
-	"\x06params\x18\x04 \x03(\v2!.heartbeat.v1.JobSpec.ParamsEntryR\x06params\x12\x1f\n" +
+	"\x04type\x18\x03 \x01(\tR\x04type\x127\n" +
+	"\x06params\x18\x04 \x03(\v2\x1f.sentrel.v1.JobSpec.ParamsEntryR\x06params\x12\x1f\n" +
 	"\vissued_unix\x18\x05 \x01(\x03R\n" +
 	"issuedUnix\x12!\n" +
 	"\fexpires_unix\x18\x06 \x01(\x03R\vexpiresUnix\x12\x17\n" +
@@ -3247,100 +3248,100 @@ const file_heartbeat_v1_agent_proto_rawDesc = "" +
 	"\arevoked\x18\x02 \x01(\bR\arevoked*K\n" +
 	"\rSchemaVersion\x12\x1e\n" +
 	"\x1aSCHEMA_VERSION_UNSPECIFIED\x10\x00\x12\x1a\n" +
-	"\x16SCHEMA_VERSION_CURRENT\x10\x012\xa1\x01\n" +
-	"\fAgentService\x12I\n" +
-	"\bRegister\x12\x1d.heartbeat.v1.RegisterRequest\x1a\x1e.heartbeat.v1.RegisterResponse\x12F\n" +
-	"\aConnect\x12\x1a.heartbeat.v1.AgentMessage\x1a\x1b.heartbeat.v1.ServerMessage(\x010\x01B'Z%heartbeat/gen/heartbeatv1;heartbeatv1b\x06proto3"
+	"\x16SCHEMA_VERSION_CURRENT\x10\x012\x99\x01\n" +
+	"\fAgentService\x12E\n" +
+	"\bRegister\x12\x1b.sentrel.v1.RegisterRequest\x1a\x1c.sentrel.v1.RegisterResponse\x12B\n" +
+	"\aConnect\x12\x18.sentrel.v1.AgentMessage\x1a\x19.sentrel.v1.ServerMessage(\x010\x01B!Z\x1fsentrel/gen/sentrelv1;sentrelv1b\x06proto3"
 
 var (
-	file_heartbeat_v1_agent_proto_rawDescOnce sync.Once
-	file_heartbeat_v1_agent_proto_rawDescData []byte
+	file_sentrel_v1_agent_proto_rawDescOnce sync.Once
+	file_sentrel_v1_agent_proto_rawDescData []byte
 )
 
-func file_heartbeat_v1_agent_proto_rawDescGZIP() []byte {
-	file_heartbeat_v1_agent_proto_rawDescOnce.Do(func() {
-		file_heartbeat_v1_agent_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_heartbeat_v1_agent_proto_rawDesc), len(file_heartbeat_v1_agent_proto_rawDesc)))
+func file_sentrel_v1_agent_proto_rawDescGZIP() []byte {
+	file_sentrel_v1_agent_proto_rawDescOnce.Do(func() {
+		file_sentrel_v1_agent_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_sentrel_v1_agent_proto_rawDesc), len(file_sentrel_v1_agent_proto_rawDesc)))
 	})
-	return file_heartbeat_v1_agent_proto_rawDescData
+	return file_sentrel_v1_agent_proto_rawDescData
 }
 
-var file_heartbeat_v1_agent_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_heartbeat_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 34)
-var file_heartbeat_v1_agent_proto_goTypes = []any{
-	(SchemaVersion)(0),       // 0: heartbeat.v1.SchemaVersion
-	(*RegisterRequest)(nil),  // 1: heartbeat.v1.RegisterRequest
-	(*RegisterResponse)(nil), // 2: heartbeat.v1.RegisterResponse
-	(*AgentMessage)(nil),     // 3: heartbeat.v1.AgentMessage
-	(*Hello)(nil),            // 4: heartbeat.v1.Hello
-	(*HostInfo)(nil),         // 5: heartbeat.v1.HostInfo
-	(*Sample)(nil),           // 6: heartbeat.v1.Sample
-	(*MetricBatch)(nil),      // 7: heartbeat.v1.MetricBatch
-	(*HostState)(nil),        // 8: heartbeat.v1.HostState
-	(*Disk)(nil),             // 9: heartbeat.v1.Disk
-	(*NetInterface)(nil),     // 10: heartbeat.v1.NetInterface
-	(*Service)(nil),          // 11: heartbeat.v1.Service
-	(*ListeningPort)(nil),    // 12: heartbeat.v1.ListeningPort
-	(*Process)(nil),          // 13: heartbeat.v1.Process
-	(*Container)(nil),        // 14: heartbeat.v1.Container
-	(*Temperature)(nil),      // 15: heartbeat.v1.Temperature
-	(*BlockedIP)(nil),        // 16: heartbeat.v1.BlockedIP
-	(*Inventory)(nil),        // 17: heartbeat.v1.Inventory
-	(*Package)(nil),          // 18: heartbeat.v1.Package
-	(*SecurityReport)(nil),   // 19: heartbeat.v1.SecurityReport
-	(*FailedLogins)(nil),     // 20: heartbeat.v1.FailedLogins
-	(*Fail2Ban)(nil),         // 21: heartbeat.v1.Fail2Ban
-	(*Fail2BanJail)(nil),     // 22: heartbeat.v1.Fail2BanJail
-	(*JobOutput)(nil),        // 23: heartbeat.v1.JobOutput
-	(*JobResult)(nil),        // 24: heartbeat.v1.JobResult
-	(*Pong)(nil),             // 25: heartbeat.v1.Pong
-	(*ServerMessage)(nil),    // 26: heartbeat.v1.ServerMessage
-	(*Welcome)(nil),          // 27: heartbeat.v1.Welcome
-	(*AgentConfig)(nil),      // 28: heartbeat.v1.AgentConfig
-	(*SignedJob)(nil),        // 29: heartbeat.v1.SignedJob
-	(*JobSpec)(nil),          // 30: heartbeat.v1.JobSpec
-	(*Ping)(nil),             // 31: heartbeat.v1.Ping
-	(*Goodbye)(nil),          // 32: heartbeat.v1.Goodbye
-	nil,                      // 33: heartbeat.v1.Sample.LabelsEntry
-	nil,                      // 34: heartbeat.v1.JobSpec.ParamsEntry
+var file_sentrel_v1_agent_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_sentrel_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 34)
+var file_sentrel_v1_agent_proto_goTypes = []any{
+	(SchemaVersion)(0),       // 0: sentrel.v1.SchemaVersion
+	(*RegisterRequest)(nil),  // 1: sentrel.v1.RegisterRequest
+	(*RegisterResponse)(nil), // 2: sentrel.v1.RegisterResponse
+	(*AgentMessage)(nil),     // 3: sentrel.v1.AgentMessage
+	(*Hello)(nil),            // 4: sentrel.v1.Hello
+	(*HostInfo)(nil),         // 5: sentrel.v1.HostInfo
+	(*Sample)(nil),           // 6: sentrel.v1.Sample
+	(*MetricBatch)(nil),      // 7: sentrel.v1.MetricBatch
+	(*HostState)(nil),        // 8: sentrel.v1.HostState
+	(*Disk)(nil),             // 9: sentrel.v1.Disk
+	(*NetInterface)(nil),     // 10: sentrel.v1.NetInterface
+	(*Service)(nil),          // 11: sentrel.v1.Service
+	(*ListeningPort)(nil),    // 12: sentrel.v1.ListeningPort
+	(*Process)(nil),          // 13: sentrel.v1.Process
+	(*Container)(nil),        // 14: sentrel.v1.Container
+	(*Temperature)(nil),      // 15: sentrel.v1.Temperature
+	(*BlockedIP)(nil),        // 16: sentrel.v1.BlockedIP
+	(*Inventory)(nil),        // 17: sentrel.v1.Inventory
+	(*Package)(nil),          // 18: sentrel.v1.Package
+	(*SecurityReport)(nil),   // 19: sentrel.v1.SecurityReport
+	(*FailedLogins)(nil),     // 20: sentrel.v1.FailedLogins
+	(*Fail2Ban)(nil),         // 21: sentrel.v1.Fail2Ban
+	(*Fail2BanJail)(nil),     // 22: sentrel.v1.Fail2BanJail
+	(*JobOutput)(nil),        // 23: sentrel.v1.JobOutput
+	(*JobResult)(nil),        // 24: sentrel.v1.JobResult
+	(*Pong)(nil),             // 25: sentrel.v1.Pong
+	(*ServerMessage)(nil),    // 26: sentrel.v1.ServerMessage
+	(*Welcome)(nil),          // 27: sentrel.v1.Welcome
+	(*AgentConfig)(nil),      // 28: sentrel.v1.AgentConfig
+	(*SignedJob)(nil),        // 29: sentrel.v1.SignedJob
+	(*JobSpec)(nil),          // 30: sentrel.v1.JobSpec
+	(*Ping)(nil),             // 31: sentrel.v1.Ping
+	(*Goodbye)(nil),          // 32: sentrel.v1.Goodbye
+	nil,                      // 33: sentrel.v1.Sample.LabelsEntry
+	nil,                      // 34: sentrel.v1.JobSpec.ParamsEntry
 }
-var file_heartbeat_v1_agent_proto_depIdxs = []int32{
-	5,  // 0: heartbeat.v1.RegisterRequest.host:type_name -> heartbeat.v1.HostInfo
-	28, // 1: heartbeat.v1.RegisterResponse.config:type_name -> heartbeat.v1.AgentConfig
-	4,  // 2: heartbeat.v1.AgentMessage.hello:type_name -> heartbeat.v1.Hello
-	7,  // 3: heartbeat.v1.AgentMessage.metrics:type_name -> heartbeat.v1.MetricBatch
-	8,  // 4: heartbeat.v1.AgentMessage.state:type_name -> heartbeat.v1.HostState
-	17, // 5: heartbeat.v1.AgentMessage.inventory:type_name -> heartbeat.v1.Inventory
-	19, // 6: heartbeat.v1.AgentMessage.security:type_name -> heartbeat.v1.SecurityReport
-	23, // 7: heartbeat.v1.AgentMessage.job_output:type_name -> heartbeat.v1.JobOutput
-	24, // 8: heartbeat.v1.AgentMessage.job_result:type_name -> heartbeat.v1.JobResult
-	25, // 9: heartbeat.v1.AgentMessage.pong:type_name -> heartbeat.v1.Pong
-	5,  // 10: heartbeat.v1.Hello.host:type_name -> heartbeat.v1.HostInfo
-	33, // 11: heartbeat.v1.Sample.labels:type_name -> heartbeat.v1.Sample.LabelsEntry
-	6,  // 12: heartbeat.v1.MetricBatch.samples:type_name -> heartbeat.v1.Sample
-	9,  // 13: heartbeat.v1.HostState.disks:type_name -> heartbeat.v1.Disk
-	10, // 14: heartbeat.v1.HostState.interfaces:type_name -> heartbeat.v1.NetInterface
-	11, // 15: heartbeat.v1.HostState.services:type_name -> heartbeat.v1.Service
-	12, // 16: heartbeat.v1.HostState.ports:type_name -> heartbeat.v1.ListeningPort
-	13, // 17: heartbeat.v1.HostState.top_processes:type_name -> heartbeat.v1.Process
-	14, // 18: heartbeat.v1.HostState.containers:type_name -> heartbeat.v1.Container
-	15, // 19: heartbeat.v1.HostState.temperatures:type_name -> heartbeat.v1.Temperature
-	16, // 20: heartbeat.v1.HostState.blocked_ips:type_name -> heartbeat.v1.BlockedIP
-	18, // 21: heartbeat.v1.Inventory.installed:type_name -> heartbeat.v1.Package
-	18, // 22: heartbeat.v1.Inventory.upgradable:type_name -> heartbeat.v1.Package
-	20, // 23: heartbeat.v1.SecurityReport.failed_logins:type_name -> heartbeat.v1.FailedLogins
-	21, // 24: heartbeat.v1.SecurityReport.fail2ban:type_name -> heartbeat.v1.Fail2Ban
-	22, // 25: heartbeat.v1.Fail2Ban.jails:type_name -> heartbeat.v1.Fail2BanJail
-	27, // 26: heartbeat.v1.ServerMessage.welcome:type_name -> heartbeat.v1.Welcome
-	28, // 27: heartbeat.v1.ServerMessage.config:type_name -> heartbeat.v1.AgentConfig
-	29, // 28: heartbeat.v1.ServerMessage.job:type_name -> heartbeat.v1.SignedJob
-	31, // 29: heartbeat.v1.ServerMessage.ping:type_name -> heartbeat.v1.Ping
-	32, // 30: heartbeat.v1.ServerMessage.goodbye:type_name -> heartbeat.v1.Goodbye
-	28, // 31: heartbeat.v1.Welcome.config:type_name -> heartbeat.v1.AgentConfig
-	34, // 32: heartbeat.v1.JobSpec.params:type_name -> heartbeat.v1.JobSpec.ParamsEntry
-	1,  // 33: heartbeat.v1.AgentService.Register:input_type -> heartbeat.v1.RegisterRequest
-	3,  // 34: heartbeat.v1.AgentService.Connect:input_type -> heartbeat.v1.AgentMessage
-	2,  // 35: heartbeat.v1.AgentService.Register:output_type -> heartbeat.v1.RegisterResponse
-	26, // 36: heartbeat.v1.AgentService.Connect:output_type -> heartbeat.v1.ServerMessage
+var file_sentrel_v1_agent_proto_depIdxs = []int32{
+	5,  // 0: sentrel.v1.RegisterRequest.host:type_name -> sentrel.v1.HostInfo
+	28, // 1: sentrel.v1.RegisterResponse.config:type_name -> sentrel.v1.AgentConfig
+	4,  // 2: sentrel.v1.AgentMessage.hello:type_name -> sentrel.v1.Hello
+	7,  // 3: sentrel.v1.AgentMessage.metrics:type_name -> sentrel.v1.MetricBatch
+	8,  // 4: sentrel.v1.AgentMessage.state:type_name -> sentrel.v1.HostState
+	17, // 5: sentrel.v1.AgentMessage.inventory:type_name -> sentrel.v1.Inventory
+	19, // 6: sentrel.v1.AgentMessage.security:type_name -> sentrel.v1.SecurityReport
+	23, // 7: sentrel.v1.AgentMessage.job_output:type_name -> sentrel.v1.JobOutput
+	24, // 8: sentrel.v1.AgentMessage.job_result:type_name -> sentrel.v1.JobResult
+	25, // 9: sentrel.v1.AgentMessage.pong:type_name -> sentrel.v1.Pong
+	5,  // 10: sentrel.v1.Hello.host:type_name -> sentrel.v1.HostInfo
+	33, // 11: sentrel.v1.Sample.labels:type_name -> sentrel.v1.Sample.LabelsEntry
+	6,  // 12: sentrel.v1.MetricBatch.samples:type_name -> sentrel.v1.Sample
+	9,  // 13: sentrel.v1.HostState.disks:type_name -> sentrel.v1.Disk
+	10, // 14: sentrel.v1.HostState.interfaces:type_name -> sentrel.v1.NetInterface
+	11, // 15: sentrel.v1.HostState.services:type_name -> sentrel.v1.Service
+	12, // 16: sentrel.v1.HostState.ports:type_name -> sentrel.v1.ListeningPort
+	13, // 17: sentrel.v1.HostState.top_processes:type_name -> sentrel.v1.Process
+	14, // 18: sentrel.v1.HostState.containers:type_name -> sentrel.v1.Container
+	15, // 19: sentrel.v1.HostState.temperatures:type_name -> sentrel.v1.Temperature
+	16, // 20: sentrel.v1.HostState.blocked_ips:type_name -> sentrel.v1.BlockedIP
+	18, // 21: sentrel.v1.Inventory.installed:type_name -> sentrel.v1.Package
+	18, // 22: sentrel.v1.Inventory.upgradable:type_name -> sentrel.v1.Package
+	20, // 23: sentrel.v1.SecurityReport.failed_logins:type_name -> sentrel.v1.FailedLogins
+	21, // 24: sentrel.v1.SecurityReport.fail2ban:type_name -> sentrel.v1.Fail2Ban
+	22, // 25: sentrel.v1.Fail2Ban.jails:type_name -> sentrel.v1.Fail2BanJail
+	27, // 26: sentrel.v1.ServerMessage.welcome:type_name -> sentrel.v1.Welcome
+	28, // 27: sentrel.v1.ServerMessage.config:type_name -> sentrel.v1.AgentConfig
+	29, // 28: sentrel.v1.ServerMessage.job:type_name -> sentrel.v1.SignedJob
+	31, // 29: sentrel.v1.ServerMessage.ping:type_name -> sentrel.v1.Ping
+	32, // 30: sentrel.v1.ServerMessage.goodbye:type_name -> sentrel.v1.Goodbye
+	28, // 31: sentrel.v1.Welcome.config:type_name -> sentrel.v1.AgentConfig
+	34, // 32: sentrel.v1.JobSpec.params:type_name -> sentrel.v1.JobSpec.ParamsEntry
+	1,  // 33: sentrel.v1.AgentService.Register:input_type -> sentrel.v1.RegisterRequest
+	3,  // 34: sentrel.v1.AgentService.Connect:input_type -> sentrel.v1.AgentMessage
+	2,  // 35: sentrel.v1.AgentService.Register:output_type -> sentrel.v1.RegisterResponse
+	26, // 36: sentrel.v1.AgentService.Connect:output_type -> sentrel.v1.ServerMessage
 	35, // [35:37] is the sub-list for method output_type
 	33, // [33:35] is the sub-list for method input_type
 	33, // [33:33] is the sub-list for extension type_name
@@ -3348,12 +3349,12 @@ var file_heartbeat_v1_agent_proto_depIdxs = []int32{
 	0,  // [0:33] is the sub-list for field type_name
 }
 
-func init() { file_heartbeat_v1_agent_proto_init() }
-func file_heartbeat_v1_agent_proto_init() {
-	if File_heartbeat_v1_agent_proto != nil {
+func init() { file_sentrel_v1_agent_proto_init() }
+func file_sentrel_v1_agent_proto_init() {
+	if File_sentrel_v1_agent_proto != nil {
 		return
 	}
-	file_heartbeat_v1_agent_proto_msgTypes[2].OneofWrappers = []any{
+	file_sentrel_v1_agent_proto_msgTypes[2].OneofWrappers = []any{
 		(*AgentMessage_Hello)(nil),
 		(*AgentMessage_Metrics)(nil),
 		(*AgentMessage_State)(nil),
@@ -3363,7 +3364,7 @@ func file_heartbeat_v1_agent_proto_init() {
 		(*AgentMessage_JobResult)(nil),
 		(*AgentMessage_Pong)(nil),
 	}
-	file_heartbeat_v1_agent_proto_msgTypes[25].OneofWrappers = []any{
+	file_sentrel_v1_agent_proto_msgTypes[25].OneofWrappers = []any{
 		(*ServerMessage_Welcome)(nil),
 		(*ServerMessage_Config)(nil),
 		(*ServerMessage_Job)(nil),
@@ -3374,18 +3375,18 @@ func file_heartbeat_v1_agent_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_heartbeat_v1_agent_proto_rawDesc), len(file_heartbeat_v1_agent_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_sentrel_v1_agent_proto_rawDesc), len(file_sentrel_v1_agent_proto_rawDesc)),
 			NumEnums:      1,
 			NumMessages:   34,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_heartbeat_v1_agent_proto_goTypes,
-		DependencyIndexes: file_heartbeat_v1_agent_proto_depIdxs,
-		EnumInfos:         file_heartbeat_v1_agent_proto_enumTypes,
-		MessageInfos:      file_heartbeat_v1_agent_proto_msgTypes,
+		GoTypes:           file_sentrel_v1_agent_proto_goTypes,
+		DependencyIndexes: file_sentrel_v1_agent_proto_depIdxs,
+		EnumInfos:         file_sentrel_v1_agent_proto_enumTypes,
+		MessageInfos:      file_sentrel_v1_agent_proto_msgTypes,
 	}.Build()
-	File_heartbeat_v1_agent_proto = out.File
-	file_heartbeat_v1_agent_proto_goTypes = nil
-	file_heartbeat_v1_agent_proto_depIdxs = nil
+	File_sentrel_v1_agent_proto = out.File
+	file_sentrel_v1_agent_proto_goTypes = nil
+	file_sentrel_v1_agent_proto_depIdxs = nil
 }

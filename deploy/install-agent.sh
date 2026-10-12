@@ -1,10 +1,10 @@
 #!/bin/sh
-# Heartbeat agent installer for Linux.
+# Sentrel agent installer for Linux.
 #
 #   curl -fsSL https://SERVER/install/agent.sh | sudo sh -s -- --server https://SERVER --token ABCD-1234
 #
 # Options:
-#   --server URL            Heartbeat server URL (required unless --uninstall)
+#   --server URL            Sentrel server URL (required unless --uninstall)
 #   --token TOKEN           one-time enrolment token from "Add host"
 #   --ca-fingerprint FP     pin the server CA (self-signed TLS mode)
 #   --binary PATH           use a local binary instead of downloading
@@ -14,7 +14,7 @@
 #                             operator  jobs also need a signature from --operator-key
 #                             none      read-only agent; refuses every such job
 #   --read-only             shorthand for --write-jobs none
-#   --operator-key B64      operator public key (from `hb-sign keygen-operator`);
+#   --operator-key B64      operator public key (from `sentrel-sign keygen-operator`);
 #                           repeatable, used with --write-jobs operator
 #   --docker                add the agent user to the docker group (container
 #                           monitoring). Opt-in: docker group membership is
@@ -53,12 +53,12 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-BIN=/usr/local/bin/heartbeat-agent
-ETC=/etc/heartbeat-agent
-STATE=/var/lib/heartbeat-agent
-USER_NAME=heartbeat-agent
-UNIT=/etc/systemd/system/heartbeat-agent.service
-SUDOERS=/etc/sudoers.d/heartbeat-agent
+BIN=/usr/local/bin/sentrel-agent
+ETC=/etc/sentrel-agent
+STATE=/var/lib/sentrel-agent
+USER_NAME=sentrel-agent
+UNIT=/etc/systemd/system/sentrel-agent.service
+SUDOERS=/etc/sudoers.d/sentrel-agent
 
 say() { printf '==> %s\n' "$*"; }
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
@@ -66,10 +66,10 @@ die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 [ "$(id -u)" = 0 ] || die "run as root (sudo)"
 
 if [ "$UNINSTALL" = 1 ]; then
-  say "removing Heartbeat agent"
-  systemctl disable --now heartbeat-agent 2>/dev/null || true
+  say "removing Sentrel agent"
+  systemctl disable --now sentrel-agent 2>/dev/null || true
   # Remove firewall blocks created by the agent.
-  if command -v nft >/dev/null 2>&1; then nft delete table inet heartbeat 2>/dev/null || true; fi
+  if command -v nft >/dev/null 2>&1; then nft delete table inet sentrel 2>/dev/null || true; fi
   rm -f "$UNIT" "$SUDOERS" "$BIN" "$BIN.old"
   systemctl daemon-reload 2>/dev/null || true
   rm -rf "$ETC" "$STATE"
@@ -101,13 +101,13 @@ if [ -z "$BINARY" ]; then
   URL="$SERVER/download/agent/linux/$ARCH"
   say "downloading agent from $URL"
   if command -v curl >/dev/null 2>&1; then
-    curl -fsSL ${INSECURE:+-k} -o "$TMP/heartbeat-agent" "$URL" || die "download failed"
+    curl -fsSL ${INSECURE:+-k} -o "$TMP/sentrel-agent" "$URL" || die "download failed"
   elif command -v wget >/dev/null 2>&1; then
-    wget -q ${INSECURE:+--no-check-certificate} -O "$TMP/heartbeat-agent" "$URL" || die "download failed"
+    wget -q ${INSECURE:+--no-check-certificate} -O "$TMP/sentrel-agent" "$URL" || die "download failed"
   else
     die "curl or wget is required"
   fi
-  BINARY="$TMP/heartbeat-agent"
+  BINARY="$TMP/sentrel-agent"
 fi
 chmod 0755 "$BINARY"
 "$BINARY" version >/dev/null 2>&1 || die "agent binary does not run on this system"
@@ -126,18 +126,18 @@ if [ "$DOCKER" = 1 ] && getent group docker >/dev/null 2>&1; then
 fi
 
 say "installing $BIN"
-if [ -f "$BIN" ]; then systemctl stop heartbeat-agent 2>/dev/null || true; fi
+if [ -f "$BIN" ]; then systemctl stop sentrel-agent 2>/dev/null || true; fi
 install -o root -g root -m 0755 "$BINARY" "$BIN"
 install -d -o root -g "$USER_NAME" -m 0750 "$ETC"
 install -d -o "$USER_NAME" -g "$USER_NAME" -m 0700 "$STATE"
 
 # Validate the sudo rules before registering, so a failure here does not
-# consume the one-time token. Only `heartbeat-agent priv ...` may run as root;
+# consume the one-time token. Only `sentrel-agent priv ...` may run as root;
 # the root-owned helper validates arguments and job signatures itself.
 say "checking sudo rules (privileged helper only)"
 if [ -d /etc/sudoers.d ]; then
   cat > "$TMP/sudoers" <<EOF
-# Heartbeat agent: the agent runs unprivileged and may only invoke its own
+# Sentrel agent: the agent runs unprivileged and may only invoke its own
 # root-owned helper, which validates arguments and job signatures itself.
 $USER_NAME ALL=(root) NOPASSWD: $BIN priv *
 EOF
@@ -167,8 +167,8 @@ fi
 say "installing systemd unit"
 cat > "$UNIT" <<EOF
 [Unit]
-Description=Heartbeat monitoring agent
-Documentation=https://github.com/notspark1999/Heartbeat
+Description=Sentrel monitoring agent
+Documentation=https://github.com/notspark1999/Sentrel
 After=network-online.target
 Wants=network-online.target
 
@@ -190,11 +190,11 @@ Nice=10
 WantedBy=multi-user.target
 EOF
 systemctl daemon-reload
-systemctl enable --now heartbeat-agent >/dev/null 2>&1
+systemctl enable --now sentrel-agent >/dev/null 2>&1
 sleep 2
-if systemctl is-active --quiet heartbeat-agent; then
-  say "Heartbeat agent is running. It should appear in the web UI within a minute."
+if systemctl is-active --quiet sentrel-agent; then
+  say "Sentrel agent is running. It should appear in the web UI within a minute."
 else
-  journalctl -u heartbeat-agent -n 20 --no-pager || true
+  journalctl -u sentrel-agent -n 20 --no-pager || true
   die "agent failed to start"
 fi

@@ -36,7 +36,7 @@ func (b *Binary) Open() (io.ReadCloser, error) { return b.open() }
 
 // FileName is the canonical file name for os/arch.
 func FileName(goos, goarch string) string {
-	n := "heartbeat-agent-" + goos + "-" + goarch
+	n := "sentrel-agent-" + goos + "-" + goarch
 	if goos == "windows" {
 		n += ".exe"
 	}

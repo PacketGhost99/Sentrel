@@ -36,7 +36,7 @@ export function RunScript({ host, onClose }: { host: HostDetail; onClose: () => 
           <Field label="Timeout (seconds)"><Input type="number" min={10} max={14400} value={timeout} onChange={(e) => setTimeoutS(e.target.value)} /></Field>
         </div>
         <Field label="Script"><Textarea className="mono min-h-48 text-xs" value={script} onChange={(e) => setScript(e.target.value)} spellCheck={false} /></Field>
-        <Note tone="warn">{win ? 'Runs as LocalSystem.' : 'Runs as the unprivileged heartbeat-agent user.'} The job is signed by the server, verified by the agent, and the script and its output are kept in the job log and audit trail.</Note>
+        <Note tone="warn">{win ? 'Runs as LocalSystem.' : 'Runs as the unprivileged sentrel-agent user.'} The job is signed by the server, verified by the agent, and the script and its output are kept in the job log and audit trail.</Note>
         <Field label={<>Type <b className="mono text-fg">{host.name}</b> to confirm</>}><Input value={typed} onChange={(e) => setTyped(e.target.value)} /></Field>
         <ErrorBox error={err} />
       </div>

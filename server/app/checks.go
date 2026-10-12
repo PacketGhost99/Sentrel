@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	pb "heartbeat/gen/heartbeatv1"
-	"heartbeat/server/db"
-	"heartbeat/server/metrics"
-	"heartbeat/server/probe"
+	pb "sentrel/gen/sentrelv1"
+	"sentrel/server/db"
+	"sentrel/server/metrics"
+	"sentrel/server/probe"
 )
 
 // Server-side check types run by the poller; agent check types are

@@ -1,4 +1,4 @@
-module heartbeat
+module sentrel
 
 go 1.26.8
 

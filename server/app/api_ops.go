@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"heartbeat/server/db"
+	"sentrel/server/db"
 )
 
 // --- jobs ---

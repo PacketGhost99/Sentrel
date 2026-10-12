@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	"heartbeat/internal/sigs"
+	"sentrel/internal/sigs"
 )
 
 // privRunner runs a privileged verb and returns its combined output.

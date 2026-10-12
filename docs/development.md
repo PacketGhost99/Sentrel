@@ -11,8 +11,8 @@ The server embeds the compiled UI (`web/dist`, via `go:embed all:dist`), so `go 
 ## Repository layout
 
 ```
-cmd/heartbeat-server/   server CLI: serve, backup, restore, reset-password, healthcheck, version
-cmd/heartbeat-agent/    agent CLI: register, run, self-test, status, service, priv, version
+cmd/sentrel-server/   server CLI: serve, backup, restore, reset-password, healthcheck, version
+cmd/sentrel-agent/    agent CLI: register, run, self-test, status, service, priv, version
 server/app/             the server: routes.go (every REST endpoint), api*.go handlers, hub.go (agent gRPC),
                         alerting.go, notifier.go, checks.go, jobs.go, ingest.go, http.go (listeners, TLS),
                         settings.go, thresholds.go, housekeeping.go, snmppoll.go, vulnscan.go, auth.go
@@ -29,8 +29,8 @@ server/agentdist/       agent binaries embedded in the server (filled by scripts
 agent/                  the agent: collector, inventory, security, jobs, priv helper, transport (per-OS files)
 internal/sigs/          message formats signed by the server and checked by agents
 internal/version/       build metadata set by -ldflags
-proto/heartbeat/v1/     agent.proto
-gen/heartbeatv1/        generated protobuf and gRPC code (committed)
+proto/sentrel/v1/     agent.proto
+gen/sentrelv1/        generated protobuf and gRPC code (committed)
 web/                    React 19 + Vite + Tailwind UI (TypeScript)
 deploy/                 install-server.sh, install-agent.sh, install-agent.ps1, Dockerfile, docker-compose.yml
 scripts/                build.sh, e2e.sh, sync.sh, dev-deploy.sh
@@ -44,17 +44,17 @@ Adding an API endpoint means adding a `routeDef` in `server/app/routes.go`; the 
 scripts/build.sh [--version X.Y.Z] [--skip-web] [--server-arch "amd64 arm64"]
 ```
 
-Steps: build the UI (unless `--skip-web`), cross-compile agents for `linux/amd64`, `linux/arm64` and `windows/amd64` (`CGO_ENABLED=0`, `-trimpath`), copy them into `server/agentdist/bin/` so they are embedded, build the MSI if `wixl` exists, build `heartbeat-server-linux-<arch>`, copy the installer scripts and write `dist/SHA256SUMS`. The version defaults to `git describe`. The agent builds are rebuilt before the server on purpose: the server serves and signs exactly the agent binaries it embeds. Output is in `dist/`.
+Steps: build the UI (unless `--skip-web`), cross-compile agents for `linux/amd64`, `linux/arm64` and `windows/amd64` (`CGO_ENABLED=0`, `-trimpath`), copy them into `server/agentdist/bin/` so they are embedded, build the MSI if `wixl` exists, build `sentrel-server-linux-<arch>`, copy the installer scripts and write `dist/SHA256SUMS`. The version defaults to `git describe`. The agent builds are rebuilt before the server on purpose: the server serves and signs exactly the agent binaries it embeds. Output is in `dist/`.
 
-Docker: `docker build -f deploy/Dockerfile -t heartbeat .` (build argument `VERSION`).
+Docker: `docker build -f deploy/Dockerfile -t sentrel .` (build argument `VERSION`).
 
 ### Running a development server
 
 ```sh
 (cd web && npm ci && npm run build)
-go run ./cmd/heartbeat-server serve --data-dir ./.data --listen 127.0.0.1:8080
+go run ./cmd/sentrel-server serve --data-dir ./.data --listen 127.0.0.1:8080
 # UI hot reload, proxying /api, /download and /install to the server:
-(cd web && HEARTBEAT_URL=http://127.0.0.1:8080 npm run dev)
+(cd web && SENTREL_URL=http://127.0.0.1:8080 npm run dev)
 ```
 
 `--dev-ui web/dist` serves the UI from disk, and `--agent-bin-dir dist` serves agent binaries from a directory instead of the embedded ones. Create the first user through the setup wizard using the token from `.data/setup-token`.
@@ -70,16 +70,16 @@ go test ./...                              # unit and in-process integration tes
 
 ### SNMP live test
 
-`server/snmp/live_test.go` polls a real device and is skipped unless `HB_SNMP_ADDR` is set:
+`server/snmp/live_test.go` polls a real device and is skipped unless `SENTREL_SNMP_ADDR` is set:
 
 | Variable | Meaning |
 |---|---|
-| `HB_SNMP_ADDR` | target address, for example a local net-snmp `snmpd` (required to run the test) |
-| `HB_SNMP_COMMUNITY` | v2c community |
-| `HB_SNMP_V3_USER`, `HB_SNMP_V3_AUTH`, `HB_SNMP_V3_PRIV` | enable the v3 case (`authPriv`, SHA256 and AES) |
+| `SENTREL_SNMP_ADDR` | target address, for example a local net-snmp `snmpd` (required to run the test) |
+| `SENTREL_SNMP_COMMUNITY` | v2c community |
+| `SENTREL_SNMP_V3_USER`, `SENTREL_SNMP_V3_AUTH`, `SENTREL_SNMP_V3_PRIV` | enable the v3 case (`authPriv`, SHA256 and AES) |
 
 ```sh
-HB_SNMP_ADDR=127.0.0.1 HB_SNMP_COMMUNITY=public go test ./server/snmp -run TestPollLive -v
+SENTREL_SNMP_ADDR=127.0.0.1 SENTREL_SNMP_COMMUNITY=public go test ./server/snmp -run TestPollLive -v
 ```
 
 The test expects `cpu_usage_percent`, `mem_used_percent` and `disk_used_percent` metrics, so the device should expose HOST-RESOURCES or UCD-SNMP data, and it checks that wrong credentials fail.
@@ -96,13 +96,13 @@ Needs `curl`, `jq`, `python3`, `nft` and passwordless `sudo` for `nft`; the host
 
 ## Protocol buffers
 
-The agent protocol is `proto/heartbeat/v1/agent.proto`. Fields are only ever added, never renumbered; a breaking change bumps `SchemaVersion`. After editing it, regenerate the committed code from the repository root:
+The agent protocol is `proto/sentrel/v1/agent.proto`. Fields are only ever added, never renumbered; a breaking change bumps `SchemaVersion`. After editing it, regenerate the committed code from the repository root:
 
 ```sh
-protoc -I proto --go_out=. --go_opt=module=heartbeat --go-grpc_out=. --go-grpc_opt=module=heartbeat proto/heartbeat/v1/agent.proto
+protoc -I proto --go_out=. --go_opt=module=sentrel --go-grpc_out=. --go-grpc_opt=module=sentrel proto/sentrel/v1/agent.proto
 ```
 
-Install the plugins with `go install google.golang.org/protobuf/cmd/protoc-gen-go@latest` and `go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest`. Output goes to `gen/heartbeatv1/`.
+Install the plugins with `go install google.golang.org/protobuf/cmd/protoc-gen-go@latest` and `go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest`. Output goes to `gen/sentrelv1/`.
 
 ## Licences of dependencies
 

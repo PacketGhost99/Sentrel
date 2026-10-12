@@ -120,9 +120,9 @@ function AgentInstall({ p, setP }: { p: Placement; setP: (p: Placement) => void 
             </div>
             <Segmented value={os} onChange={setOs} options={[{ id: 'linux', label: 'Linux' }, { id: 'windows', label: 'Windows (PowerShell, admin)' }, { id: 'manual', label: 'Manual' }]} />
             <CodeBlock code={tok.commands[os]} />
-            {os === 'linux' && <p className="text-xs text-muted">Supports Debian/Ubuntu, RHEL/Rocky/Alma/Fedora, SUSE, Arch and Alpine (systemd). Creates a low-privilege <code className="mono">heartbeat-agent</code> user with sudo rights limited to its own validated helper. Container monitoring needs <code className="mono">--docker</code> appended to the install command (it adds the agent to the docker group, which is root-equivalent).</p>}
-            {os === 'windows' && <p className="text-xs text-muted">Installs to Program Files and registers the <b>HeartbeatAgent</b> service (LocalSystem, auto-restart).</p>}
-            {os === 'manual' && <p className="text-xs text-muted">Download the binary from <code className="mono">{tok.server_url}/download/agent/&lt;os&gt;/&lt;arch&gt;</code>, register with the command above, then run <code className="mono">heartbeat-agent run</code> (or <code className="mono">service install</code> on Windows).</p>}
+            {os === 'linux' && <p className="text-xs text-muted">Supports Debian/Ubuntu, RHEL/Rocky/Alma/Fedora, SUSE, Arch and Alpine (systemd). Creates a low-privilege <code className="mono">sentrel-agent</code> user with sudo rights limited to its own validated helper. Container monitoring needs <code className="mono">--docker</code> appended to the install command (it adds the agent to the docker group, which is root-equivalent).</p>}
+            {os === 'windows' && <p className="text-xs text-muted">Installs to Program Files and registers the <b>SentrelAgent</b> service (LocalSystem, auto-restart).</p>}
+            {os === 'manual' && <p className="text-xs text-muted">Download the binary from <code className="mono">{tok.server_url}/download/agent/&lt;os&gt;/&lt;arch&gt;</code>, register with the command above, then run <code className="mono">sentrel-agent run</code> (or <code className="mono">service install</code> on Windows).</p>}
             {tok.ca_fingerprint && <Note>Self-signed mode: the command pins this server's CA <code className="mono break-all">{tok.ca_fingerprint}</code>, so agents only trust this server.</Note>}
             <div className="rounded-xl border border-line/70 p-4">
               {newHosts.data?.length ? (

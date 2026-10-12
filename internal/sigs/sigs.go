@@ -15,12 +15,12 @@ import (
 // HelloMessage is what an agent signs to prove possession of its key when
 // mTLS is not visible to the server (e.g. behind a TLS-terminating proxy).
 func HelloMessage(agentID string, unixMs int64) []byte {
-	return []byte("heartbeat-hello|" + agentID + "|" + strconv.FormatInt(unixMs, 10))
+	return []byte("sentrel-hello|" + agentID + "|" + strconv.FormatInt(unixMs, 10))
 }
 
 // BinaryMessage is what the server signs for an agent binary update.
 func BinaryMessage(goos, goarch, version, sha256hex string) []byte {
-	return []byte(fmt.Sprintf("heartbeat-binary|%s|%s|%s|%s", goos, goarch, version, sha256hex))
+	return []byte(fmt.Sprintf("sentrel-binary|%s|%s|%s|%s", goos, goarch, version, sha256hex))
 }
 
 // VerifyBinary checks a binary update signature.

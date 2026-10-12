@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"heartbeat/server/db"
+	"sentrel/server/db"
 )
 
 // Event is pushed to browsers over server-sent events so views refresh

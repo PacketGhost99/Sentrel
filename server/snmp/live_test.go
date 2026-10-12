@@ -7,22 +7,22 @@ import (
 	"time"
 )
 
-// TestPollLive polls a real SNMP agent. Set HB_SNMP_ADDR (and optionally
-// HB_SNMP_COMMUNITY, HB_SNMP_V3_USER/AUTH/PRIV) to run it, e.g. against a
+// TestPollLive polls a real SNMP agent. Set SENTREL_SNMP_ADDR (and optionally
+// SENTREL_SNMP_COMMUNITY, SENTREL_SNMP_V3_USER/AUTH/PRIV) to run it, e.g. against a
 // local net-snmp snmpd.
 func TestPollLive(t *testing.T) {
-	addr := os.Getenv("HB_SNMP_ADDR")
+	addr := os.Getenv("SENTREL_SNMP_ADDR")
 	if addr == "" {
-		t.Skip("HB_SNMP_ADDR not set")
+		t.Skip("SENTREL_SNMP_ADDR not set")
 	}
 	ps, err := LoadProfiles("")
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfgs := map[string]Config{"v2c": {Version: "2c", Community: os.Getenv("HB_SNMP_COMMUNITY"), Profile: "auto", TimeoutSec: 3}}
-	if u := os.Getenv("HB_SNMP_V3_USER"); u != "" {
-		cfgs["v3"] = Config{Version: "3", Username: u, SecurityLevel: "authPriv", AuthProtocol: "SHA256", AuthPassword: os.Getenv("HB_SNMP_V3_AUTH"),
-			PrivProtocol: "AES", PrivPassword: os.Getenv("HB_SNMP_V3_PRIV"), Profile: "auto", TimeoutSec: 3}
+	cfgs := map[string]Config{"v2c": {Version: "2c", Community: os.Getenv("SENTREL_SNMP_COMMUNITY"), Profile: "auto", TimeoutSec: 3}}
+	if u := os.Getenv("SENTREL_SNMP_V3_USER"); u != "" {
+		cfgs["v3"] = Config{Version: "3", Username: u, SecurityLevel: "authPriv", AuthProtocol: "SHA256", AuthPassword: os.Getenv("SENTREL_SNMP_V3_AUTH"),
+			PrivProtocol: "AES", PrivPassword: os.Getenv("SENTREL_SNMP_V3_PRIV"), Profile: "auto", TimeoutSec: 3}
 	}
 	for name, cfg := range cfgs {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

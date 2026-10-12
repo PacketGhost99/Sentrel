@@ -1,7 +1,7 @@
 // Package metrics wraps an embedded Prometheus TSDB plus the PromQL engine.
 //
 // Every sample is stored with host_id and tenant_id labels. Metric names get
-// an "hb_" prefix so the /metrics exposition and PromQL queries are
+// an "sentrel_" prefix so the /metrics exposition and PromQL queries are
 // unambiguous.
 package metrics
 
@@ -32,7 +32,7 @@ import (
 )
 
 // Prefix is prepended to every metric name.
-const Prefix = "hb_"
+const Prefix = "sentrel_"
 
 // Store is the time-series store.
 type Store struct {

@@ -40,7 +40,7 @@ func TestSignFromEnv(t *testing.T) {
 	dir := t.TempDir()
 	_, priv, _ := ed25519.GenerateKey(rand.Reader)
 	pk, _ := x509.MarshalPKCS8PrivateKey(priv)
-	t.Setenv("HB_RELEASE_KEY", base64.StdEncoding.EncodeToString(pk))
+	t.Setenv("SENTREL_RELEASE_KEY", base64.StdEncoding.EncodeToString(pk))
 	f := filepath.Join(dir, "SHA256SUMS")
 	os.WriteFile(f, []byte("x"), 0o644)
 	if err := run([]string{"sign", f}); err != nil {
@@ -49,7 +49,7 @@ func TestSignFromEnv(t *testing.T) {
 	if _, err := os.Stat(f + ".sig"); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("HB_RELEASE_KEY", "")
+	t.Setenv("SENTREL_RELEASE_KEY", "")
 	if err := run([]string{"sign", f}); err == nil {
 		t.Fatal("empty key accepted")
 	}

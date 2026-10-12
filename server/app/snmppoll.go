@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"heartbeat/server/db"
-	"heartbeat/server/metrics"
-	"heartbeat/server/snmp"
+	"sentrel/server/db"
+	"sentrel/server/metrics"
+	"sentrel/server/snmp"
 )
 
 // SNMPPoller polls SNMP hosts on their interval.

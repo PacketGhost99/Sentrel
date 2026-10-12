@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"heartbeat/server/db"
-	"heartbeat/server/metrics"
-	"heartbeat/server/snmp"
+	"sentrel/server/db"
+	"sentrel/server/metrics"
+	"sentrel/server/snmp"
 )
 
 // visibleHost loads a host and checks tenant access.

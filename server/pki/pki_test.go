@@ -9,7 +9,7 @@ import (
 	"encoding/pem"
 	"testing"
 
-	"heartbeat/internal/sigs"
+	"sentrel/internal/sigs"
 )
 
 func TestCAIssueAndVerify(t *testing.T) {

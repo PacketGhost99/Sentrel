@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Heartbeat Agent for Windows (x64), built with wixl (msitools) by scripts/build.sh.
+  Sentrel Agent for Windows (x64), built with wixl (msitools) by scripts/build.sh.
   @VERSION@ is replaced with a numeric x.y.z at build time.
 
   Install and enrol silently (run from an elevated prompt):
 
-    msiexec /i heartbeat-agent-<v>-x64.msi SERVER=https://heartbeat.example.com TOKEN=XXXX-XXXX-XXXX /qn
+    msiexec /i sentrel-agent-<v>-x64.msi SERVER=https://sentrel.example.com TOKEN=XXXX-XXXX-XXXX /qn
 
   Optional properties:
     CAFINGERPRINT=<sha256>   pin the server CA (self-signed TLS mode)
     NAME="Display name"      host name shown in the UI (default: hostname)
     WRITEJOBS=<mode>         server (default), operator or none (read-only agent)
     OPERATORKEY=<b64>[,<b64>...]  operator public key(s) for WRITEJOBS=operator
-  Without TOKEN only the files are installed; run "heartbeat-agent register" later.
+  Without TOKEN only the files are installed; run "sentrel-agent register" later.
 
   Install:   register -> service install -> service start (only when TOKEN is set).
   Uninstall: service stop -> service uninstall (config and state are kept).
@@ -22,25 +22,25 @@
   PermissionEx, so the MSI does not set it itself.
 -->
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-  <Product Id="*" Name="Heartbeat Agent" Language="1033" Version="@VERSION@"
-           Manufacturer="Heartbeat" UpgradeCode="6B1E7C52-3D4A-4F0B-9A7E-2C8D5F1A9E43">
+  <Product Id="*" Name="Sentrel Agent" Language="1033" Version="@VERSION@"
+           Manufacturer="Sentrel" UpgradeCode="B694C0E4-6E3D-413A-A5DF-9E4D0493B340">
     <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine"
-             Description="Heartbeat monitoring agent"/>
-    <MajorUpgrade DowngradeErrorMessage="A newer version of Heartbeat Agent is already installed."/>
+             Description="Sentrel monitoring agent"/>
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Sentrel Agent is already installed."/>
     <MediaTemplate EmbedCab="yes"/>
 
 
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="ProgramFiles64Folder">
-        <Directory Id="INSTALLDIR" Name="Heartbeat Agent">
+        <Directory Id="INSTALLDIR" Name="Sentrel Agent">
           <Component Id="AgentExe" Guid="A3F2C9D1-7B64-4E58-8C0A-5D9E1B27F6C4" Win64="yes">
-            <File Id="AgentExeFile" Name="heartbeat-agent.exe" Source="heartbeat-agent-windows-amd64.exe" KeyPath="yes"/>
+            <File Id="AgentExeFile" Name="sentrel-agent.exe" Source="sentrel-agent-windows-amd64.exe" KeyPath="yes"/>
           </Component>
         </Directory>
       </Directory>
     </Directory>
 
-    <Feature Id="Main" Title="Heartbeat Agent" Level="1">
+    <Feature Id="Main" Title="Sentrel Agent" Level="1">
       <ComponentRef Id="AgentExe"/>
     </Feature>
 
@@ -51,17 +51,17 @@
     <CustomAction Id="SetRegExtraOpKey" Property="REGEXTRA" Value="[REGEXTRA] --operator-key &quot;[OPERATORKEY]&quot;"/>
 
     <CustomAction Id="HbRegister" FileKey="AgentExeFile" Execute="deferred" Impersonate="no" Return="check"
-      ExeCommand="register --server &quot;[SERVER]&quot; --token &quot;[TOKEN]&quot; --config &quot;[CommonAppDataFolder]Heartbeat Agent\agent.yaml&quot; --state-dir &quot;[CommonAppDataFolder]Heartbeat Agent&quot;[REGEXTRA]"/>
+      ExeCommand="register --server &quot;[SERVER]&quot; --token &quot;[TOKEN]&quot; --config &quot;[CommonAppDataFolder]Sentrel Agent\agent.yaml&quot; --state-dir &quot;[CommonAppDataFolder]Sentrel Agent&quot;[REGEXTRA]"/>
     <CustomAction Id="HbServiceInstall" FileKey="AgentExeFile" Execute="deferred" Impersonate="no" Return="check"
-      ExeCommand="service install --config &quot;[CommonAppDataFolder]Heartbeat Agent\agent.yaml&quot;"/>
+      ExeCommand="service install --config &quot;[CommonAppDataFolder]Sentrel Agent\agent.yaml&quot;"/>
     <CustomAction Id="HbServiceStart" FileKey="AgentExeFile" Execute="deferred" Impersonate="no" Return="ignore"
-      ExeCommand="service start --config &quot;[CommonAppDataFolder]Heartbeat Agent\agent.yaml&quot;"/>
+      ExeCommand="service start --config &quot;[CommonAppDataFolder]Sentrel Agent\agent.yaml&quot;"/>
     <CustomAction Id="HbServiceStartUpg" FileKey="AgentExeFile" Execute="deferred" Impersonate="no" Return="ignore"
-      ExeCommand="service start --config &quot;[CommonAppDataFolder]Heartbeat Agent\agent.yaml&quot;"/>
+      ExeCommand="service start --config &quot;[CommonAppDataFolder]Sentrel Agent\agent.yaml&quot;"/>
     <CustomAction Id="HbServiceStop" FileKey="AgentExeFile" Execute="deferred" Impersonate="no" Return="ignore"
-      ExeCommand="service stop --config &quot;[CommonAppDataFolder]Heartbeat Agent\agent.yaml&quot;"/>
+      ExeCommand="service stop --config &quot;[CommonAppDataFolder]Sentrel Agent\agent.yaml&quot;"/>
     <CustomAction Id="HbServiceUninstall" FileKey="AgentExeFile" Execute="deferred" Impersonate="no" Return="ignore"
-      ExeCommand="service uninstall --config &quot;[CommonAppDataFolder]Heartbeat Agent\agent.yaml&quot;"/>
+      ExeCommand="service uninstall --config &quot;[CommonAppDataFolder]Sentrel Agent\agent.yaml&quot;"/>
 
     <InstallExecuteSequence>
       <Custom Action="SetRegExtraCA" Sequence="1401">NOT Installed AND CAFINGERPRINT</Custom>

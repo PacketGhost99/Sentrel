@@ -1,4 +1,4 @@
-// Package agent implements the Heartbeat monitoring agent.
+// Package agent implements the Sentrel monitoring agent.
 package agent
 
 import (
@@ -10,7 +10,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"heartbeat/internal/jobpolicy"
+	"sentrel/internal/jobpolicy"
 )
 
 // Config is the agent's on-disk configuration. Everything about what to
@@ -36,17 +36,17 @@ type Config struct {
 // DefaultConfigPath is the platform default config location.
 func DefaultConfigPath() string {
 	if runtime.GOOS == "windows" {
-		return filepath.Join(os.Getenv("ProgramData"), "Heartbeat Agent", "agent.yaml")
+		return filepath.Join(os.Getenv("ProgramData"), "Sentrel Agent", "agent.yaml")
 	}
-	return "/etc/heartbeat-agent/agent.yaml"
+	return "/etc/sentrel-agent/agent.yaml"
 }
 
 // DefaultStateDir is the platform default state directory.
 func DefaultStateDir() string {
 	if runtime.GOOS == "windows" {
-		return filepath.Join(os.Getenv("ProgramData"), "Heartbeat Agent")
+		return filepath.Join(os.Getenv("ProgramData"), "Sentrel Agent")
 	}
-	return "/var/lib/heartbeat-agent"
+	return "/var/lib/sentrel-agent"
 }
 
 // LoadConfig reads the config file.
@@ -54,7 +54,7 @@ func LoadConfig(path string) (*Config, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil, fmt.Errorf("%s not found: register the agent first (heartbeat-agent register SERVER TOKEN)", path)
+			return nil, fmt.Errorf("%s not found: register the agent first (sentrel-agent register SERVER TOKEN)", path)
 		}
 		return nil, err
 	}
@@ -88,7 +88,7 @@ func (c *Config) Save(path string) error {
 		return err
 	}
 	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, append([]byte("# Heartbeat agent configuration (written by `heartbeat-agent register`)\n"), b...), 0o640); err != nil {
+	if err := os.WriteFile(tmp, append([]byte("# Sentrel agent configuration (written by `sentrel-agent register`)\n"), b...), 0o640); err != nil {
 		return err
 	}
 	c.path = path

@@ -1,15 +1,15 @@
-// Command hb-sign signs and verifies release checksum files with Ed25519.
+// Command sentrel-sign signs and verifies release checksum files with Ed25519.
 //
-//	hb-sign keygen                          print a new private key (base64 PKCS8) to stdout
+//	sentrel-sign keygen                          print a new private key (base64 PKCS8) to stdout
 //	                                        and the public key (base64 PKIX) to stderr
-//	hb-sign sign -key <file|env:NAME> FILE  write FILE.sig (base64 signature)
-//	hb-sign verify -pub <file> FILE SIG     exit 0 when the signature is valid
-//	hb-sign keygen-operator [-out op.key]   write an operator key pair for job signing
-//	hb-sign sign-job --key op.key --spec <base64|file>
+//	sentrel-sign sign -key <file|env:NAME> FILE  write FILE.sig (base64 signature)
+//	sentrel-sign verify -pub <file> FILE SIG     exit 0 when the signature is valid
+//	sentrel-sign keygen-operator [-out op.key]   write an operator key pair for job signing
+//	sentrel-sign sign-job --key op.key --spec <base64|file>
 //	                                        print a base64 operator signature for a job spec
 //
 // The key argument is a file path, or "env:NAME" to read the base64 key
-// from an environment variable (default for sign: env:HB_RELEASE_KEY).
+// from an environment variable (default for sign: env:SENTREL_RELEASE_KEY).
 package main
 
 import (
@@ -24,26 +24,26 @@ import (
 	"os"
 	"strings"
 
-	"heartbeat/internal/jobpolicy"
+	"sentrel/internal/jobpolicy"
 )
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
-		fmt.Fprintln(os.Stderr, "hb-sign:", err)
+		fmt.Fprintln(os.Stderr, "sentrel-sign:", err)
 		os.Exit(1)
 	}
 }
 
 func run(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: hb-sign keygen | sign -key <file|env:NAME> FILE | verify -pub <file> FILE SIG | keygen-operator [-out FILE] | sign-job --key FILE --spec <base64|file>")
+		return errors.New("usage: sentrel-sign keygen | sign -key <file|env:NAME> FILE | verify -pub <file> FILE SIG | keygen-operator [-out FILE] | sign-job --key FILE --spec <base64|file>")
 	}
 	switch args[0] {
 	case "keygen":
 		return keygen()
 	case "sign":
 		fs := flag.NewFlagSet("sign", flag.ContinueOnError)
-		key := fs.String("key", "env:HB_RELEASE_KEY", "private key file, or env:NAME")
+		key := fs.String("key", "env:SENTREL_RELEASE_KEY", "private key file, or env:NAME")
 		if err := fs.Parse(args[1:]); err != nil {
 			return err
 		}

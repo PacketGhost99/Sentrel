@@ -118,7 +118,7 @@ Without a `template` the webhook receives this JSON (grouped alerts are in `aler
  "alerts":[{"alert_id":42,"event":"fired","status":"firing","severity":"critical","title":"...","message":"...",
             "host":"web-1","host_id":7,"tenant":"","value":93.2,"threshold":90,"started_at":1760000000,
             "resolved_at":0,"url":"https://monitor.example.com/alerts/42","acked":false}],
- "url":"https://monitor.example.com/alerts","product":"Heartbeat","sent_at":1760000030}
+ "url":"https://monitor.example.com/alerts","product":"Sentrel","sent_at":1760000030}
 ```
 
 With a template, the body is rendered with Go `text/template` against the message. Fields use the Go names:

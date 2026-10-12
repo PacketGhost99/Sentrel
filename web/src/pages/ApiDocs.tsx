@@ -36,7 +36,7 @@ export function ApiDocs() {
       <Card className="mb-4">
         <div className="space-y-2 text-sm">
           <p>Authenticate with an API key (Administration → API keys):</p>
-          <CodeBlock code={`curl -H "Authorization: Bearer hb_xxxxxxxx_…" ${location.origin}/api/v1/hosts`} />
+          <CodeBlock code={`curl -H "Authorization: Bearer sentrel_xxxxxxxx_…" ${location.origin}/api/v1/hosts`} />
           <p className="text-muted">Browser sessions use a cookie plus an <code className="mono">X-CSRF-Token</code> header on writes. Responses are JSON; errors look like <code className="mono">{'{"code":"bad_request","error":"…"}'}</code>.</p>
         </div>
       </Card>

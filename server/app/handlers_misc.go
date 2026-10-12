@@ -14,9 +14,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/prometheus/model/labels"
 
-	"heartbeat/deploy"
-	"heartbeat/internal/version"
-	"heartbeat/server/agentdist"
+	"sentrel/deploy"
+	"sentrel/internal/version"
+	"sentrel/server/agentdist"
 )
 
 // handleEvents streams server-sent events to the browser.
@@ -85,8 +85,8 @@ func (a *App) handleAgentDownload(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", `attachment; filename="`+b.Name+`"`)
 	w.Header().Set("Content-Length", strconv.FormatInt(b.Size, 10))
-	w.Header().Set("X-Heartbeat-Agent-Version", b.Version)
-	w.Header().Set("X-Heartbeat-SHA256", b.SHA256)
+	w.Header().Set("X-Sentrel-Agent-Version", b.Version)
+	w.Header().Set("X-Sentrel-SHA256", b.SHA256)
 	io.Copy(w, f)
 }
 
@@ -107,11 +107,11 @@ func (a *App) handleInstallScript(kind string) http.HandlerFunc {
 }
 
 // handlePromMetrics exposes the latest value of every series in Prometheus
-// text format, so an existing Prometheus/Grafana can scrape Heartbeat.
+// text format, so an existing Prometheus/Grafana can scrape Sentrel.
 func (a *App) handlePromMetrics(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	if a.settings.Security().MetricsAuth && (p == nil || !p.Has(PermRead) || p.MFAPending) {
-		w.Header().Set("WWW-Authenticate", `Bearer realm="heartbeat"`)
+		w.Header().Set("WWW-Authenticate", `Bearer realm="sentrel"`)
 		http.Error(w, "API key with read scope required", 401)
 		return
 	}
@@ -132,9 +132,9 @@ func (a *App) handlePromMetrics(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 	bw := bufio.NewWriterSize(w, 64<<10)
 	defer bw.Flush()
-	fmt.Fprintf(bw, "# HELP hb_server_info Heartbeat server build info\n# TYPE hb_server_info gauge\nhb_server_info{version=%q} 1\n", version.Version)
+	fmt.Fprintf(bw, "# HELP sentrel_server_info Sentrel server build info\n# TYPE sentrel_server_info gauge\nsentrel_server_info{version=%q} 1\n", version.Version)
 	if tenant == 0 {
-		fmt.Fprintf(bw, "# TYPE hb_server_agents_connected gauge\nhb_server_agents_connected %d\n", a.hub.ConnectedCount())
+		fmt.Fprintf(bw, "# TYPE sentrel_server_agents_connected gauge\nsentrel_server_agents_connected %d\n", a.hub.ConnectedCount())
 	}
 	firing := map[string]int{}
 	for _, al := range a.alerts.Active() {
@@ -142,9 +142,9 @@ func (a *App) handlePromMetrics(w http.ResponseWriter, r *http.Request) {
 			firing[al.Severity]++
 		}
 	}
-	fmt.Fprint(bw, "# TYPE hb_alerts_firing gauge\n")
+	fmt.Fprint(bw, "# TYPE sentrel_alerts_firing gauge\n")
 	for _, s := range []string{"warning", "critical"} {
-		fmt.Fprintf(bw, "hb_alerts_firing{severity=%q} %d\n", s, firing[s])
+		fmt.Fprintf(bw, "sentrel_alerts_firing{severity=%q} %d\n", s, firing[s])
 	}
 	seen := map[string]bool{}
 	_ = a.ts.Gather(r.Context(), tenant, func(name string, lbls labels.Labels, v float64, ts int64) {

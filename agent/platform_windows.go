@@ -17,7 +17,7 @@ import (
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/mgr"
 
-	pb "heartbeat/gen/heartbeatv1"
+	pb "sentrel/gen/sentrelv1"
 )
 
 func runOut(ctx context.Context, timeout time.Duration, name string, args ...string) ([]byte, error) {

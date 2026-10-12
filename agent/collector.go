@@ -25,8 +25,8 @@ import (
 	"github.com/shirou/gopsutil/v4/process"
 	"github.com/shirou/gopsutil/v4/sensors"
 
-	pb "heartbeat/gen/heartbeatv1"
-	"heartbeat/internal/version"
+	pb "sentrel/gen/sentrelv1"
+	"sentrel/internal/version"
 )
 
 // CollectHostInfo gathers static host facts.

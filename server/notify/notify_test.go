@@ -9,11 +9,11 @@ import (
 	"strings"
 	"testing"
 
-	"heartbeat/server/netguard"
+	"sentrel/server/netguard"
 )
 
 func msg() Message {
-	return Message{Subject: "[CRITICAL] disk on web-1", Status: "firing", Severity: "critical", Product: "Heartbeat",
+	return Message{Subject: "[CRITICAL] disk on web-1", Status: "firing", Severity: "critical", Product: "Sentrel",
 		Items: []Item{{AlertID: 1, Status: "firing", Severity: "critical", Title: `disk "/" on web-1`, Message: "95%", Host: "web-1"}}}
 }
 

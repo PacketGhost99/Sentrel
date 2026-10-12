@@ -15,8 +15,8 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	pb "heartbeat/gen/heartbeatv1"
-	"heartbeat/internal/jobpolicy"
+	pb "sentrel/gen/sentrelv1"
+	"sentrel/internal/jobpolicy"
 )
 
 type policyEnv struct {

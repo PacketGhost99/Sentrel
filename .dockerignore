@@ -5,4 +5,4 @@ web/node_modules
 web/dist
 *.exe
 .dev-credentials
-server/agentdist/bin/heartbeat-agent-*
+server/agentdist/bin/sentrel-agent-*

@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"heartbeat/server/db"
+	"sentrel/server/db"
 )
 
 // CleanupTask describes one disk cleanup task an agent can run.

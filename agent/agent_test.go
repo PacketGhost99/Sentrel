@@ -10,7 +10,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	pb "heartbeat/gen/heartbeatv1"
+	pb "sentrel/gen/sentrelv1"
 )
 
 func TestFailureCounterSSH(t *testing.T) {

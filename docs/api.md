@@ -14,11 +14,11 @@ Requests and responses are JSON (`Content-Type: application/json`). Errors have 
 
 ### API keys (for scripts and integrations)
 
-Create a key in the UI (**API keys**) or with `POST /api/v1/api-keys` from a logged-in session (a key cannot create another key). The secret `hb_<prefix>_<secret>` is shown once.
+Create a key in the UI (**API keys**) or with `POST /api/v1/api-keys` from a logged-in session (a key cannot create another key). The secret `sentrel_<prefix>_<secret>` is shown once.
 
 ```sh
 export HB=https://monitor.example.com
-export KEY=hb_abcd1234_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+export KEY=sentrel_abcd1234_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 curl -s -H "Authorization: Bearer $KEY" $HB/api/v1/hosts?status=down
 ```
@@ -51,7 +51,7 @@ The permission needed by each operation appears in its `description` in the Open
 ```sh
 curl -s -c jar -H 'Content-Type: application/json' $HB/api/v1/auth/login \
      -d '{"username":"admin","password":"..."}'
-# response contains "csrf_token"; the cookie hb_session is stored in the jar
+# response contains "csrf_token"; the cookie sentrel_session is stored in the jar
 curl -s -b jar -H "X-CSRF-Token: <csrf_token>" -H 'Content-Type: application/json' \
      -X POST $HB/api/v1/alerts/42/ack -d '{"comment":"looking into it"}'
 ```
@@ -107,30 +107,30 @@ Job parameters: `upgrade` takes `params.packages` (comma separated) and `params.
 
 ### Prometheus exposition: `GET /metrics`
 
-Text format 0.0.4 with the latest value of every series, so an existing Prometheus can scrape Heartbeat:
+Text format 0.0.4 with the latest value of every series, so an existing Prometheus can scrape Sentrel:
 
 ```yaml
 scrape_configs:
-  - job_name: heartbeat
+  - job_name: sentrel
     scheme: https
     metrics_path: /metrics
     authorization:
-      credentials: hb_abcd1234_xxxxxxxx      # API key with read scope
+      credentials: sentrel_abcd1234_xxxxxxxx      # API key with read scope
     static_configs:
       - targets: ['monitor.example.com']
 ```
 
-Series are named `hb_<metric>` (for example `hb_cpu_usage_percent`, `hb_mem_used_percent`, `hb_disk_used_percent{mount="/"}`, `hb_check_up{check_id="3",check_type="http"}`), carry `host_id`, `tenant_id` and a `host` label with the host name, and are exposed as gauges. Also exposed: `hb_server_info{version}`, `hb_server_agents_connected` (provider users only) and `hb_alerts_firing{severity}`. A tenant-bound key sees only its tenant's series.
+Series are named `sentrel_<metric>` (for example `sentrel_cpu_usage_percent`, `sentrel_mem_used_percent`, `sentrel_disk_used_percent{mount="/"}`, `sentrel_check_up{check_id="3",check_type="http"}`), carry `host_id`, `tenant_id` and a `host` label with the host name, and are exposed as gauges. Also exposed: `sentrel_server_info{version}`, `sentrel_server_agents_connected` (provider users only) and `sentrel_alerts_firing{severity}`. A tenant-bound key sees only its tenant's series.
 
 By default `/metrics` needs no authentication. Turn on `metrics_auth` ("Require an API key for /metrics" under Settings, Security) to require a key with read scope; the endpoint then answers 401 without one.
 
 ### PromQL: `GET /api/v1/metrics/query`
 
-A range query over Heartbeat's embedded TSDB. Parameters: `query`, `start`, `end` (Unix seconds; `start` also accepts a duration such as `6h` meaning "that long ago"), `step` (seconds or a duration). Tenant users are automatically restricted to their own series; provider users may add `tenant_id`.
+A range query over Sentrel's embedded TSDB. Parameters: `query`, `start`, `end` (Unix seconds; `start` also accepts a duration such as `6h` meaning "that long ago"), `step` (seconds or a duration). Tenant users are automatically restricted to their own series; provider users may add `tenant_id`.
 
 ```sh
 curl -s -H "Authorization: Bearer $KEY" -G $HB/api/v1/metrics/query \
-     --data-urlencode 'query=avg by (host) (hb_cpu_usage_percent)' \
+     --data-urlencode 'query=avg by (host) (sentrel_cpu_usage_percent)' \
      --data-urlencode 'start=6h' --data-urlencode 'step=300'
 ```
 

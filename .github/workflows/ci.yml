@@ -12,9 +12,9 @@ permissions:
 # Product, binary and package names live here and in scripts/build.sh
 # (the defaults there match). Change them in both places when renaming.
 env:
-  PRODUCT_TITLE: Heartbeat
-  AGENT_BIN: heartbeat-agent
-  SERVER_BIN: heartbeat-server
+  PRODUCT_TITLE: Sentrel
+  AGENT_BIN: sentrel-agent
+  SERVER_BIN: sentrel-server
   NFPM_VERSION: v2.41.3
   COSIGN_VERSION: v2.4.1
 
@@ -53,8 +53,8 @@ jobs:
       - name: Sign checksums
         if: startsWith(github.ref, 'refs/tags/v')
         env:
-          HB_RELEASE_KEY: ${{ secrets.HB_RELEASE_KEY }}
-        run: go run ./cmd/hb-sign sign -key env:HB_RELEASE_KEY dist/SHA256SUMS
+          SENTREL_RELEASE_KEY: ${{ secrets.SENTREL_RELEASE_KEY }}
+        run: go run ./cmd/sentrel-sign sign -key env:SENTREL_RELEASE_KEY dist/SHA256SUMS
       - name: Install cosign
         if: startsWith(github.ref, 'refs/tags/v')
         uses: sigstore/cosign-installer@v3

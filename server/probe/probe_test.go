@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"heartbeat/server/netguard"
+	"sentrel/server/netguard"
 )
 
 func TestStatusOK(t *testing.T) {

@@ -1,13 +1,13 @@
 # TLS and reverse proxies
 
-The server uses one listener for the UI, the REST API, the agent gRPC stream, installers and `/metrics`. HTTP/2 requests with `Content-Type: application/grpc` go to the gRPC server; everything else goes to the web router. Any proxy in front of Heartbeat therefore has to pass HTTP/2 through to the origin.
+The server uses one listener for the UI, the REST API, the agent gRPC stream, installers and `/metrics`. HTTP/2 requests with `Content-Type: application/grpc` go to the gRPC server; everything else goes to the web router. Any proxy in front of Sentrel therefore has to pass HTTP/2 through to the origin.
 
 TLS is configured under **Settings, TLS & access** (and in the setup wizard). Changing it rebinds the listeners without a process restart.
 
 | Setting | Meaning |
 |---|---|
 | `mode` | `http`, `selfsigned` or `acme` |
-| `listen` | address, default `0.0.0.0:8080` (the `--listen` flag or `HEARTBEAT_LISTEN` overrides it) |
+| `listen` | address, default `0.0.0.0:8080` (the `--listen` flag or `SENTREL_LISTEN` overrides it) |
 | `hostname`, `extra_names` | names for the certificate |
 | `acme_email`, `acme_directory` | Let's Encrypt contact and an alternative ACME directory URL |
 | `trust_proxy` | trust forwarding headers from a reverse proxy |
@@ -33,7 +33,7 @@ Uses `golang.org/x/crypto/acme/autocert`. Requirements: a public DNS name (not a
 
 ## Behind a reverse proxy
 
-Run Heartbeat in `http` mode on a local port, terminate TLS in the proxy, and enable `trust_proxy`.
+Run Sentrel in `http` mode on a local port, terminate TLS in the proxy, and enable `trust_proxy`.
 
 ### Caddy
 
@@ -45,7 +45,7 @@ monitor.example.com {
 
 `h2c://` makes Caddy speak HTTP/2 cleartext to the upstream, which gRPC needs. Caddy obtains the certificate and proxies the long-lived server-sent-events stream (`/api/v1/events`) without buffering.
 
-Then in Heartbeat: TLS mode `http`, listen `127.0.0.1:8080`, server URL `https://monitor.example.com`, `trust_proxy` on. Agents register against `https://monitor.example.com` and verify the proxy's certificate with the system trust store.
+Then in Sentrel: TLS mode `http`, listen `127.0.0.1:8080`, server URL `https://monitor.example.com`, `trust_proxy` on. Agents register against `https://monitor.example.com` and verify the proxy's certificate with the system trust store.
 
 For other proxies (nginx, HAProxy, Traefik) the requirements are the same: HTTP/2 to the upstream (gRPC proxying), no response buffering for streaming endpoints, long idle/read timeouts for the agent stream (the server sends a ping every 30 seconds), and forwarding of `X-Forwarded-For`, `X-Forwarded-Proto` and `X-Forwarded-Host`.
 
@@ -72,8 +72,8 @@ A proxy that terminates TLS hides the agent's client certificate from the server
 - If it cannot start at all (for example after a restart with a broken certificate setup), run it once with `--force-http`:
 
   ```sh
-  heartbeat-server serve --data-dir /var/lib/heartbeat --force-http
+  sentrel-server serve --data-dir /var/lib/sentrel --force-http
   ```
 
-  Then open the UI over HTTP and correct the TLS settings. For the systemd service, add `--force-http` to `ExecStart` with `systemctl edit heartbeat`, fix the setting, and remove it again.
+  Then open the UI over HTTP and correct the TLS settings. For the systemd service, add `--force-http` to `ExecStart` with `systemctl edit sentrel`, fix the setting, and remove it again.
 - Moving to a new hostname: agents keep the server URL from registration in `agent.yaml`. Keep the old name resolving, or edit `server_url` in each agent's config and restart it.

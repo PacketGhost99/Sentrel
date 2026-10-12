@@ -18,7 +18,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	pb "heartbeat/gen/heartbeatv1"
+	pb "sentrel/gen/sentrelv1"
 )
 
 // On Windows the agent runs as LocalSystem, so privileged verbs run
@@ -40,7 +40,7 @@ func newPrivRunner() (privRunner, privStreamer) {
 // PrivMain allows running verbs manually from an elevated prompt.
 func PrivMain(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: heartbeat-agent priv <verb> [args]")
+		return errors.New("usage: sentrel-agent priv <verb> [args]")
 	}
 	if !isAdmin() {
 		return errors.New("priv must run elevated")
@@ -131,14 +131,14 @@ func saveBlocks(m map[string]int64) {
 	_ = os.WriteFile(blocksFile(), b, 0o600)
 }
 
-func ruleName(ip string) string { return "Heartbeat block " + ip }
+func ruleName(ip string) string { return "Sentrel block " + ip }
 
 func winBlock(ctx context.Context, w io.Writer, ip string, minutes int) error {
 	blocksMu.Lock()
 	defer blocksMu.Unlock()
 	_, _ = runOut(ctx, 30*time.Second, "netsh", "advfirewall", "firewall", "delete", "rule", "name="+ruleName(ip))
 	out, err := runOut(ctx, 30*time.Second, "netsh", "advfirewall", "firewall", "add", "rule", "name="+ruleName(ip), "dir=in", "action=block",
-		"remoteip="+ip, "description=Added by Heartbeat agent; expires "+time.Now().Add(time.Duration(minutes)*time.Minute).UTC().Format(time.RFC3339))
+		"remoteip="+ip, "description=Added by Sentrel agent; expires "+time.Now().Add(time.Duration(minutes)*time.Minute).UTC().Format(time.RFC3339))
 	if err != nil {
 		return fmt.Errorf("netsh: %v: %s", err, out)
 	}

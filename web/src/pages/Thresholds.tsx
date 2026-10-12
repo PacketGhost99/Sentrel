@@ -55,7 +55,7 @@ export function ThresholdTable({ scope, editable, inherited }: { scope: Scope; e
   }
   return (
     <Table>
-      <thead><tr><Th>Metric</Th><Th className="w-40">Label match</Th><Th className="w-28">Warning</Th><Th className="w-28">Critical</Th><Th className="w-24" title="Consecutive evaluations before firing">For</Th><Th className="w-20">Enabled</Th><Th className="w-24" title="Send emails and webhooks when this rule fires. Alerts always show in Heartbeat.">Notify</Th><Th className="w-40" /></tr></thead>
+      <thead><tr><Th>Metric</Th><Th className="w-40">Label match</Th><Th className="w-28">Warning</Th><Th className="w-28">Critical</Th><Th className="w-24" title="Consecutive evaluations before firing">For</Th><Th className="w-20">Enabled</Th><Th className="w-24" title="Send emails and webhooks when this rule fires. Alerts always show in Sentrel.">Notify</Th><Th className="w-40" /></tr></thead>
       <tbody>
         {catalog.data!.map((m) => {
           const base = mine.find((r) => r.metric === m.key && !r.label_match)
@@ -122,7 +122,7 @@ function RuleRow({ metric, scope, rule, inherited, label, isNew, editable, onSav
       <Td><div className="flex items-center gap-1"><Input className="h-7 w-20 text-xs" disabled={dis} value={crit} onChange={(e) => setCrit(e.target.value)} placeholder="off" />{unit}</div></Td>
       <Td><Input className="h-7 w-16 text-xs" type="number" min={1} disabled={dis} value={forC} onChange={(e) => setForC(e.target.value)} /></Td>
       <Td><Toggle checked={enabled} onChange={setEnabled} disabled={dis} /></Td>
-      <Td><div className="flex items-center gap-1.5" title={notify ? 'Notifications on' : 'Muted: alerts show in Heartbeat but no emails or webhooks are sent'}><Toggle checked={notify} onChange={setNotify} disabled={dis} />{!notify && <BellOff className="size-3.5 text-muted" />}</div></Td>
+      <Td><div className="flex items-center gap-1.5" title={notify ? 'Notifications on' : 'Muted: alerts show in Sentrel but no emails or webhooks are sent'}><Toggle checked={notify} onChange={setNotify} disabled={dis} />{!notify && <BellOff className="size-3.5 text-muted" />}</div></Td>
       <Td className="whitespace-nowrap text-right">
         {editable && changed && <Button size="sm" variant="primary" loading={busy} icon={<Save className="size-3.5" />} onClick={save} disabled={label && !lm}>Save</Button>}
         {editable && rule && !(scope.scope === 'global' && scope.tenant_id === 0 && !label) && <Button size="sm" variant="ghost" title="Remove override" icon={label ? <X className="size-3.5" /> : <RotateCcw className="size-3.5" />} onClick={remove} />}

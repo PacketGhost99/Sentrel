@@ -22,10 +22,10 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	pb "heartbeat/gen/heartbeatv1"
+	pb "sentrel/gen/sentrelv1"
 )
 
-const installedBinary = "/usr/local/bin/heartbeat-agent"
+const installedBinary = "/usr/local/bin/sentrel-agent"
 
 // newPrivRunner returns a runner that invokes this binary's `priv` verbs
 // through sudo (or directly when already root).
@@ -61,14 +61,14 @@ func newPrivRunner() (privRunner, privStreamer) {
 	return run, stream
 }
 
-// PrivMain implements `heartbeat-agent priv <verb> ...`. It runs as root and
+// PrivMain implements `sentrel-agent priv <verb> ...`. It runs as root and
 // trusts nothing from its caller beyond validated arguments.
 func PrivMain(args []string) error {
 	if os.Geteuid() != 0 {
 		return errors.New("priv must run as root (via sudo)")
 	}
 	if len(args) == 0 {
-		return errors.New("usage: heartbeat-agent priv <verb> [args]")
+		return errors.New("usage: sentrel-agent priv <verb> [args]")
 	}
 	verb, rest := args[0], args[1:]
 	ctx := context.Background()
@@ -135,7 +135,7 @@ func PrivMain(args []string) error {
 func runLogged(ctx context.Context, w io.Writer, env []string, name string, args ...string) error {
 	full := append([]string{name}, args...)
 	if p, err := exec.LookPath("systemd-run"); err == nil && isSystemd() {
-		unit := fmt.Sprintf("heartbeat-job-%d", time.Now().UnixNano()%1e9)
+		unit := fmt.Sprintf("sentrel-job-%d", time.Now().UnixNano()%1e9)
 		full = append([]string{p, "--scope", "--quiet", "--collect", "--unit", unit}, full...)
 	}
 	fmt.Fprintf(w, "$ %s\n", strings.Join(append([]string{name}, args...), " "))
@@ -241,7 +241,7 @@ type BlockEntry struct {
 	Backend string `json:"backend"`
 }
 
-const nftSetup = `table inet heartbeat {
+const nftSetup = `table inet sentrel {
 	set blocklist4 { type ipv4_addr; flags timeout; }
 	set blocklist6 { type ipv6_addr; flags timeout; }
 	chain input {
@@ -255,7 +255,7 @@ const nftSetup = `table inet heartbeat {
 func hasNft() bool { _, err := exec.LookPath("nft"); return err == nil }
 
 func ensureNft(ctx context.Context) error {
-	if exec.CommandContext(ctx, "nft", "list", "table", "inet", "heartbeat").Run() == nil {
+	if exec.CommandContext(ctx, "nft", "list", "table", "inet", "sentrel").Run() == nil {
 		return nil
 	}
 	cmd := exec.CommandContext(ctx, "nft", "-f", "-")
@@ -280,8 +280,8 @@ func blockIP(ctx context.Context, w io.Writer, ip string, minutes int) error {
 		if err := ensureNft(ctx); err != nil {
 			return err
 		}
-		_ = exec.CommandContext(ctx, "nft", "delete", "element", "inet", "heartbeat", set, "{", ip, "}").Run()
-		out, err := exec.CommandContext(ctx, "nft", "add", "element", "inet", "heartbeat", set, "{", ip, "timeout", strconv.Itoa(minutes)+"m", "}").CombinedOutput()
+		_ = exec.CommandContext(ctx, "nft", "delete", "element", "inet", "sentrel", set, "{", ip, "}").Run()
+		out, err := exec.CommandContext(ctx, "nft", "add", "element", "inet", "sentrel", set, "{", ip, "timeout", strconv.Itoa(minutes)+"m", "}").CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("nft: %v: %s", err, out)
 		}
@@ -293,7 +293,7 @@ func blockIP(ctx context.Context, w io.Writer, ip string, minutes int) error {
 	}
 	_ = removeIptables(ctx, ipt, ip)
 	exp := time.Now().Add(time.Duration(minutes) * time.Minute).Unix()
-	out, err := exec.CommandContext(ctx, ipt, "-I", "INPUT", "-s", ip, "-j", "DROP", "-m", "comment", "--comment", fmt.Sprintf("heartbeat-block:%d", exp)).CombinedOutput()
+	out, err := exec.CommandContext(ctx, ipt, "-I", "INPUT", "-s", ip, "-j", "DROP", "-m", "comment", "--comment", fmt.Sprintf("sentrel-block:%d", exp)).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%s: %v: %s", ipt, err, out)
 	}
@@ -304,7 +304,7 @@ func blockIP(ctx context.Context, w io.Writer, ip string, minutes int) error {
 func unblockIP(ctx context.Context, w io.Writer, ip string) error {
 	set, ipt := setFor(ip)
 	if hasNft() {
-		out, err := exec.CommandContext(ctx, "nft", "delete", "element", "inet", "heartbeat", set, "{", ip, "}").CombinedOutput()
+		out, err := exec.CommandContext(ctx, "nft", "delete", "element", "inet", "sentrel", set, "{", ip, "}").CombinedOutput()
 		if err != nil && !strings.Contains(string(out), "No such file") && !strings.Contains(string(out), "does not exist") {
 			return fmt.Errorf("nft: %v: %s", err, out)
 		}
@@ -318,7 +318,7 @@ func unblockIP(ctx context.Context, w io.Writer, ip string) error {
 	return nil
 }
 
-var iptRule = regexp.MustCompile(`^-A INPUT -s (\S+?)(?:/\d+)? .*heartbeat-block:(\d+)`)
+var iptRule = regexp.MustCompile(`^-A INPUT -s (\S+?)(?:/\d+)? .*sentrel-block:(\d+)`)
 
 func iptablesRules(ctx context.Context, ipt string) ([]string, error) {
 	out, err := exec.CommandContext(ctx, ipt, "-S", "INPUT").Output()
@@ -327,7 +327,7 @@ func iptablesRules(ctx context.Context, ipt string) ([]string, error) {
 	}
 	var rules []string
 	for _, l := range strings.Split(string(out), "\n") {
-		if strings.Contains(l, "heartbeat-block:") {
+		if strings.Contains(l, "sentrel-block:") {
 			rules = append(rules, l)
 		}
 	}
@@ -354,7 +354,7 @@ func listBlocks(ctx context.Context) ([]BlockEntry, error) {
 	var out []BlockEntry
 	if hasNft() {
 		for _, set := range []string{"blocklist4", "blocklist6"} {
-			b, err := exec.CommandContext(ctx, "nft", "-j", "list", "set", "inet", "heartbeat", set).Output()
+			b, err := exec.CommandContext(ctx, "nft", "-j", "list", "set", "inet", "sentrel", set).Output()
 			if err != nil {
 				continue
 			}

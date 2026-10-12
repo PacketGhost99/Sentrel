@@ -69,7 +69,7 @@ C_CERT=$(mk '{"name":"e2e-cert","type":"cert","target":"www.google.com:443","int
 C_DNS=$(mk '{"name":"e2e-dns","type":"dns","target":"one.one.one.one","config":{"record_type":"A","expect":"1.1.1.1"},"interval_seconds":60}')
 C_SVC=$(mk "{\"name\":\"e2e-svc-sshd\",\"type\":\"service\",\"target\":\"ssh\",\"host_id\":$HID}")
 C_PORT=$(mk "{\"name\":\"e2e-port-22\",\"type\":\"port\",\"target\":\"22\",\"host_id\":$HID}")
-C_PROC=$(mk "{\"name\":\"e2e-proc\",\"type\":\"process\",\"target\":\"heartbeat-agent\",\"host_id\":$HID}")
+C_PROC=$(mk "{\"name\":\"e2e-proc\",\"type\":\"process\",\"target\":\"sentrel-agent\",\"host_id\":$HID}")
 C_CONT=$(mk "{\"name\":\"e2e-container\",\"type\":\"container\",\"target\":\"hb-test-nginx\",\"host_id\":$HID}")
 C_MISSING=$(mk "{\"name\":\"e2e-svc-missing\",\"type\":\"service\",\"target\":\"no-such-service-xyz\",\"host_id\":$HID,\"failure_threshold\":1}")
 for c in "$C_PING" "$C_TCP_UP" "$C_TCP_DOWN" "$C_HTTP" "$C_CERT" "$C_DNS"; do api POST "/checks/$c/run" >/dev/null; done
@@ -82,7 +82,7 @@ wait_for "certificate check up" 60 status_is "$C_CERT" up
 wait_for "dns A record up" 60 status_is "$C_DNS" up
 wait_for "service ssh running (agent)" 90 status_is "$C_SVC" up
 wait_for "port 22 listening (agent)" 90 status_is "$C_PORT" up
-wait_for "process heartbeat-agent (agent)" 90 status_is "$C_PROC" up
+wait_for "process sentrel-agent (agent)" 90 status_is "$C_PROC" up
 wait_for "container hb-test-nginx running (agent)" 90 status_is "$C_CONT" up
 wait_for "missing service reported down" 90 status_is "$C_MISSING" down
 alert_for() { api GET "/alerts?status=active" | jq -e --arg c "$1" '[.[] | select((.check_id|tostring)==$c and .status=="firing")] | length > 0'; }
@@ -140,11 +140,11 @@ J=$(api POST "/hosts/$HID/block" '{"ip":"203.0.113.77","minutes":5,"reason":"e2e
 JID=$(echo "$J" | jq -r .id)
 job_done() { [ "$(api GET "/jobs/$1" | jq -r .status)" = "$2" ]; }
 wait_for "block job succeeded" 60 job_done "$JID" succeeded
-nft_has() { sudo nft list set inet heartbeat blocklist4 | grep -q "$1"; }
+nft_has() { sudo nft list set inet sentrel blocklist4 | grep -q "$1"; }
 wait_for "IP present in nftables set with timeout" 10 nft_has 203.0.113.77
 UJ=$(api POST "/hosts/$HID/unblock" '{"ip":"203.0.113.77"}' | jq -r .id)
 wait_for "unblock job succeeded" 60 job_done "$UJ" succeeded
-nft_gone() { ! sudo nft list set inet heartbeat blocklist4 | grep -q 203.0.113.77; }
+nft_gone() { ! sudo nft list set inet sentrel blocklist4 | grep -q 203.0.113.77; }
 wait_for "IP removed from nftables" 10 nft_gone
 R=$(api POST "/hosts/$HID/block" '{"ip":"127.0.0.1","minutes":5,"confirm":true}')
 expect "loopback cannot be blocked" '.code != null' "$R"
@@ -183,10 +183,10 @@ SP=$(api POST /status-pages "{\"slug\":\"e2e-status\",\"title\":\"E2E\",\"public
 PUB=$(curl -s "$URL/api/v1/public/status/e2e-status")
 expect "public status page works without login" '.items[0].label == "API" and .overall != null' "$PUB"
 api DELETE "/status-pages/$(echo "$SP" | jq -r .id)" >/dev/null
-curl -s "$URL/metrics" | grep -q '^hb_cpu_usage_percent{' && ok "/metrics exposes host series" || bad "/metrics missing host series"
+curl -s "$URL/metrics" | grep -q '^sentrel_cpu_usage_percent{' && ok "/metrics exposes host series" || bad "/metrics missing host series"
 curl -s -b "$JAR" -o /tmp/e2e-backup.tgz "$URL/api/v1/server/backup"
 LIST=$(tar tzf /tmp/e2e-backup.tgz) # not piped into grep -q: SIGPIPE + pipefail
-grep -qx 'heartbeat.db' <<<"$LIST" && grep -qx 'pki/ca.key' <<<"$LIST" && ok "backup contains database and PKI" || bad "backup incomplete"
+grep -qx 'sentrel.db' <<<"$LIST" && grep -qx 'pki/ca.key' <<<"$LIST" && ok "backup contains database and PKI" || bad "backup incomplete"
 rm -f /tmp/e2e-backup.tgz
 AUD=$(api GET "/audit?q=job.created&limit=5")
 expect "jobs are audited" 'length > 0' "$AUD"

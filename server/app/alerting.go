@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	pb "heartbeat/gen/heartbeatv1"
-	"heartbeat/server/db"
-	"heartbeat/server/metrics"
+	pb "sentrel/gen/sentrelv1"
+	"sentrel/server/db"
+	"sentrel/server/metrics"
 )
 
 // condition is one evaluation of something that can alert.

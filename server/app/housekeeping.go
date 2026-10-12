@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"heartbeat/server/db"
+	"sentrel/server/db"
 )
 
 // housekeepingLoop runs periodic maintenance: retention, storage accounting,
@@ -200,7 +200,7 @@ func WriteBackup(ctx context.Context, d *db.DB, dataDir string, w io.Writer, wit
 		return err
 	}
 	defer os.RemoveAll(tmp)
-	snap := filepath.Join(tmp, "heartbeat.db")
+	snap := filepath.Join(tmp, "sentrel.db")
 	if _, err := d.ExecContext(ctx, `VACUUM INTO ?`, snap); err != nil {
 		return fmt.Errorf("snapshot: %w", err)
 	}
@@ -224,7 +224,7 @@ func WriteBackup(ctx context.Context, d *db.DB, dataDir string, w io.Writer, wit
 		_, err = io.Copy(tw, f)
 		return err
 	}
-	if err := add(snap, "heartbeat.db"); err != nil {
+	if err := add(snap, "sentrel.db"); err != nil {
 		return err
 	}
 	dirs := append([]string{}, backupDirs...)
@@ -241,7 +241,7 @@ func WriteBackup(ctx context.Context, d *db.DB, dataDir string, w io.Writer, wit
 			return add(p, rel)
 		})
 	}
-	manifest := fmt.Sprintf("heartbeat-backup v1\ncreated %s\ntsdb %v\n", time.Now().UTC().Format(time.RFC3339), withTSDB)
+	manifest := fmt.Sprintf("sentrel-backup v1\ncreated %s\ntsdb %v\n", time.Now().UTC().Format(time.RFC3339), withTSDB)
 	_ = tw.WriteHeader(&tar.Header{Name: "MANIFEST", Mode: 0o644, Size: int64(len(manifest)), ModTime: time.Now()})
 	_, _ = tw.Write([]byte(manifest))
 	if err := tw.Close(); err != nil {
@@ -253,7 +253,7 @@ func WriteBackup(ctx context.Context, d *db.DB, dataDir string, w io.Writer, wit
 // RestoreBackup unpacks a backup into an (empty or replaceable) data dir.
 // The server must not be running.
 func RestoreBackup(r io.Reader, dataDir string, force bool) error {
-	if _, err := os.Stat(filepath.Join(dataDir, "heartbeat.db")); err == nil && !force {
+	if _, err := os.Stat(filepath.Join(dataDir, "sentrel.db")); err == nil && !force {
 		return errors.New("data directory already contains a database; pass --force to overwrite")
 	}
 	if err := os.MkdirAll(dataDir, 0o750); err != nil {
@@ -297,7 +297,7 @@ func RestoreBackup(r io.Reader, dataDir string, force bool) error {
 			return err
 		}
 		f.Close()
-		if name == "heartbeat.db" {
+		if name == "sentrel.db" {
 			seenDB = true
 			_ = os.Remove(dst + "-wal")
 			_ = os.Remove(dst + "-shm")
@@ -307,7 +307,7 @@ func RestoreBackup(r io.Reader, dataDir string, force bool) error {
 		}
 	}
 	if !seenDB {
-		return errors.New("backup does not contain heartbeat.db")
+		return errors.New("backup does not contain sentrel.db")
 	}
 	return nil
 }

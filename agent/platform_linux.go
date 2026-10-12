@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	pb "heartbeat/gen/heartbeatv1"
+	pb "sentrel/gen/sentrelv1"
 )
 
 func runOut(ctx context.Context, timeout time.Duration, name string, args ...string) ([]byte, error) {

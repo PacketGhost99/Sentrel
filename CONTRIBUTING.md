@@ -1,6 +1,6 @@
-# Contributing to Heartbeat
+# Contributing to Sentrel
 
-Thank you for helping. Heartbeat is licensed under the Apache License 2.0 and contributions are accepted under the same licence, with a Developer Certificate of Origin (DCO) sign-off instead of a contributor licence agreement.
+Thank you for helping. Sentrel is licensed under the Apache License 2.0 and contributions are accepted under the same licence, with a Developer Certificate of Origin (DCO) sign-off instead of a contributor licence agreement.
 
 ## Sign off your commits (required)
 
@@ -64,7 +64,7 @@ By making a contribution to this project, I certify that:
 3. Run `go vet ./...`, `gofmt -l .` and `go test ./...`; for UI changes also `npm run typecheck` in `web/`.
 4. Add tests with the change: Go tests next to the code, and for protocol or API changes extend `server/app/integration_test.go`.
 5. Update the documentation under `docs/` when behaviour, settings, endpoints or defaults change. The REST API is described by `server/app/routes.go`; add every endpoint there.
-6. Database changes need a new migration in `server/db/migrations/` (never edit an applied one). Protocol changes follow the rules in `proto/heartbeat/v1/agent.proto` (add fields, do not renumber; bump `SchemaVersion` for breaking changes) and regenerate `gen/`.
+6. Database changes need a new migration in `server/db/migrations/` (never edit an applied one). Protocol changes follow the rules in `proto/sentrel/v1/agent.proto` (add fields, do not renumber; bump `SchemaVersion` for breaking changes) and regenerate `gen/`.
 
 ## Dependencies and licences
 

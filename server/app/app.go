@@ -1,4 +1,4 @@
-// Package app is the Heartbeat server: API, agent hub, pollers, alerting
+// Package app is the Sentrel server: API, agent hub, pollers, alerting
 // and job runner, all in one process.
 package app
 
@@ -17,11 +17,11 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	pb "heartbeat/gen/heartbeatv1"
-	"heartbeat/internal/jobpolicy"
-	"heartbeat/server/db"
-	"heartbeat/server/metrics"
-	"heartbeat/server/pki"
+	pb "sentrel/gen/sentrelv1"
+	"sentrel/internal/jobpolicy"
+	"sentrel/server/db"
+	"sentrel/server/metrics"
+	"sentrel/server/pki"
 )
 
 type sqlxTx = sqlx.Tx
@@ -206,7 +206,7 @@ func (a *App) ensureSetupToken() {
 		_ = os.WriteFile(path, []byte(a.setupToken+"\n"), 0o600)
 	}
 	a.log.Info("first run: open the web UI to complete setup", "setup_token", a.setupToken, "token_file", path)
-	fmt.Fprintf(os.Stderr, "\n  Heartbeat first-run setup token: %s\n  (also stored in %s)\n\n", a.setupToken, path)
+	fmt.Fprintf(os.Stderr, "\n  Sentrel first-run setup token: %s\n  (also stored in %s)\n\n", a.setupToken, path)
 }
 
 // randomCode returns n characters from an unambiguous alphabet.

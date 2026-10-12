@@ -1,12 +1,12 @@
 # Installing the server
 
-Heartbeat runs on Linux. The release artifacts (built by `scripts/build.sh`) are `heartbeat-server-linux-<arch>`, the `.deb`/`.rpm` packages, `install-server.sh`, `install-agent.sh`, `install-agent.ps1` and `SHA256SUMS`. The server binary embeds the web UI and the agent builds (Linux amd64/arm64, Windows amd64), so a single file is all you deploy.
+Sentrel runs on Linux. The release artifacts (built by `scripts/build.sh`) are `sentrel-server-linux-<arch>`, the `.deb`/`.rpm` packages, `install-server.sh`, `install-agent.sh`, `install-agent.ps1` and `SHA256SUMS`. The server binary embeds the web UI and the agent builds (Linux amd64/arm64, Windows amd64), so a single file is all you deploy.
 
 ## Linux with systemd
 
 ```sh
 sha256sum -c SHA256SUMS --ignore-missing
-sudo sh install-server.sh --binary ./heartbeat-server-linux-amd64
+sudo sh install-server.sh --binary ./sentrel-server-linux-amd64
 ```
 
 Options:
@@ -16,19 +16,19 @@ Options:
 | `--binary PATH` | install a local binary | |
 | `--url URL` | download the binary (use with `--sha256 HEX`) | |
 | `--listen ADDR` | listen address | `0.0.0.0:8080` |
-| `--data-dir DIR` | data directory | `/var/lib/heartbeat` |
+| `--data-dir DIR` | data directory | `/var/lib/sentrel` |
 | `--uninstall` | stop and remove the service and binary; the data directory is kept | |
 
 One of `--binary` or `--url` is required, and the script must run as root. What it does:
 
-1. Verifies the binary runs (`heartbeat-server version`).
-2. Creates the system user `heartbeat` and the data directory (`0750`).
-3. Installs `/usr/local/bin/heartbeat-server` and runs `setcap 'cap_net_raw,cap_net_bind_service+ep'` on it.
-4. Writes `/etc/systemd/system/heartbeat.service`, enables and starts it, waits for `/healthz`, and prints the URL and the first-run setup token.
+1. Verifies the binary runs (`sentrel-server version`).
+2. Creates the system user `sentrel` and the data directory (`0750`).
+3. Installs `/usr/local/bin/sentrel-server` and runs `setcap 'cap_net_raw,cap_net_bind_service+ep'` on it.
+4. Writes `/etc/systemd/system/sentrel.service`, enables and starts it, waits for `/healthz`, and prints the URL and the first-run setup token.
 
-The unit runs `heartbeat-server serve --data-dir <dir> --listen <addr>` as `heartbeat` with `Restart=always`, `AmbientCapabilities=CAP_NET_RAW CAP_NET_BIND_SERVICE`, `NoNewPrivileges`, `ProtectSystem=strict`, `ProtectHome`, `PrivateTmp` and `ReadWritePaths=<data dir>`.
+The unit runs `sentrel-server serve --data-dir <dir> --listen <addr>` as `sentrel` with `Restart=always`, `AmbientCapabilities=CAP_NET_RAW CAP_NET_BIND_SERVICE`, `NoNewPrivileges`, `ProtectSystem=strict`, `ProtectHome`, `PrivateTmp` and `ReadWritePaths=<data dir>`.
 
-Logs: `journalctl -u heartbeat -f`. Set `HEARTBEAT_LOG_LEVEL` (`debug`, `info`, `warn`, `error`) or `HEARTBEAT_LOG_FORMAT=json` with a systemd drop-in (`systemctl edit heartbeat`).
+Logs: `journalctl -u sentrel -f`. Set `SENTREL_LOG_LEVEL` (`debug`, `info`, `warn`, `error`) or `SENTREL_LOG_FORMAT=json` with a systemd drop-in (`systemctl edit sentrel`).
 
 ### Capabilities
 
@@ -45,26 +45,26 @@ Each release attaches `.deb` and `.rpm` packages for the agent and the server, f
 
 ```sh
 # Debian, Ubuntu
-sudo apt install ./heartbeat-server_<version>_amd64.deb
+sudo apt install ./sentrel-server_<version>_amd64.deb
 # RHEL, Rocky, Alma, Fedora
-sudo dnf install ./heartbeat-server-<version>-1.x86_64.rpm
+sudo dnf install ./sentrel-server-<version>-1.x86_64.rpm
 ```
 
-Server package: installs `/usr/local/bin/heartbeat-server` (with `cap_net_raw` and `cap_net_bind_service` when `setcap` is available), the systemd unit `heartbeat.service`, the `heartbeat` user and `/var/lib/heartbeat`. It does not start the service on a fresh install (an upgrade restarts a running one):
+Server package: installs `/usr/local/bin/sentrel-server` (with `cap_net_raw` and `cap_net_bind_service` when `setcap` is available), the systemd unit `sentrel.service`, the `sentrel` user and `/var/lib/sentrel`. It does not start the service on a fresh install (an upgrade restarts a running one):
 
 ```sh
-sudo systemctl enable --now heartbeat
-sudo cat /var/lib/heartbeat/setup-token
+sudo systemctl enable --now sentrel
+sudo cat /var/lib/sentrel/setup-token
 ```
 
-Agent package (`heartbeat-agent`): installs `/usr/local/bin/heartbeat-agent`, the `heartbeat-agent` user (added to `adm` and `systemd-journal` when they exist), the sudoers rule that lets the agent run only `heartbeat-agent priv *` as root, and the systemd unit. It does not register the host. Take a one-time token from "Add host" in the UI and run:
+Agent package (`sentrel-agent`): installs `/usr/local/bin/sentrel-agent`, the `sentrel-agent` user (added to `adm` and `systemd-journal` when they exist), the sudoers rule that lets the agent run only `sentrel-agent priv *` as root, and the systemd unit. It does not register the host. Take a one-time token from "Add host" in the UI and run:
 
 ```sh
-sudo heartbeat-agent register --server https://SERVER --token ABCD-1234
-sudo systemctl enable --now heartbeat-agent
+sudo sentrel-agent register --server https://SERVER --token ABCD-1234
+sudo systemctl enable --now sentrel-agent
 ```
 
-Removing the package stops and disables the service. Config, state and the user are kept. Container monitoring needs the agent user in the `docker` group, which is root-equivalent: add it yourself (`sudo usermod -aG docker heartbeat-agent`) if you want it.
+Removing the package stops and disables the service. Config, state and the user are kept. Container monitoring needs the agent user in the `docker` group, which is root-equivalent: add it yourself (`sudo usermod -aG docker sentrel-agent`) if you want it.
 
 Build the packages yourself with `scripts/build.sh --packages` (needs Go; nfpm is fetched with `go run`). All product, binary and package names are variables at the top of that script.
 
@@ -74,27 +74,27 @@ TODO: there is no hosted repository yet; install the packages from the release p
 
 ## Container image (GHCR)
 
-Images are published for linux/amd64 and linux/arm64 as `ghcr.io/notspark1999/Heartbeat` (the repository name in lower case) with tags `edge` (latest main), the release tag (for example `v1.2.0`) and `latest` (latest release).
+Images are published for linux/amd64 and linux/arm64 as `ghcr.io/notspark1999/sentrel` (the repository name in lower case) with tags `edge` (latest main), the release tag (for example `v1.2.0`) and `latest` (latest release).
 
 ```sh
-docker run -d --name heartbeat --cap-add NET_RAW -p 8080:8080 -v heartbeat-data:/data \
-  ghcr.io/notspark1999/Heartbeat:latest
+docker run -d --name sentrel --cap-add NET_RAW -p 8080:8080 -v sentrel-data:/data \
+  ghcr.io/notspark1999/sentrel:latest
 ```
 
-In the compose file, replace the `build:` section with `image: ghcr.io/notspark1999/Heartbeat:latest`.
+In the compose file, replace the `build:` section with `image: ghcr.io/notspark1999/sentrel:latest`.
 
 ## Verifying downloads
 
 Releases carry several independent checks:
 
 - `SHA256SUMS` lists every binary, package and installer: `sha256sum -c SHA256SUMS --ignore-missing`.
-- `SHA256SUMS.sig` is the project's own signature (checked by the server and agents when they self-update, with `hb-sign verify`).
+- `SHA256SUMS.sig` is the project's own signature (checked by the server and agents when they self-update, with `sentrel-sign verify`).
 - `SHA256SUMS.cosign.bundle` is a keyless [Sigstore](https://www.sigstore.dev) signature made by the release workflow. Check that the checksums came from this repository's workflow, then check the files against them:
 
 ```sh
 cosign verify-blob \
   --bundle SHA256SUMS.cosign.bundle \
-  --certificate-identity-regexp '^https://github.com/notspark1999/Heartbeat/\.github/workflows/ci\.yml@refs/tags/v' \
+  --certificate-identity-regexp '^https://github.com/notspark1999/Sentrel/\.github/workflows/ci\.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   SHA256SUMS
 sha256sum -c SHA256SUMS --ignore-missing
@@ -104,38 +104,38 @@ sha256sum -c SHA256SUMS --ignore-missing
 - The container image is signed keyless as well:
 
 ```sh
-cosign verify ghcr.io/notspark1999/Heartbeat:<tag> \
-  --certificate-identity-regexp '^https://github.com/notspark1999/Heartbeat/\.github/workflows/ci\.yml@' \
+cosign verify ghcr.io/notspark1999/sentrel:<tag> \
+  --certificate-identity-regexp '^https://github.com/notspark1999/Sentrel/\.github/workflows/ci\.yml@' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
-Replace `notspark1999/Heartbeat` with the GitHub repository (case-sensitive in the certificate identity).
+Replace `notspark1999/Sentrel` with the GitHub repository (case-sensitive in the certificate identity).
 
 ## Docker
 
 ```sh
 docker compose -f deploy/docker-compose.yml up -d --build
-docker compose -f deploy/docker-compose.yml logs heartbeat | grep -i "setup token"
+docker compose -f deploy/docker-compose.yml logs sentrel | grep -i "setup token"
 ```
 
-The image (`deploy/Dockerfile`) is a multi-stage build (Node for the UI, Go for the binaries, Debian slim at runtime). It runs as UID 10001, stores data in the `/data` volume, exposes 8080, and has a `healthcheck` using `heartbeat-server healthcheck`. The compose file adds `NET_RAW` for ICMP checks and mounts the `heartbeat-data` volume. For Let's Encrypt, publish ports 80 and 443 instead of 8080 and pass `--listen 0.0.0.0:443` in `command`.
+The image (`deploy/Dockerfile`) is a multi-stage build (Node for the UI, Go for the binaries, Debian slim at runtime). It runs as UID 10001, stores data in the `/data` volume, exposes 8080, and has a `healthcheck` using `sentrel-server healthcheck`. The compose file adds `NET_RAW` for ICMP checks and mounts the `sentrel-data` volume. For Let's Encrypt, publish ports 80 and 443 instead of 8080 and pass `--listen 0.0.0.0:443` in `command`.
 
 To run the image directly:
 
 ```sh
-docker run -d --name heartbeat --cap-add NET_RAW -p 8080:8080 -v heartbeat-data:/data heartbeat:latest
+docker run -d --name sentrel --cap-add NET_RAW -p 8080:8080 -v sentrel-data:/data sentrel:latest
 ```
 
 ## Running by hand
 
 ```sh
-heartbeat-server serve --data-dir ./data --listen 0.0.0.0:8080
+sentrel-server serve --data-dir ./data --listen 0.0.0.0:8080
 ```
 
 | Flag | Meaning |
 |---|---|
-| `--data-dir DIR` | data directory. Default: `$HEARTBEAT_DATA_DIR`, else `/var/lib/heartbeat` when root or writable, else `~/.heartbeat` |
-| `--listen ADDR` | listen address; overrides the stored setting (`$HEARTBEAT_LISTEN`) |
+| `--data-dir DIR` | data directory. Default: `$SENTREL_DATA_DIR`, else `/var/lib/sentrel` when root or writable, else `~/.sentrel` |
+| `--listen ADDR` | listen address; overrides the stored setting (`$SENTREL_LISTEN`) |
 | `--force-http` | ignore the stored TLS mode and serve plain HTTP (recovery) |
 | `--agent-bin-dir DIR` | serve agent binaries from a directory instead of the embedded ones |
 | `--dev-ui DIR` | serve the UI from a directory (development) |
@@ -150,7 +150,7 @@ On first start with no users, the server creates a one-time setup token, logs it
 
 ```
 <data dir>/
-  heartbeat.db (+ -wal, -shm)   SQLite: settings, hosts, alerts, audit log, findings, sessions
+  sentrel.db (+ -wal, -shm)   SQLite: settings, hosts, alerts, audit log, findings, sessions
   pki/                          ca.crt, ca.key, job.key (Ed25519), server.crt/server.key/server.sans (self-signed mode)
   tsdb/                         Prometheus TSDB blocks (metrics)
   vulndb/                       Grype vulnerability database (around 3 GB)
@@ -159,7 +159,7 @@ On first start with no users, the server creates a one-time setup token, logs it
   setup-token                   only until the first admin exists
 ```
 
-Everything the server needs to restart elsewhere is in `heartbeat.db` plus `pki/`. The `pki/` directory holds the keys that authenticate every agent and sign every job: treat it like a secret and back it up (see [operations.md](operations.md)). Plan disk space for `vulndb/` and `tsdb/`; the server raises an alert when the data disk passes the configured percentage (default 85).
+Everything the server needs to restart elsewhere is in `sentrel.db` plus `pki/`. The `pki/` directory holds the keys that authenticate every agent and sign every job: treat it like a secret and back it up (see [operations.md](operations.md)). Plan disk space for `vulndb/` and `tsdb/`; the server raises an alert when the data disk passes the configured percentage (default 85).
 
 ## Ports and firewall
 
@@ -174,16 +174,16 @@ Agents only need outbound access to the server port. The agent honours `HTTPS_PR
 
 ## Upgrading
 
-1. Take a backup (`heartbeat-server backup`, see [operations.md](operations.md)).
+1. Take a backup (`sentrel-server backup`, see [operations.md](operations.md)).
 2. Run `install-server.sh --binary <new binary>` again (or pull and rebuild the container: `docker compose up -d --build`). The script stops the service, replaces the binary, re-applies capabilities and starts it. Database migrations run automatically at startup; there is no automated downgrade, so restore the backup to roll back.
 3. Upgrade agents from the UI (host page, update agent) or per host with a job. The new server embeds its own agent builds and signs them. Agents older than the server keep working while the protocol schema version matches.
 
 ## Uninstalling
 
 ```sh
-sudo sh install-server.sh --uninstall      # removes the unit and /usr/local/bin/heartbeat-server
-sudo rm -rf /var/lib/heartbeat             # only if you want to delete all data
-sudo userdel heartbeat
+sudo sh install-server.sh --uninstall      # removes the unit and /usr/local/bin/sentrel-server
+sudo rm -rf /var/lib/sentrel             # only if you want to delete all data
+sudo userdel sentrel
 ```
 
 Docker: `docker compose -f deploy/docker-compose.yml down -v` (the `-v` deletes the data volume).

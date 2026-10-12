@@ -18,11 +18,11 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 
-	pb "heartbeat/gen/heartbeatv1"
-	"heartbeat/internal/sigs"
-	"heartbeat/internal/version"
-	"heartbeat/server/db"
-	"heartbeat/server/pki"
+	pb "sentrel/gen/sentrelv1"
+	"sentrel/internal/sigs"
+	"sentrel/internal/version"
+	"sentrel/server/db"
+	"sentrel/server/pki"
 )
 
 // Hub tracks connected agents and implements the gRPC AgentService.

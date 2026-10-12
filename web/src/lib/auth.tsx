@@ -35,7 +35,7 @@ export function applyBranding(b?: Branding | null) {
   // The legacy default accent (#e11d48) is ignored so the refreshed palette applies unless a custom colour was chosen.
   if (b.accent_color && b.accent_color.toLowerCase() !== '#e11d48') root.style.setProperty('--accent', b.accent_color)
   else root.style.removeProperty('--accent')
-  document.title = b.product_name || 'Heartbeat'
+  document.title = b.product_name || 'Sentrel'
   const fav = document.getElementById('favicon') as HTMLLinkElement | null
   if (fav) fav.href = b.favicon_data_url || '/favicon.svg'
 }
@@ -51,7 +51,7 @@ export function applyTheme(pref: ThemePref) {
 /** Light is the default; any other stored value (including the legacy "system") is treated as light. */
 export function getThemePref(): ThemePref {
   try {
-    return localStorage.getItem('hb-theme') === 'dark' ? 'dark' : 'light'
+    return localStorage.getItem('sentrel-theme') === 'dark' ? 'dark' : 'light'
   } catch {
     return 'light'
   }
@@ -59,7 +59,7 @@ export function getThemePref(): ThemePref {
 
 export function setThemePref(p: ThemePref) {
   try {
-    localStorage.setItem('hb-theme', p)
+    localStorage.setItem('sentrel-theme', p)
   } catch {
     /* storage unavailable */
   }

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	pb "heartbeat/gen/heartbeatv1"
+	pb "sentrel/gen/sentrelv1"
 )
 
 func (e *testEnv) pushCPU(hostID int64, v float64) {

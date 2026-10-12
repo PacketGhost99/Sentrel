@@ -14,8 +14,8 @@ import (
 	"path/filepath"
 	"time"
 
-	pb "heartbeat/gen/heartbeatv1"
-	"heartbeat/internal/jobpolicy"
+	pb "sentrel/gen/sentrelv1"
+	"sentrel/internal/jobpolicy"
 )
 
 // RegisterOptions are the inputs to Register.
@@ -110,7 +110,7 @@ func Register(ctx context.Context, o RegisterOptions) (*Config, error) {
 	if err := cfg.Save(o.ConfigPath); err != nil {
 		return nil, err
 	}
-	pub := pem.EncodeToMemory(&pem.Block{Type: "HEARTBEAT JOB KEY", Bytes: resp.JobPublicKey})
+	pub := pem.EncodeToMemory(&pem.Block{Type: "SENTREL JOB KEY", Bytes: resp.JobPublicKey})
 	if err := os.WriteFile(filepath.Join(filepath.Dir(o.ConfigPath), "job.pub"), pub, 0o644); err != nil {
 		return nil, err
 	}

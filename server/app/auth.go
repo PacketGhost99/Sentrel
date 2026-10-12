@@ -22,11 +22,11 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/pquerna/otp/totp"
 
-	"heartbeat/server/authn"
-	"heartbeat/server/db"
+	"sentrel/server/authn"
+	"sentrel/server/db"
 )
 
-const sessionCookie = "hb_session"
+const sessionCookie = "sentrel_session"
 
 type authService struct {
 	app      *App
@@ -165,10 +165,10 @@ func (s *authService) sessionPrincipal(ctx context.Context, token string) *Princ
 		MFAPending: sr.MFAPending != 0, MFAEnroll: sr.MFAPending == 2, CSRF: sr.CSRF, perms: newPrincipal(u.Role, nil)}
 }
 
-// API keys look like hb_<8 char prefix>_<secret>.
+// API keys look like sentrel_<8 char prefix>_<secret>.
 func (s *authService) apiKeyPrincipal(ctx context.Context, key string) (*Principal, error) {
 	parts := strings.SplitN(key, "_", 3)
-	if len(parts) != 3 || parts[0] != "hb" {
+	if len(parts) != 3 || parts[0] != "sentrel" {
 		return nil, errors.New("malformed")
 	}
 	a := s.app
@@ -391,8 +391,8 @@ func (s *authService) authenticate(ctx context.Context, username, password, ip s
 			Timeout: time.Duration(rc.TimeoutSec) * time.Second, RoleAttribute: rc.RoleAttribute}, username, password)
 		if err == nil {
 			role, tenant := rc.DefaultRole, rc.DefaultTenant
-			// Filter-Id / Class may carry "heartbeat:<role>" or just "<role>".
-			if hint := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(res.RoleHint)), "heartbeat:"); ValidRole(hint, tenant) {
+			// Filter-Id / Class may carry "sentrel:<role>" or just "<role>".
+			if hint := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(res.RoleHint)), "sentrel:"); ValidRole(hint, tenant) {
 				role = hint
 			}
 			if found {

@@ -25,8 +25,8 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	pb "heartbeat/gen/heartbeatv1"
-	"heartbeat/server/metrics"
+	pb "sentrel/gen/sentrelv1"
+	"sentrel/server/metrics"
 )
 
 // testEnv is a running App with an HTTP test server.
@@ -215,7 +215,7 @@ func TestRBACAndTenantIsolation(t *testing.T) {
 	// PromQL tenant injection: a tenant cannot read other tenants' series.
 	_ = e.a.ts.Append(int64(globexHost), int64(oid), []metrics.Sample{{Name: "secret_metric", Value: 42}})
 	_ = e.a.ts.Append(int64(acmeHost), int64(tid), []metrics.Sample{{Name: "secret_metric", Value: 7}})
-	code, res, raw := acme.do("GET", `/metrics/query?query=hb_secret_metric&start=600s`, nil)
+	code, res, raw := acme.do("GET", `/metrics/query?query=sentrel_secret_metric&start=600s`, nil)
 	if code != 200 {
 		t.Fatalf("query: %d %s", code, raw)
 	}
@@ -533,7 +533,7 @@ func TestAutoUpdateQueuesJob(t *testing.T) {
 		e.a.jobs.maybeAutoUpdate(ctx, h)
 	}
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "heartbeat-agent-linux-amd64"), []byte("fake-binary"), 0o755); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "sentrel-agent-linux-amd64"), []byte("fake-binary"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "VERSION"), []byte("2.0.0\n"), 0o644); err != nil {

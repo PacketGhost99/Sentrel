@@ -1,19 +1,19 @@
 <#
 .SYNOPSIS
-  Installs the Heartbeat agent as a Windows service.
+  Installs the Sentrel agent as a Windows service.
 
 .EXAMPLE
   # From an elevated PowerShell:
   & ([scriptblock]::Create((irm https://SERVER/install/agent.ps1))) -Server https://SERVER -Token ABCD-1234
 
-.PARAMETER Server        Heartbeat server URL.
+.PARAMETER Server        Sentrel server URL.
 .PARAMETER Token         One-time enrolment token from "Add host".
 .PARAMETER CaFingerprint Pin the server CA (self-signed TLS mode).
-.PARAMETER BinaryPath    Use a local heartbeat-agent.exe instead of downloading.
+.PARAMETER BinaryPath    Use a local sentrel-agent.exe instead of downloading.
 .PARAMETER Name          Display name for the host.
 .PARAMETER WriteJobs     Who may authorise jobs that change this host: server (default), operator or none.
 .PARAMETER ReadOnly      Shorthand for -WriteJobs none.
-.PARAMETER OperatorKey   Operator public key(s) (from "hb-sign keygen-operator") for -WriteJobs operator.
+.PARAMETER OperatorKey   Operator public key(s) (from "sentrel-sign keygen-operator") for -WriteJobs operator.
 .PARAMETER InsecureDownload Skip TLS validation for the binary download only.
 .PARAMETER Uninstall     Remove the agent.
 #>
@@ -31,9 +31,9 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$InstallDir = Join-Path $env:ProgramFiles "Heartbeat Agent"
-$DataDir = Join-Path $env:ProgramData "Heartbeat Agent"
-$Exe = Join-Path $InstallDir "heartbeat-agent.exe"
+$InstallDir = Join-Path $env:ProgramFiles "Sentrel Agent"
+$DataDir = Join-Path $env:ProgramData "Sentrel Agent"
+$Exe = Join-Path $InstallDir "sentrel-agent.exe"
 $Config = Join-Path $DataDir "agent.yaml"
 
 function Say($m) { Write-Host "==> $m" }
@@ -44,12 +44,12 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 }
 
 if ($Uninstall) {
-  Say "removing Heartbeat agent"
+  Say "removing Sentrel agent"
   if (Test-Path $Exe) {
     & $Exe service stop --config $Config 2>$null | Out-Null
     & $Exe service uninstall --config $Config 2>$null | Out-Null
   }
-  Get-NetFirewallRule -DisplayName "Heartbeat block *" -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue
+  Get-NetFirewallRule -DisplayName "Sentrel block *" -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue
   Remove-Item -Recurse -Force $InstallDir, $DataDir -ErrorAction SilentlyContinue
   Say "done"
   return
@@ -108,11 +108,11 @@ Say "installing service"
 if ($LASTEXITCODE -ne 0) { throw "service install failed" }
 & $Exe service start --config $Config
 # Restart on failure (used by self-update rollback).
-sc.exe failure HeartbeatAgent reset= 86400 actions= restart/5000/restart/5000/restart/30000 | Out-Null
+sc.exe failure SentrelAgent reset= 86400 actions= restart/5000/restart/5000/restart/30000 | Out-Null
 Start-Sleep -Seconds 3
-$svc = Get-Service HeartbeatAgent -ErrorAction SilentlyContinue
+$svc = Get-Service SentrelAgent -ErrorAction SilentlyContinue
 if ($svc -and $svc.Status -eq "Running") {
-  Say "Heartbeat agent is running. It should appear in the web UI within a minute."
+  Say "Sentrel agent is running. It should appear in the web UI within a minute."
 } else {
   throw "agent service did not start; see the Application event log"
 }

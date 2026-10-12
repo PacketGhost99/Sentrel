@@ -39,7 +39,7 @@ An optional context name is supported. Communities and passphrases are stored in
 - LLDP neighbours (local port, remote chassis, port, system name and description, management address).
 - `uptime_seconds` and `snmp_poll_ms`.
 
-Profile metrics named `cpu_usage_percent`, `mem_used_percent`, `disk_used_percent` (label `mount`) and `temperature_celsius` (label `sensor`) feed the standard thresholds and the host summary. Any other name is stored as a time series (prefixed `hb_` in PromQL and `/metrics`).
+Profile metrics named `cpu_usage_percent`, `mem_used_percent`, `disk_used_percent` (label `mount`) and `temperature_celsius` (label `sensor`) feed the standard thresholds and the host summary. Any other name is stored as a time series (prefixed `sentrel_` in PromQL and `/metrics`).
 
 ## Profiles
 

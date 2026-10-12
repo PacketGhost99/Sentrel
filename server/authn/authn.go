@@ -220,7 +220,7 @@ func RADIUSAuthenticate(ctx context.Context, c RADIUSConfig, username, password 
 	}
 	nas := c.NASIdentifier
 	if nas == "" {
-		nas = "heartbeat"
+		nas = "sentrel"
 	}
 	_ = rfc2865.NASIdentifier_SetString(p, nas)
 	timeout := c.Timeout

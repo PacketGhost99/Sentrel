@@ -16,10 +16,10 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
 
-	pb "heartbeat/gen/heartbeatv1"
-	"heartbeat/internal/jobpolicy"
-	"heartbeat/internal/sigs"
-	"heartbeat/server/db"
+	pb "sentrel/gen/sentrelv1"
+	"sentrel/internal/jobpolicy"
+	"sentrel/internal/sigs"
+	"sentrel/server/db"
 )
 
 // JobManager creates, schedules, signs and dispatches jobs.

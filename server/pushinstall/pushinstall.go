@@ -138,19 +138,19 @@ func SSHInstall(ctx context.Context, req SSHRequest, installer []byte, bin Binar
 		return seenKey, err
 	}
 	defer rc.Close()
-	tmp := "/tmp/heartbeat-push-" + strconv.FormatInt(time.Now().UnixNano(), 36)
+	tmp := "/tmp/sentrel-push-" + strconv.FormatInt(time.Now().UnixNano(), 36)
 	if out, err := run("umask 077 && mkdir -p "+tmp, nil); err != nil {
 		return seenKey, fmt.Errorf("mkdir: %v %s", err, out)
 	}
 	defer run("rm -rf "+tmp, nil)
 	log(fmt.Sprintf("uploading agent binary (%.1f MB)", float64(size)/1e6))
-	if out, err := run("cat > "+tmp+"/heartbeat-agent && chmod 700 "+tmp+"/heartbeat-agent", rc); err != nil {
+	if out, err := run("cat > "+tmp+"/sentrel-agent && chmod 700 "+tmp+"/sentrel-agent", rc); err != nil {
 		return seenKey, fmt.Errorf("upload: %v %s", err, out)
 	}
 	if out, err := run("cat > "+tmp+"/install.sh", bytes.NewReader(installer)); err != nil {
 		return seenKey, fmt.Errorf("upload installer: %v %s", err, out)
 	}
-	args := append([]string{"--binary", tmp + "/heartbeat-agent"}, installArgs...)
+	args := append([]string{"--binary", tmp + "/sentrel-agent"}, installArgs...)
 	cmd := "sh " + tmp + "/install.sh " + shellJoin(args)
 	whoami, _ := run("id -u", nil)
 	var stdin io.Reader
@@ -259,7 +259,7 @@ func SSHFingerprint(ctx context.Context, host string, port int) (fingerprint, ke
 	defer conn.Close()
 	_ = conn.SetDeadline(time.Now().Add(15 * time.Second))
 	cfg := &ssh.ClientConfig{
-		User:    "heartbeat-fingerprint",
+		User:    "sentrel-fingerprint",
 		Timeout: 15 * time.Second,
 		HostKeyCallback: func(_ string, _ net.Addr, key ssh.PublicKey) error {
 			fingerprint, keyType = ssh.FingerprintSHA256(key), key.Type()

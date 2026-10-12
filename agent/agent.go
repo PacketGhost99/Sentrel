@@ -23,9 +23,9 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
-	pb "heartbeat/gen/heartbeatv1"
-	"heartbeat/internal/jobpolicy"
-	"heartbeat/internal/sigs"
+	pb "sentrel/gen/sentrelv1"
+	"sentrel/internal/jobpolicy"
+	"sentrel/internal/sigs"
 )
 
 // Agent is the running agent.
@@ -146,7 +146,7 @@ func (a *Agent) send(m *pb.AgentMessage) {
 
 // Run connects and collects until ctx is cancelled.
 func (a *Agent) Run(ctx context.Context) error {
-	a.log.Info("heartbeat agent starting", "version", AgentVersion(), "server", a.cfg.ServerURL, "agent_id", a.cfg.AgentID)
+	a.log.Info("sentrel agent starting", "version", AgentVersion(), "server", a.cfg.ServerURL, "agent_id", a.cfg.AgentID)
 	marker := a.checkUpdateMarker()
 	if a.config().BruteforceEnabled {
 		a.startSecurityWatch(ctx)

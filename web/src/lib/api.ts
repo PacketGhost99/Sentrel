@@ -1,4 +1,4 @@
-// Thin client for the Heartbeat REST API. Every UI action goes through it.
+// Thin client for the Sentrel REST API. Every UI action goes through it.
 
 export class ApiError extends Error {
   status: number

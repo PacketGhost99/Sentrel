@@ -27,10 +27,10 @@ type DB struct {
 	Path string
 }
 
-// Open opens (creating if needed) the database at dir/heartbeat.db and runs
+// Open opens (creating if needed) the database at dir/sentrel.db and runs
 // pending migrations.
 func Open(dir string) (*DB, error) {
-	path := filepath.Join(dir, "heartbeat.db")
+	path := filepath.Join(dir, "sentrel.db")
 	return OpenPath(path)
 }
 

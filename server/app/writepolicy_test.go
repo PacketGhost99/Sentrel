@@ -14,8 +14,8 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	pb "heartbeat/gen/heartbeatv1"
-	"heartbeat/internal/jobpolicy"
+	pb "sentrel/gen/sentrelv1"
+	"sentrel/internal/jobpolicy"
 )
 
 // setPolicy simulates the agent reporting its local write policy in its hello.
@@ -194,7 +194,7 @@ func TestAwaitingJobsExpireAndAutoUpdateSkips(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "heartbeat-agent-linux-amd64"), []byte("fake-binary"), 0o755)
+	os.WriteFile(filepath.Join(dir, "sentrel-agent-linux-amd64"), []byte("fake-binary"), 0o755)
 	os.WriteFile(filepath.Join(dir, "VERSION"), []byte("2.0.0\n"), 0o644)
 	e.a.cfg.AgentBinDir = dir
 	d := e.a.settings.Agent()

@@ -36,7 +36,7 @@ type fakeCode struct {
 	nonce, challenge, redirect string
 }
 
-const fakeClientID = "heartbeat-test"
+const fakeClientID = "sentrel-test"
 
 func newFakeIdP(t *testing.T) *fakeIdP {
 	t.Helper()

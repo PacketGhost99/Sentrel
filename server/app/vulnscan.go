@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"heartbeat/server/db"
-	"heartbeat/server/metrics"
-	"heartbeat/server/vuln"
+	"sentrel/server/db"
+	"sentrel/server/metrics"
+	"sentrel/server/vuln"
 )
 
 // VulnService runs scans and keeps the vulnerability DB fresh.

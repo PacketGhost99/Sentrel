@@ -1,6 +1,6 @@
 # Vulnerability scanning
 
-Heartbeat matches each Linux host's package inventory against the [Grype](https://github.com/anchore/grype) vulnerability database, embedded in the server as a library. No scanner runs on the monitored host; agents only send package lists.
+Sentrel matches each Linux host's package inventory against the [Grype](https://github.com/anchore/grype) vulnerability database, embedded in the server as a library. No scanner runs on the monitored host; agents only send package lists.
 
 ## How matching works
 
@@ -61,6 +61,6 @@ Set `db_url` to your own mirror. It follows Grype's distribution layout:
 - either the base URL (the server appends `/v6/latest.json`), for example `https://mirror.internal/grype/databases`, or a direct URL ending in `.json`;
 - `latest.json` is a small document describing the newest database; its `path` field is the archive file name, **relative to the location of `latest.json`**, and it carries the archive checksum.
 
-To operate a mirror: on a machine with Internet access fetch Anchore's `https://grype.anchore.io/databases/v6/latest.json` and the archive named in its `path` (at the same relative location), transfer both into the isolated network, serve them over HTTP(S) at the URL you configured, and repeat on your own schedule. The server's daily update check then picks up each new archive. Updates are skipped when the mirrored `latest.json` is not newer than what is installed. Keep the file layout and checksum intact, since the server verifies the checksum. Because validity-age checks are disabled in Heartbeat, an old mirror still works; check the build date in the status panel to see how stale it is.
+To operate a mirror: on a machine with Internet access fetch Anchore's `https://grype.anchore.io/databases/v6/latest.json` and the archive named in its `path` (at the same relative location), transfer both into the isolated network, serve them over HTTP(S) at the URL you configured, and repeat on your own schedule. The server's daily update check then picks up each new archive. Updates are skipped when the mirrored `latest.json` is not newer than what is installed. Keep the file layout and checksum intact, since the server verifies the checksum. Because validity-age checks are disabled in Sentrel, an old mirror still works; check the build date in the status panel to see how stale it is.
 
 Anchore is not contacted when `db_url` points to your mirror. The server also needs no other Internet access for vulnerability scanning.

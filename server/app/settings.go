@@ -7,8 +7,8 @@ import (
 	"errors"
 	"sync"
 
-	"heartbeat/server/db"
-	"heartbeat/server/netguard"
+	"sentrel/server/db"
+	"sentrel/server/netguard"
 )
 
 // Settings sections. Each is stored as one JSON row in the settings table.
@@ -104,7 +104,7 @@ type RADIUSSettings struct {
 	TimeoutSec    int    `json:"timeout_seconds"`
 	DefaultRole   string `json:"default_role"`
 	DefaultTenant int64  `json:"default_tenant"`
-	// Optional role from the Filter-Id / Class attribute ("heartbeat:admin").
+	// Optional role from the Filter-Id / Class attribute ("sentrel:admin").
 	RoleAttribute string `json:"role_attribute"`
 }
 
@@ -203,7 +203,7 @@ func defaultFor(key string) any {
 	case keyLDAP:
 		return &LDAPSettings{UserFilter: "(&(objectClass=person)(uid=%s))", EmailAttr: "mail", NameAttr: "cn", GroupAttr: "memberOf"}
 	case keyRADIUS:
-		return &RADIUSSettings{NASIdentifier: "heartbeat", TimeoutSec: 5, RoleAttribute: "Filter-Id"}
+		return &RADIUSSettings{NASIdentifier: "sentrel", TimeoutSec: 5, RoleAttribute: "Filter-Id"}
 	case keyOIDC:
 		return &OIDCSettings{Scopes: "openid profile email groups", ButtonLabel: "SSO", UsernameClaim: "preferred_username", GroupsClaim: "groups", TrustIdPMFA: true}
 	case keyProxyAuth:
@@ -221,7 +221,7 @@ func defaultFor(key string) any {
 	case keyVuln:
 		return &VulnSettings{Enabled: false, SyncHour: 2, ScanAfterInventory: true, AlertSeverity: "Critical", OnlyFixable: true}
 	case keyBranding:
-		return &Branding{ProductName: "Heartbeat", AccentColor: "#e11d48"}
+		return &Branding{ProductName: "Sentrel", AccentColor: "#e11d48"}
 	}
 	return nil
 }

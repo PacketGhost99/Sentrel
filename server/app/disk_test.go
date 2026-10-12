@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	pb "heartbeat/gen/heartbeatv1"
+	pb "sentrel/gen/sentrelv1"
 )
 
 func TestValidateCleanupTasks(t *testing.T) {

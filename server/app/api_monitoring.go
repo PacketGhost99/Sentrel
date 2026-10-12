@@ -15,9 +15,9 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/promql/parser"
 
-	"heartbeat/server/db"
-	"heartbeat/server/metrics"
-	"heartbeat/server/notify"
+	"sentrel/server/db"
+	"sentrel/server/metrics"
+	"sentrel/server/notify"
 )
 
 // --- checks ---
@@ -1058,9 +1058,9 @@ func (a *App) apiMetricQuery(c *Ctx) (any, error) {
 }
 
 func (a *App) apiMetricNames(c *Ctx) (any, error) {
-	q := `count by (__name__) ({__name__=~"hb_.+"})`
+	q := `count by (__name__) ({__name__=~"sentrel_.+"})`
 	if c.P.TenantID != 0 {
-		q = fmt.Sprintf(`count by (__name__) ({__name__=~"hb_.+",tenant_id="%d"})`, c.P.TenantID)
+		q = fmt.Sprintf(`count by (__name__) ({__name__=~"sentrel_.+",tenant_id="%d"})`, c.P.TenantID)
 	}
 	res, err := a.ts.QueryInstant(c.ctx(), q, time.Now())
 	if err != nil {

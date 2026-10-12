@@ -9,9 +9,9 @@ export default defineConfig({
   resolve: { alias: { '@': path.resolve(import.meta.dirname, 'src') } },
   server: {
     proxy: {
-      '/api': { target: process.env.HEARTBEAT_URL || 'http://localhost:8080', changeOrigin: true },
-      '/download': { target: process.env.HEARTBEAT_URL || 'http://localhost:8080', changeOrigin: true },
-      '/install': { target: process.env.HEARTBEAT_URL || 'http://localhost:8080', changeOrigin: true },
+      '/api': { target: process.env.SENTREL_URL || 'http://localhost:8080', changeOrigin: true },
+      '/download': { target: process.env.SENTREL_URL || 'http://localhost:8080', changeOrigin: true },
+      '/install': { target: process.env.SENTREL_URL || 'http://localhost:8080', changeOrigin: true },
     },
   },
   test: { environment: 'node' },

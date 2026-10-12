@@ -16,7 +16,7 @@ export function AuthShell({ children, wide }: { children: React.ReactNode; wide?
       <div className={wide ? 'w-full max-w-2xl' : 'w-full max-w-sm'}>
         <div className="mb-6 flex flex-col items-center gap-3 text-center">
           {b?.logo_data_url ? <img src={b.logo_data_url} alt="" className="h-12 max-w-[220px] object-contain" /> : <Logo className="size-11" />}
-          <h1 className="text-xl font-semibold tracking-tight">{b?.product_name || 'Heartbeat'}</h1>
+          <h1 className="text-xl font-semibold tracking-tight">{b?.product_name || 'Sentrel'}</h1>
           {info?.tenant_name && <div className="text-sm text-muted">{info.tenant_name}</div>}
         </div>
         {children}

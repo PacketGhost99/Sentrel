@@ -1,13 +1,13 @@
-// Heartbeat agent <-> server protocol.
+// Sentrel agent <-> server protocol.
 //
 // Versioning: SCHEMA_VERSION is bumped on any breaking change. Fields are only
 // ever added, never renumbered. Agents send their schema version in Register
 // and Hello; the server rejects versions it cannot speak.
 syntax = "proto3";
 
-package heartbeat.v1;
+package sentrel.v1;
 
-option go_package = "heartbeat/gen/heartbeatv1;heartbeatv1";
+option go_package = "sentrel/gen/sentrelv1;sentrelv1";
 
 enum SchemaVersion {
   SCHEMA_VERSION_UNSPECIFIED = 0;
@@ -64,13 +64,13 @@ message Hello {
   HostInfo host = 4;
   // Application-level proof of possession, used when mTLS is terminated by a
   // proxy in front of the server (e.g. a Cloudflare tunnel). The agent signs
-  // "heartbeat-hello|<agent_id>|<unix_ms>" with its private key.
+  // "sentrel-hello|<agent_id>|<unix_ms>" with its private key.
   bytes cert_pem = 5;
   int64 unix_ms = 6;
   bytes signature = 7;
   // Set when the agent was just upgraded and this is its first connection.
   string updated_from = 8;
-  // Set by `heartbeat-agent self-test`: the server verifies auth then closes.
+  // Set by `sentrel-agent self-test`: the server verifies auth then closes.
   bool self_test = 9;
   // The agent's local write-job policy (server, operator or none) and the
   // base64 Ed25519 operator public keys it trusts. Read from the root-owned

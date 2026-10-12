@@ -28,7 +28,7 @@ function bytesToB64(b: Uint8Array): string {
 
 /**
  * Signs the job spec bytes with an Ed25519 operator key (PKCS#8 PEM, as written by
- * `hb-sign keygen-operator`) using WebCrypto. Nothing is sent anywhere.
+ * `sentrel-sign keygen-operator`) using WebCrypto. Nothing is sent anywhere.
  */
 export async function signSpec(keyText: string, specB64: string): Promise<string> {
   const body = keyText.replace(/-----(BEGIN|END)[^-]*-----/g, '').replace(/\s+/g, '')
@@ -37,7 +37,7 @@ export async function signSpec(keyText: string, specB64: string): Promise<string
   try {
     key = await crypto.subtle.importKey('pkcs8', b64ToBytes(body), { name: 'Ed25519' }, false, ['sign'])
   } catch {
-    throw new Error('Could not read the key. Use the PKCS#8 PEM file written by "hb-sign keygen-operator". This browser must also support Ed25519.')
+    throw new Error('Could not read the key. Use the PKCS#8 PEM file written by "sentrel-sign keygen-operator". This browser must also support Ed25519.')
   }
   const sig = await crypto.subtle.sign({ name: 'Ed25519' }, key, b64ToBytes(specB64))
   return bytesToB64(new Uint8Array(sig))
@@ -99,7 +99,7 @@ export function OperatorSignPanel({ job, onSigned }: { job: Job; onSigned?: () =
       setBusy(false)
     }
   }
-  const cmd = spec.data ? `hb-sign sign-job --key operator.key --spec ${spec.data.spec}` : ''
+  const cmd = spec.data ? `sentrel-sign sign-job --key operator.key --spec ${spec.data.spec}` : ''
 
   return (
     <div className="space-y-3 rounded-xl border border-warn/30 bg-warn/10 p-4">

@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
-	"heartbeat/internal/version"
-	"heartbeat/server/agentdist"
-	"heartbeat/server/authn"
-	"heartbeat/server/db"
-	"heartbeat/server/notify"
+	"sentrel/internal/version"
+	"sentrel/server/agentdist"
+	"sentrel/server/authn"
+	"sentrel/server/db"
+	"sentrel/server/notify"
 )
 
 var startedAt = time.Now()
@@ -383,7 +383,7 @@ func (a *App) apiCreateKey(c *Ctx) (any, error) {
 	}
 	id, _ := res.LastInsertId()
 	c.audit("api_key.created", "api_key", itoa(id), map[string]any{"name": req.Name, "scopes": req.Scopes})
-	return created{map[string]any{"id": id, "key": "hb_" + prefix + "_" + secret, "prefix": prefix, "scopes": req.Scopes, "expires_at": exp}}, nil
+	return created{map[string]any{"id": id, "key": "sentrel_" + prefix + "_" + secret, "prefix": prefix, "scopes": req.Scopes, "expires_at": exp}}, nil
 }
 
 func (a *App) apiDeleteKey(c *Ctx) (any, error) {
@@ -719,7 +719,7 @@ func (a *App) apiPutBranding(c *Ctx) (any, error) {
 	b.LoginText = truncateStr(b.LoginText, 2000)
 	b.FooterText = truncateStr(b.FooterText, 500)
 	if t == 0 && b.ProductName == "" {
-		b.ProductName = "Heartbeat"
+		b.ProductName = "Sentrel"
 	}
 	if err := a.settings.Save(c.ctx(), t, keyBranding, b); err != nil {
 		return nil, err
@@ -763,7 +763,7 @@ func (a *App) apiServerStatus(c *Ctx) (any, error) {
 }
 
 func (a *App) apiBackup(c *Ctx) (any, error) {
-	name := fmt.Sprintf("heartbeat-backup-%s.tar.gz", time.Now().UTC().Format("20060102-150405"))
+	name := fmt.Sprintf("sentrel-backup-%s.tar.gz", time.Now().UTC().Format("20060102-150405"))
 	c.audit("server.backup_downloaded", "", "", nil)
 	return rawResponse(func(w http.ResponseWriter) {
 		w.Header().Set("Content-Type", "application/gzip")

@@ -1,6 +1,6 @@
-# Heartbeat
+# Sentrel
 
-Heartbeat is a self-hosted infrastructure monitor. One Go server binary (with the React UI, a time-series store, a vulnerability matcher and an internal certificate authority built in) plus one small Go agent for Linux and Windows. SNMP devices and agentless targets are monitored from the server.
+Sentrel is a self-hosted infrastructure monitor. One Go server binary (with the React UI, a time-series store, a vulnerability matcher and an internal certificate authority built in) plus one small Go agent for Linux and Windows. SNMP devices and agentless targets are monitored from the server.
 
 - Single static binaries, no external database: state lives in SQLite and an embedded Prometheus TSDB under one data directory.
 - One TCP port serves the web UI, the REST API, the agent gRPC stream, installers and `/metrics`.
@@ -43,11 +43,11 @@ Heartbeat is a self-hosted infrastructure monitor. One Go server binary (with th
 
 ### 1. Install the server
 
-**Linux with systemd** (installs to `/usr/local/bin`, data in `/var/lib/heartbeat`, runs as the `heartbeat` user):
+**Linux with systemd** (installs to `/usr/local/bin`, data in `/var/lib/sentrel`, runs as the `sentrel` user):
 
 ```sh
-sudo sh install-server.sh --binary ./heartbeat-server-linux-amd64
-# or: sudo sh install-server.sh --url https://example.com/heartbeat-server-linux-amd64 --sha256 <hex>
+sudo sh install-server.sh --binary ./sentrel-server-linux-amd64
+# or: sudo sh install-server.sh --url https://example.com/sentrel-server-linux-amd64 --sha256 <hex>
 ```
 
 The script prints the URL and the one-time setup token when it finishes.
@@ -56,7 +56,7 @@ The script prints the URL and the one-time setup token when it finishes.
 
 ```sh
 docker compose -f deploy/docker-compose.yml up -d --build
-docker compose -f deploy/docker-compose.yml logs heartbeat | grep -i "setup token"
+docker compose -f deploy/docker-compose.yml logs sentrel | grep -i "setup token"
 ```
 
 ### 2. First-run setup
@@ -82,12 +82,12 @@ curl -fsSL https://monitor.example.com/install/agent.sh | sudo sh -s -- --server
 **Windows MSI** (silent, for deployment tools):
 
 ```powershell
-msiexec /i heartbeat-agent-<version>-x64.msi SERVER=https://monitor.example.com TOKEN=ABCD-1234-EFGH /qn
+msiexec /i sentrel-agent-<version>-x64.msi SERVER=https://monitor.example.com TOKEN=ABCD-1234-EFGH /qn
 ```
 
 > `scripts/build.sh` produces the MSI from `deploy/agent.wxs` when `wixl` (msitools) is installed; builds without it have no MSI.
 
-Other options (SSH/WinRM push install, manual `heartbeat-agent register`) are in [docs/agents.md](docs/agents.md).
+Other options (SSH/WinRM push install, manual `sentrel-agent register`) are in [docs/agents.md](docs/agents.md).
 
 ### 4. Add SNMP devices and targets
 
@@ -97,18 +97,18 @@ Other options (SSH/WinRM push install, manual `heartbeat-agent register`) are in
 
 ```
   Browser ──HTTPS/HTTP──┐
-  API clients ──────────┤            ┌──────────────────────── heartbeat-server ───────────────────────┐
+  API clients ──────────┤            ┌──────────────────────── sentrel-server ───────────────────────┐
   Prometheus ───────────┤            │  REST API + UI + /metrics   gRPC AgentService (same port)       │
                         ├── :8080 ───┤  alert engine · notifier · check runner · SNMP poller · jobs    │
-  heartbeat-agent ──────┘  (outbound │  vulnerability matcher (Grype)   internal CA (mTLS, job keys)   │
+  sentrel-agent ──────┘  (outbound │  vulnerability matcher (Grype)   internal CA (mTLS, job keys)   │
    gRPC over HTTP/2        from agent)│  SQLite (WAL)   Prometheus TSDB   data directory                │
                                       └──────────────────────────────────────────────────────────────────┘
 ```
 
-- **Server** (`cmd/heartbeat-server`): everything in one process. Plain HTTP (with HTTP/2 cleartext), self-signed (internal CA) or Let's Encrypt TLS on one port; gRPC requests are routed by content type.
-- **Agent** (`cmd/heartbeat-agent`): holds a long-lived gRPC stream to the server, sends metrics, state, inventory and security reports, and executes signed jobs. On Linux it runs as an unprivileged user and calls a root helper (`heartbeat-agent priv ...`) through a narrow sudo rule.
+- **Server** (`cmd/sentrel-server`): everything in one process. Plain HTTP (with HTTP/2 cleartext), self-signed (internal CA) or Let's Encrypt TLS on one port; gRPC requests are routed by content type.
+- **Agent** (`cmd/sentrel-agent`): holds a long-lived gRPC stream to the server, sends metrics, state, inventory and security reports, and executes signed jobs. On Linux it runs as an unprivileged user and calls a root helper (`sentrel-agent priv ...`) through a narrow sudo rule.
 - **Trust**: the server creates an internal CA at first start. Agents enrol once with a one-time token, receive a client certificate, and the server signs jobs and agent binaries with an Ed25519 key whose public half is delivered at enrolment. Details in [docs/security.md](docs/security.md).
-- **Data**: `heartbeat.db` (settings, hosts, alerts, audit, findings), `tsdb/` (metrics), `pki/` (CA and keys), `vulndb/` (Grype database, around 3 GB).
+- **Data**: `sentrel.db` (settings, hosts, alerts, audit, findings), `tsdb/` (metrics), `pki/` (CA and keys), `vulndb/` (Grype database, around 3 GB).
 
 ## Documentation
 
@@ -126,6 +126,10 @@ Other options (SSH/WinRM push install, manual `heartbeat-agent register`) are in
 | [docs/operations.md](docs/operations.md) | Backup, restore, password reset, retention, upgrades |
 | [docs/development.md](docs/development.md) | Repository layout, build, tests, protobuf |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution rules and DCO sign-off |
+
+## Renamed from Heartbeat
+
+This project was previously named Heartbeat. Binaries, services, paths, the Go module, the protocol package, cookies, environment variables and metric prefixes were all renamed to Sentrel. Installs made before the rename must be migrated by hand (data directory, service and agent paths).
 
 ## License
 

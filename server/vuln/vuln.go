@@ -56,12 +56,12 @@ func New(dir string, log *slog.Logger) *Scanner {
 
 func (s *Scanner) configs(url string) (v6dist.Config, v6inst.Config) {
 	dc := v6dist.DefaultConfig()
-	dc.ID = clio.Identification{Name: "heartbeat"}
+	dc.ID = clio.Identification{Name: "sentrel"}
 	if url != "" {
 		dc.LatestURL = url
 	}
 	dc.UpdateTimeout = 30 * time.Minute
-	ic := v6inst.DefaultConfig(clio.Identification{Name: "heartbeat"})
+	ic := v6inst.DefaultConfig(clio.Identification{Name: "sentrel"})
 	ic.DBRootDir = s.dir
 	// We schedule updates ourselves and alert on staleness in the UI.
 	ic.ValidateAge = false

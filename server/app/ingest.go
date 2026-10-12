@@ -13,9 +13,9 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	pb "heartbeat/gen/heartbeatv1"
-	"heartbeat/server/db"
-	"heartbeat/server/metrics"
+	pb "sentrel/gen/sentrelv1"
+	"sentrel/server/db"
+	"sentrel/server/metrics"
 )
 
 func (a *App) handleAgentMessage(ctx context.Context, hostID int64, m *pb.AgentMessage) {

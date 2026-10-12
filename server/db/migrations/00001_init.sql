@@ -1,5 +1,5 @@
 -- +goose Up
--- Heartbeat initial schema.
+-- Sentrel initial schema.
 -- Every tenant-scoped row carries tenant_id. Tenant 0 is the provider/admin
 -- tenant; its users can see every tenant.
 

@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"heartbeat/internal/version"
-	"heartbeat/server/authn"
-	"heartbeat/server/db"
+	"sentrel/internal/version"
+	"sentrel/server/authn"
+	"sentrel/server/db"
 )
 
 // PublicInfo is shown on the login page.
@@ -202,7 +202,7 @@ func (a *App) validatePassword(pw string) error {
 		return badRequest("password too long")
 	}
 	lower := strings.ToLower(pw)
-	for _, bad := range []string{"password", "heartbeat", "12345678", "qwertyui"} {
+	for _, bad := range []string{"password", "sentrel", "12345678", "qwertyui"} {
 		if strings.Contains(lower, bad) && len(pw) < 16 {
 			return badRequest("password is too easy to guess")
 		}

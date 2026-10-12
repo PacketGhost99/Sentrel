@@ -1,4 +1,4 @@
-// Heartbeat agent <-> server protocol.
+// Sentrel agent <-> server protocol.
 //
 // Versioning: SCHEMA_VERSION is bumped on any breaking change. Fields are only
 // ever added, never renumbered. Agents send their schema version in Register
@@ -8,9 +8,9 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v3.21.12
-// source: heartbeat/v1/agent.proto
+// source: sentrel/v1/agent.proto
 
-package heartbeatv1
+package sentrelv1
 
 import (
 	context "context"
@@ -25,8 +25,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AgentService_Register_FullMethodName = "/heartbeat.v1.AgentService/Register"
-	AgentService_Connect_FullMethodName  = "/heartbeat.v1.AgentService/Connect"
+	AgentService_Register_FullMethodName = "/sentrel.v1.AgentService/Register"
+	AgentService_Connect_FullMethodName  = "/sentrel.v1.AgentService/Connect"
 )
 
 // AgentServiceClient is the client API for AgentService service.
@@ -146,7 +146,7 @@ type AgentService_ConnectServer = grpc.BidiStreamingServer[AgentMessage, ServerM
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var AgentService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "heartbeat.v1.AgentService",
+	ServiceName: "sentrel.v1.AgentService",
 	HandlerType: (*AgentServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -162,5 +162,5 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 	},
-	Metadata: "heartbeat/v1/agent.proto",
+	Metadata: "sentrel/v1/agent.proto",
 }

@@ -193,7 +193,7 @@ func TestIsMountPoint(t *testing.T) {
 			t.Errorf("%q rejected", ok)
 		}
 	}
-	for _, bad := range []string{"/etc", "/root", "/var/lib/heartbeat-agent", "/mnt", "/boot/../etc"} {
+	for _, bad := range []string{"/etc", "/root", "/var/lib/sentrel-agent", "/mnt", "/boot/../etc"} {
 		if isMountPoint(bad, mounts) {
 			t.Errorf("%q accepted", bad)
 		}

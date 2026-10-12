@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	pb "heartbeat/gen/heartbeatv1"
+	pb "sentrel/gen/sentrelv1"
 )
 
 // failureCounter aggregates failed logins per source IP for one window.

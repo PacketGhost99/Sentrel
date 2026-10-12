@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"heartbeat/server/db"
-	"heartbeat/server/metrics"
+	"sentrel/server/db"
+	"sentrel/server/metrics"
 )
 
 // --- beat bars ---

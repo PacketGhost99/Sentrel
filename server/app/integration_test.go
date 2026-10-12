@@ -16,6 +16,8 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -505,5 +507,74 @@ func TestOpenAPISpec(t *testing.T) {
 	paths := m["paths"].(map[string]any)
 	if len(paths) < 80 {
 		t.Fatalf("expected the full route table, got %d paths", len(paths))
+	}
+}
+
+func TestAutoUpdateQueuesJob(t *testing.T) {
+	e := newTestEnv(t)
+	admin := e.setupAdmin()
+	hostID, _ := e.enrol(admin)
+	ctx := context.Background()
+	count := func() int {
+		var n int
+		_ = e.a.db.GetContext(ctx, &n, `SELECT COUNT(*) FROM jobs WHERE host_id=? AND type='self_update'`, hostID)
+		return n
+	}
+	setVersion := func(v string) {
+		if _, err := e.a.db.ExecContext(ctx, `UPDATE hosts SET agent_version=? WHERE id=?`, v, hostID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	check := func() {
+		h, err := e.a.getHost(ctx, hostID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		e.a.jobs.maybeAutoUpdate(ctx, h)
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "heartbeat-agent-linux-amd64"), []byte("fake-binary"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "VERSION"), []byte("2.0.0\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	e.a.cfg.AgentBinDir = dir
+	setVersion("1.0.0")
+
+	// Disabled: nothing happens.
+	check()
+	if count() != 0 {
+		t.Fatal("job queued while auto_update is off")
+	}
+	d := e.a.settings.Agent()
+	d.AutoUpdate = true
+	if err := e.a.settings.Save(ctx, 0, keyAgent, d); err != nil {
+		t.Fatal(err)
+	}
+	// Dev builds are left alone.
+	setVersion("dev")
+	check()
+	if count() != 0 {
+		t.Fatal("dev agent updated")
+	}
+	setVersion("1.0.0")
+	check()
+	if count() != 1 {
+		t.Fatalf("expected one self_update job, got %d", count())
+	}
+	// No duplicates while one is pending.
+	check()
+	if count() != 1 {
+		t.Fatalf("duplicate job: %d", count())
+	}
+	// Up-to-date agents are skipped.
+	if _, err := e.a.db.ExecContext(ctx, `DELETE FROM jobs`); err != nil {
+		t.Fatal(err)
+	}
+	setVersion("2.0.0")
+	check()
+	if count() != 0 {
+		t.Fatal("current agent updated")
 	}
 }

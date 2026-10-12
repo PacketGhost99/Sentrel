@@ -34,11 +34,11 @@ type httpServer struct {
 	handler http.Handler
 	api     *apiRouter
 
-	mu       sync.Mutex
-	servers  []*http.Server
-	restart  chan struct{}
-	mode     string
-	lastErr  error
+	mu      sync.Mutex
+	servers []*http.Server
+	restart chan struct{}
+	mode    string
+	lastErr error
 }
 
 func newHTTPServer(a *App) *httpServer {

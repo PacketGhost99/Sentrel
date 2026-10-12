@@ -285,7 +285,9 @@ type loginResp struct {
 	User             *User    `json:"user"`
 }
 
-func (s *authService) lockoutKey(username, ip string) string { return strings.ToLower(username) + "|" + ip }
+func (s *authService) lockoutKey(username, ip string) string {
+	return strings.ToLower(username) + "|" + ip
+}
 
 func (s *authService) login(c *Ctx) (any, error) {
 	a := s.app

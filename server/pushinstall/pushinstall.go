@@ -186,13 +186,13 @@ func shellJoin(args []string) string {
 
 // WinRMRequest describes a Windows push install.
 type WinRMRequest struct {
-	Host       string
-	Port       int
-	HTTPS      bool
-	Insecure   bool // skip certificate validation (self-signed WinRM listener)
-	Username   string
-	Password   string
-	UseNTLM    bool
+	Host     string
+	Port     int
+	HTTPS    bool
+	Insecure bool // skip certificate validation (self-signed WinRM listener)
+	Username string
+	Password string
+	UseNTLM  bool
 }
 
 // WinRMInstall runs a PowerShell script on the target.

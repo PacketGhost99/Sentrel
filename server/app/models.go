@@ -178,25 +178,25 @@ type Host struct {
 	UpdatedAt         int64   `db:"updated_at" json:"updated_at"`
 
 	// Derived fields filled by list endpoints.
-	GroupName      string `db:"-" json:"group_name,omitempty"`
-	TenantName     string `db:"-" json:"tenant_name,omitempty"`
-	AlertCount     int    `db:"-" json:"alert_count"`
-	AlertSeverity  string `db:"-" json:"alert_severity,omitempty"`
-	UpgradeCount   int    `db:"-" json:"upgrade_count"`
-	SecurityCount  int    `db:"-" json:"security_count"`
-	VulnCritical   int    `db:"-" json:"vuln_critical"`
-	VulnHigh       int    `db:"-" json:"vuln_high"`
-	InMaintenance  bool   `db:"-" json:"in_maintenance"`
-	Summary        *HostSummary `db:"-" json:"summary,omitempty"`
+	GroupName     string       `db:"-" json:"group_name,omitempty"`
+	TenantName    string       `db:"-" json:"tenant_name,omitempty"`
+	AlertCount    int          `db:"-" json:"alert_count"`
+	AlertSeverity string       `db:"-" json:"alert_severity,omitempty"`
+	UpgradeCount  int          `db:"-" json:"upgrade_count"`
+	SecurityCount int          `db:"-" json:"security_count"`
+	VulnCritical  int          `db:"-" json:"vuln_critical"`
+	VulnHigh      int          `db:"-" json:"vuln_high"`
+	InMaintenance bool         `db:"-" json:"in_maintenance"`
+	Summary       *HostSummary `db:"-" json:"summary,omitempty"`
 }
 
 // HostSummary holds the latest headline metrics for list views.
 type HostSummary struct {
-	CPU      *float64 `json:"cpu"`
-	Memory   *float64 `json:"memory"`
-	Disk     *float64 `json:"disk"` // worst mount
-	Load     *float64 `json:"load"`
-	Uptime   *float64 `json:"uptime"`
+	CPU    *float64 `json:"cpu"`
+	Memory *float64 `json:"memory"`
+	Disk   *float64 `json:"disk"` // worst mount
+	Load   *float64 `json:"load"`
+	Uptime *float64 `json:"uptime"`
 }
 
 const hostCols = `h.id, h.tenant_id, h.kind, h.name, h.address, h.group_id, h.tags, h.notes, h.agent_id, h.cert_serial,
@@ -218,26 +218,26 @@ type AgentOptions struct {
 }
 
 type Check struct {
-	ID                  int64   `db:"id" json:"id"`
-	TenantID            int64   `db:"tenant_id" json:"tenant_id"`
-	HostID              *int64  `db:"host_id" json:"host_id"`
-	Name                string  `db:"name" json:"name"`
-	Type                string  `db:"type" json:"type"`
-	Target              string  `db:"target" json:"target"`
-	Config              JSON    `db:"config" json:"config"`
-	IntervalSeconds     int     `db:"interval_seconds" json:"interval_seconds"`
-	TimeoutSeconds      int     `db:"timeout_seconds" json:"timeout_seconds"`
-	FailureThreshold    int     `db:"failure_threshold" json:"failure_threshold"`
-	Severity            string  `db:"severity" json:"severity"`
-	Enabled             bool    `db:"enabled" json:"enabled"`
-	Status              string  `db:"status" json:"status"`
-	ConsecutiveFailures int     `db:"consecutive_failures" json:"consecutive_failures"`
-	LastMessage         string  `db:"last_message" json:"last_message"`
-	LastLatencyMs       float64 `db:"last_latency_ms" json:"last_latency_ms"`
-	LastCheckedAt       int64   `db:"last_checked_at" json:"last_checked_at"`
-	LastChangeAt        int64   `db:"last_change_at" json:"last_change_at"`
-	CreatedAt           int64   `db:"created_at" json:"created_at"`
-	HostName            string  `db:"-" json:"host_name,omitempty"`
+	ID                  int64    `db:"id" json:"id"`
+	TenantID            int64    `db:"tenant_id" json:"tenant_id"`
+	HostID              *int64   `db:"host_id" json:"host_id"`
+	Name                string   `db:"name" json:"name"`
+	Type                string   `db:"type" json:"type"`
+	Target              string   `db:"target" json:"target"`
+	Config              JSON     `db:"config" json:"config"`
+	IntervalSeconds     int      `db:"interval_seconds" json:"interval_seconds"`
+	TimeoutSeconds      int      `db:"timeout_seconds" json:"timeout_seconds"`
+	FailureThreshold    int      `db:"failure_threshold" json:"failure_threshold"`
+	Severity            string   `db:"severity" json:"severity"`
+	Enabled             bool     `db:"enabled" json:"enabled"`
+	Status              string   `db:"status" json:"status"`
+	ConsecutiveFailures int      `db:"consecutive_failures" json:"consecutive_failures"`
+	LastMessage         string   `db:"last_message" json:"last_message"`
+	LastLatencyMs       float64  `db:"last_latency_ms" json:"last_latency_ms"`
+	LastCheckedAt       int64    `db:"last_checked_at" json:"last_checked_at"`
+	LastChangeAt        int64    `db:"last_change_at" json:"last_change_at"`
+	CreatedAt           int64    `db:"created_at" json:"created_at"`
+	HostName            string   `db:"-" json:"host_name,omitempty"`
 	Uptime24h           *float64 `db:"-" json:"uptime_24h,omitempty"`
 }
 

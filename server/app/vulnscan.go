@@ -227,12 +227,12 @@ func (v *VulnService) ScanHost(ctx context.Context, hostID int64, trigger string
 				seen[f.VulnID] = true
 				summary.Findings++
 				switch f.Severity {
-			case "Critical":
-				summary.Critical++
-			case "High":
-				summary.High++
-			case "Medium":
-				summary.Medium++
+				case "Critical":
+					summary.Critical++
+				case "High":
+					summary.High++
+				case "Medium":
+					summary.Medium++
 				case "Low":
 					summary.Low++
 				}

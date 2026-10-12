@@ -14,5 +14,6 @@ export default defineConfig({
       '/install': { target: process.env.HEARTBEAT_URL || 'http://localhost:8080', changeOrigin: true },
     },
   },
+  test: { environment: 'node' },
   build: { outDir: 'dist', emptyOutDir: true, chunkSizeWarningLimit: 1200, sourcemap: false },
 })

@@ -333,6 +333,9 @@ func (a *App) onAgentConnected(ctx context.Context, h *Host, hello *pb.Hello, ip
 			Details: map[string]any{"from": hello.UpdatedFrom, "to": hello.AgentVersion}})
 		a.jobs.completeSelfUpdate(ctx, h.ID, hello.AgentVersion)
 	}
+	if hh, err := a.getHost(ctx, h.ID); err == nil {
+		a.jobs.maybeAutoUpdate(ctx, hh)
+	}
 	a.log.Info("agent connected", "host_id", h.ID, "name", h.Name, "ip", ip, "version", hello.AgentVersion)
 	a.events.publish(Event{Type: "host.connected", TenantID: h.TenantID, HostID: h.ID})
 	a.alerts.hostSeen(h.ID)

@@ -23,32 +23,32 @@ var agentCheckTypes = map[string]bool{"service": true, "process": true, "port": 
 
 // CheckConfig holds type-specific options (stored as JSON).
 type CheckConfig struct {
-	Count         int               `json:"count,omitempty"`          // ping
-	Method        string            `json:"method,omitempty"`         // http
-	Headers       map[string]string `json:"headers,omitempty"`
-	Body          string            `json:"body,omitempty"`
-	ExpectStatus  string            `json:"expect_status,omitempty"`
-	Keyword       string            `json:"keyword,omitempty"`
-	KeywordAbsent bool              `json:"keyword_absent,omitempty"`
-	KeywordRegex  bool              `json:"keyword_regex,omitempty"`
-	FollowRedirects *bool           `json:"follow_redirects,omitempty"`
-	IgnoreTLS     bool              `json:"ignore_tls,omitempty"`
-	BasicUser     string            `json:"basic_user,omitempty"`
-	BasicPassword string            `json:"basic_password,omitempty"`
-	MaxLatencyMs  float64           `json:"max_latency_ms,omitempty"`
-	CheckCert     bool              `json:"check_cert,omitempty"` // http: also alert on cert expiry
-	ServerName    string            `json:"server_name,omitempty"` // cert SNI
-	AllowInvalid  bool              `json:"allow_invalid,omitempty"`
-	WarnDays      float64           `json:"warn_days,omitempty"`  // cert, default 30
-	NoticeDays    float64           `json:"notice_days,omitempty"` // cert, default 14 (re-notify)
-	CritDays      float64           `json:"crit_days,omitempty"`  // cert, default 7
-	RecordType    string            `json:"record_type,omitempty"` // dns
-	Resolver      string            `json:"resolver,omitempty"`
-	Expect        string            `json:"expect,omitempty"`
-	State         string            `json:"state,omitempty"`    // service: expected state (running/active)
-	Regex         bool              `json:"regex,omitempty"`    // process
-	Protocol      string            `json:"protocol,omitempty"` // port: tcp/udp
-	RequireHealthy bool             `json:"require_healthy,omitempty"` // container
+	Count           int               `json:"count,omitempty"`  // ping
+	Method          string            `json:"method,omitempty"` // http
+	Headers         map[string]string `json:"headers,omitempty"`
+	Body            string            `json:"body,omitempty"`
+	ExpectStatus    string            `json:"expect_status,omitempty"`
+	Keyword         string            `json:"keyword,omitempty"`
+	KeywordAbsent   bool              `json:"keyword_absent,omitempty"`
+	KeywordRegex    bool              `json:"keyword_regex,omitempty"`
+	FollowRedirects *bool             `json:"follow_redirects,omitempty"`
+	IgnoreTLS       bool              `json:"ignore_tls,omitempty"`
+	BasicUser       string            `json:"basic_user,omitempty"`
+	BasicPassword   string            `json:"basic_password,omitempty"`
+	MaxLatencyMs    float64           `json:"max_latency_ms,omitempty"`
+	CheckCert       bool              `json:"check_cert,omitempty"`  // http: also alert on cert expiry
+	ServerName      string            `json:"server_name,omitempty"` // cert SNI
+	AllowInvalid    bool              `json:"allow_invalid,omitempty"`
+	WarnDays        float64           `json:"warn_days,omitempty"`   // cert, default 30
+	NoticeDays      float64           `json:"notice_days,omitempty"` // cert, default 14 (re-notify)
+	CritDays        float64           `json:"crit_days,omitempty"`   // cert, default 7
+	RecordType      string            `json:"record_type,omitempty"` // dns
+	Resolver        string            `json:"resolver,omitempty"`
+	Expect          string            `json:"expect,omitempty"`
+	State           string            `json:"state,omitempty"`           // service: expected state (running/active)
+	Regex           bool              `json:"regex,omitempty"`           // process
+	Protocol        string            `json:"protocol,omitempty"`        // port: tcp/udp
+	RequireHealthy  bool              `json:"require_healthy,omitempty"` // container
 }
 
 // CheckRunner schedules server-side checks.

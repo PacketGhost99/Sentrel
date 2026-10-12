@@ -67,16 +67,16 @@ func (a *App) apiPublicInfo(c *Ctx) (any, error) {
 
 // SetupReq completes the first-run wizard.
 type SetupReq struct {
-	Token     string `json:"token"`
-	Username  string `json:"username"`
-	Password  string `json:"password"`
-	Email     string `json:"email"`
-	ServerURL string `json:"server_url"`
-	TLSMode   string `json:"tls_mode"` // http, selfsigned, acme
-	Hostname  string `json:"hostname"`
-	ACMEEmail string `json:"acme_email"`
-	Timezone  string `json:"timezone"`
-	TrustProxy bool  `json:"trust_proxy"`
+	Token      string `json:"token"`
+	Username   string `json:"username"`
+	Password   string `json:"password"`
+	Email      string `json:"email"`
+	ServerURL  string `json:"server_url"`
+	TLSMode    string `json:"tls_mode"` // http, selfsigned, acme
+	Hostname   string `json:"hostname"`
+	ACMEEmail  string `json:"acme_email"`
+	Timezone   string `json:"timezone"`
+	TrustProxy bool   `json:"trust_proxy"`
 }
 
 func (a *App) apiSetup(c *Ctx) (any, error) {
@@ -352,12 +352,12 @@ type dashboard struct {
 		Down    int `json:"down"`
 		Warning int `json:"warning"`
 	} `json:"checks"`
-	Upgrades        int          `json:"upgrades_pending"`
-	SecurityUpdates int          `json:"security_updates"`
-	RebootRequired  int          `json:"reboot_required"`
+	Upgrades        int            `json:"upgrades_pending"`
+	SecurityUpdates int            `json:"security_updates"`
+	RebootRequired  int            `json:"reboot_required"`
 	Vulns           map[string]int `json:"vulnerabilities"`
-	RecentEvents    []AlertEvent `json:"recent_events"`
-	FiringAlerts    []Alert      `json:"firing_alerts"`
+	RecentEvents    []AlertEvent   `json:"recent_events"`
+	FiringAlerts    []Alert        `json:"firing_alerts"`
 }
 
 func (a *App) apiDashboard(c *Ctx) (any, error) {

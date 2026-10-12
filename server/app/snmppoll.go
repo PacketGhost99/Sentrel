@@ -23,7 +23,7 @@ type SNMPPoller struct {
 	next     map[int64]time.Time
 	running  map[int64]bool
 	counters map[string]ifCounter // "<host>/<ifIndex>"
-	state    *snmp.State            // profile counter metrics
+	state    *snmp.State          // profile counter metrics
 	sem      chan struct{}
 }
 
@@ -35,13 +35,13 @@ type ifCounter struct {
 
 // SNMPInfo is stored in hosts.snmp_info.
 type SNMPInfo struct {
-	System     snmp.System      `json:"system"`
-	Profile    string           `json:"profile"`
-	Interfaces []snmp.Interface `json:"interfaces"`
-	Errors     []string         `json:"errors,omitempty"`
-	LastPoll   int64            `json:"last_poll"`
-	LastError  string           `json:"last_error,omitempty"`
-	DurationMs float64          `json:"duration_ms"`
+	System     snmp.System        `json:"system"`
+	Profile    string             `json:"profile"`
+	Interfaces []snmp.Interface   `json:"interfaces"`
+	Errors     []string           `json:"errors,omitempty"`
+	LastPoll   int64              `json:"last_poll"`
+	LastError  string             `json:"last_error,omitempty"`
+	DurationMs float64            `json:"duration_ms"`
 	Metrics    map[string]float64 `json:"metrics,omitempty"`
 }
 

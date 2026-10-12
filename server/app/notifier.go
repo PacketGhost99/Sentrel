@@ -23,9 +23,9 @@ type Notifier struct {
 	firstAt  map[int64]time.Time
 	lastSent map[[2]int64]int64 // (channel, alert) -> unix
 
-	chMu      sync.RWMutex
-	channels  []NotificationChannel
-	chLoaded  time.Time
+	chMu     sync.RWMutex
+	channels []NotificationChannel
+	chLoaded time.Time
 }
 
 type queuedNote struct {

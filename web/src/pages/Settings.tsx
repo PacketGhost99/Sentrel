@@ -286,6 +286,7 @@ function Agents({ data }: { data: any }) {
           <Field label="Security report interval (s)"><Input type="number" value={v.security_interval_seconds} onChange={(e) => set({ security_interval_seconds: num(e.target.value) })} /></Field>
           <Toggle checked={!!v.collect_services} onChange={(x) => set({ collect_services: x })} label="All services" />
           <Toggle checked={!!v.collect_ports} onChange={(x) => set({ collect_ports: x })} label="Listening ports" />
+          <div className="sm:col-span-2"><Toggle checked={!!v.auto_update} onChange={(x) => set({ auto_update: x })} label="Update agents automatically" hint="When a host's agent is older than the agent bundled with this server, a signed update job is queued (it self-tests and rolls back on failure)" /></div>
           <Toggle checked={!!v.collect_docker} onChange={(x) => set({ collect_docker: x })} label="Docker containers" />
           <Toggle checked={!!v.collect_temperatures} onChange={(x) => set({ collect_temperatures: x })} label="Temperatures" />
           <Toggle checked={!!v.fail2ban_enabled} onChange={(x) => set({ fail2ban_enabled: x })} label="Read fail2ban" />

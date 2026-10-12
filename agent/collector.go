@@ -130,20 +130,20 @@ var ignoredFS = map[string]bool{
 type Collector struct {
 	mu sync.Mutex
 
-	prevCPU   *cpu.TimesStat
-	prevNet   map[string]gnet.IOCountersStat
-	prevDisk  map[string]disk.IOCountersStat
-	prevAt    time.Time
-	procs     map[int32]*process.Process
-	self      *process.Process
-	diskHist  map[string][]diskPoint // mount -> 5-minute buckets, 24h
-	histPath  string
-	restarts  map[string]int // container -> last restart count
-	docker    *dockerClient
-	lastPorts []*pb.ListeningPort
-	portsAt   time.Time
-	lastSvcs  []*pb.Service
-	svcsAt    time.Time
+	prevCPU    *cpu.TimesStat
+	prevNet    map[string]gnet.IOCountersStat
+	prevDisk   map[string]disk.IOCountersStat
+	prevAt     time.Time
+	procs      map[int32]*process.Process
+	self       *process.Process
+	diskHist   map[string][]diskPoint // mount -> 5-minute buckets, 24h
+	histPath   string
+	restarts   map[string]int // container -> last restart count
+	docker     *dockerClient
+	lastPorts  []*pb.ListeningPort
+	portsAt    time.Time
+	lastSvcs   []*pb.Service
+	svcsAt     time.Time
 	rebootAt   time.Time
 	rebootVal  bool
 	rebootPkgs []string

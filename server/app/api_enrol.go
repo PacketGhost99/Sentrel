@@ -23,12 +23,12 @@ type tokenReq struct {
 }
 
 type tokenResp struct {
-	ID        int64             `json:"id"`
-	Token     string            `json:"token"`
-	ExpiresAt int64             `json:"expires_at"`
-	ServerURL string            `json:"server_url"`
-	CAFingerprint string        `json:"ca_fingerprint,omitempty"`
-	Commands  map[string]string `json:"commands"`
+	ID            int64             `json:"id"`
+	Token         string            `json:"token"`
+	ExpiresAt     int64             `json:"expires_at"`
+	ServerURL     string            `json:"server_url"`
+	CAFingerprint string            `json:"ca_fingerprint,omitempty"`
+	Commands      map[string]string `json:"commands"`
 }
 
 func formatToken(raw string) string {

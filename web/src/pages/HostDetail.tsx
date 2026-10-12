@@ -359,7 +359,7 @@ function SystemTab({ host }: { host: HD }) {
           </Table>
         )}
       </Card>
-      <Card title="Containers" bodyClass="p-0" subtitle={st.docker_available ? undefined : 'Docker not detected (or the agent cannot read the Docker socket)'}>
+      <Card title="Containers" bodyClass="p-0" subtitle={st.docker_available ? undefined : 'Docker not detected (or the agent cannot read the Docker socket). Reinstall the agent with --docker, or run: sudo usermod -aG docker heartbeat-agent && sudo systemctl restart heartbeat-agent'}>
         {!st.containers?.length ? <Empty title="No containers" /> : (
           <Table>
             <thead><tr><Th>Name</Th><Th>Image</Th><Th>State</Th><Th>CPU</Th><Th>Memory</Th><Th>Restarts</Th></tr></thead>

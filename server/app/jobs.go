@@ -23,8 +23,9 @@ import (
 
 // JobManager creates, schedules, signs and dispatches jobs.
 type JobManager struct {
-	app  *App
-	wake chan struct{}
+	app        *App
+	wake       chan struct{}
+	lastAutoUp time.Time
 }
 
 func newJobManager(a *App) *JobManager { return &JobManager{app: a, wake: make(chan struct{}, 1)} }
@@ -241,6 +242,11 @@ func (m *JobManager) tick(ctx context.Context) {
 			a.log.Warn("job dispatch", "job", j.ID, "err", err)
 		}
 	}
+	// Periodic agent auto-update check.
+	if time.Since(m.lastAutoUp) >= 10*time.Minute {
+		m.lastAutoUp = time.Now()
+		m.autoUpdateAll(ctx)
+	}
 	// Expired IP blocks.
 	_, _ = a.db.ExecContext(ctx, `UPDATE ip_blocks SET status='removed' WHERE status IN ('active','pending') AND expires_at < ?`, now)
 }
@@ -340,6 +346,55 @@ func (m *JobManager) result(ctx context.Context, hostID int64, r *pb.JobResult) 
 	a.audit(ctx, auditEntry{TenantID: j.TenantID, Actor: "agent:" + itoa(hostID), Action: "job.finished", TargetType: "job", TargetID: j.ID,
 		Details: map[string]any{"type": j.Type, "status": status, "exit_code": r.ExitCode, "error": r.Error, "dry_run": j.DryRun}})
 	a.events.publish(Event{Type: "job.updated", TenantID: j.TenantID, HostID: hostID, ID: j.ID})
+}
+
+// autoUpdateAll checks every connected agent host for an outdated agent.
+func (m *JobManager) autoUpdateAll(ctx context.Context) {
+	a := m.app
+	if !a.settings.Agent().AutoUpdate {
+		return
+	}
+	var ids []int64
+	if err := a.db.SelectContext(ctx, &ids, `SELECT id FROM hosts WHERE kind='agent' AND revoked=0 AND connected=1`); err != nil {
+		return
+	}
+	for _, id := range ids {
+		if h, err := a.getHost(ctx, id); err == nil {
+			m.maybeAutoUpdate(ctx, h)
+		}
+	}
+}
+
+// maybeAutoUpdate queues a self_update job when auto-update is enabled and
+// the host's agent differs from the bundled build for its platform.
+func (m *JobManager) maybeAutoUpdate(ctx context.Context, h *Host) {
+	a := m.app
+	if !a.settings.Agent().AutoUpdate || h.Kind != "agent" || h.Revoked {
+		return
+	}
+	switch h.AgentVersion {
+	case "", "unknown", "dev":
+		return
+	}
+	hi := hostInfo(h)
+	if hi.Os == "" || hi.Arch == "" {
+		return
+	}
+	bin, err := a.agentBinary(hi.Os, hi.Arch)
+	if err != nil || bin.Version == "" || bin.Version == "unknown" || bin.Version == "dev" || bin.Version == h.AgentVersion {
+		return
+	}
+	var n int
+	if err := a.db.GetContext(ctx, &n, `SELECT COUNT(*) FROM jobs WHERE host_id=? AND type='self_update' AND status IN ('queued','scheduled','sent','running') AND created_at > ?`,
+		h.ID, db.Now()-3600); err != nil || n > 0 {
+		return
+	}
+	j, err := m.Create(ctx, systemPrincipal("system:auto-update", h.TenantID), JobRequest{HostID: h.ID, Type: "self_update", Confirm: true, Timeout: 600})
+	if err != nil {
+		a.log.Warn("auto-update job", "host_id", h.ID, "err", err)
+		return
+	}
+	a.log.Info("auto-update queued", "host_id", h.ID, "name", h.Name, "from", h.AgentVersion, "to", bin.Version, "job", j.ID)
 }
 
 // prepareSelfUpdate fills download path, hash, version and signature.

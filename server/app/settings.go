@@ -14,30 +14,30 @@ import (
 // Secrets are kept in the same row but stripped by the API on read.
 
 type GeneralSettings struct {
-	ServerURL      string `json:"server_url"`       // public URL agents and links use
+	ServerURL      string `json:"server_url"` // public URL agents and links use
 	SetupCompleted bool   `json:"setup_completed"`
 	Timezone       string `json:"timezone"`
 }
 
 type TLSSettings struct {
-	Mode       string `json:"mode"`        // http, selfsigned, acme
-	Listen     string `json:"listen"`      // e.g. 0.0.0.0:8080
-	Hostname   string `json:"hostname"`    // for selfsigned SAN / ACME
-	ExtraNames []string `json:"extra_names"`
-	ACMEEmail  string `json:"acme_email"`
-	ACMEDirectory string `json:"acme_directory"` // optional, defaults to Let's Encrypt production
-	TrustProxy bool   `json:"trust_proxy"` // honour X-Forwarded-For / X-Forwarded-Proto
+	Mode          string   `json:"mode"`     // http, selfsigned, acme
+	Listen        string   `json:"listen"`   // e.g. 0.0.0.0:8080
+	Hostname      string   `json:"hostname"` // for selfsigned SAN / ACME
+	ExtraNames    []string `json:"extra_names"`
+	ACMEEmail     string   `json:"acme_email"`
+	ACMEDirectory string   `json:"acme_directory"` // optional, defaults to Let's Encrypt production
+	TrustProxy    bool     `json:"trust_proxy"`    // honour X-Forwarded-For / X-Forwarded-Proto
 }
 
 type SMTPSettings struct {
-	Enabled  bool   `json:"enabled"`
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	Username string `json:"username"`
-	Password string `json:"password,omitempty"`
-	From     string `json:"from"`
-	TLSMode  string `json:"tls_mode"` // starttls, tls, none
-	SkipVerify bool `json:"skip_verify"`
+	Enabled    bool   `json:"enabled"`
+	Host       string `json:"host"`
+	Port       int    `json:"port"`
+	Username   string `json:"username"`
+	Password   string `json:"password,omitempty"`
+	From       string `json:"from"`
+	TLSMode    string `json:"tls_mode"` // starttls, tls, none
+	SkipVerify bool   `json:"skip_verify"`
 }
 
 type LDAPSettings struct {
@@ -85,33 +85,33 @@ type SecuritySettings struct {
 }
 
 type RetentionSettings struct {
-	Days                  int   `json:"days"`
-	HostStorageWarnMB     int64 `json:"host_storage_warn_mb"`
-	DiskWarnPercent       int   `json:"disk_warn_percent"`
-	AlertHistoryDays      int   `json:"alert_history_days"`
-	AuditDays             int   `json:"audit_days"`
-	JobHistoryDays        int   `json:"job_history_days"`
-	SecurityEventDays     int   `json:"security_event_days"`
+	Days              int   `json:"days"`
+	HostStorageWarnMB int64 `json:"host_storage_warn_mb"`
+	DiskWarnPercent   int   `json:"disk_warn_percent"`
+	AlertHistoryDays  int   `json:"alert_history_days"`
+	AuditDays         int   `json:"audit_days"`
+	JobHistoryDays    int   `json:"job_history_days"`
+	SecurityEventDays int   `json:"security_event_days"`
 }
 
 type AgentDefaults struct {
-	IntervalSeconds        int      `json:"interval_seconds"`
-	InventoryIntervalSec   int      `json:"inventory_interval_seconds"`
-	TopProcesses           int      `json:"top_processes"`
-	CollectServices        bool     `json:"collect_services"`
-	CollectPorts           bool     `json:"collect_ports"`
-	CollectDocker          bool     `json:"collect_docker"`
-	CollectTemperatures    bool     `json:"collect_temperatures"`
-	BruteforceEnabled      bool     `json:"bruteforce_enabled"`
-	SecurityIntervalSec    int      `json:"security_interval_seconds"`
-	Fail2banEnabled        bool     `json:"fail2ban_enabled"`
-	RefreshPackageIndex    bool     `json:"refresh_package_index"`
-	WatchedServices        []string `json:"watched_services"`
-	BruteforceWindowMin    int      `json:"bruteforce_window_minutes"`
-	AutoBlockMinutes       int      `json:"auto_block_minutes"`
-	AutoBlockThreshold     int      `json:"auto_block_threshold"`
-	AutoBlockWhitelist     []string `json:"auto_block_whitelist"`
-	AutoUpdate             bool     `json:"auto_update"` // push agent updates automatically
+	IntervalSeconds      int      `json:"interval_seconds"`
+	InventoryIntervalSec int      `json:"inventory_interval_seconds"`
+	TopProcesses         int      `json:"top_processes"`
+	CollectServices      bool     `json:"collect_services"`
+	CollectPorts         bool     `json:"collect_ports"`
+	CollectDocker        bool     `json:"collect_docker"`
+	CollectTemperatures  bool     `json:"collect_temperatures"`
+	BruteforceEnabled    bool     `json:"bruteforce_enabled"`
+	SecurityIntervalSec  int      `json:"security_interval_seconds"`
+	Fail2banEnabled      bool     `json:"fail2ban_enabled"`
+	RefreshPackageIndex  bool     `json:"refresh_package_index"`
+	WatchedServices      []string `json:"watched_services"`
+	BruteforceWindowMin  int      `json:"bruteforce_window_minutes"`
+	AutoBlockMinutes     int      `json:"auto_block_minutes"`
+	AutoBlockThreshold   int      `json:"auto_block_threshold"`
+	AutoBlockWhitelist   []string `json:"auto_block_whitelist"`
+	AutoUpdate           bool     `json:"auto_update"` // push agent updates automatically
 }
 
 type AlertingSettings struct {
@@ -119,7 +119,6 @@ type AlertingSettings struct {
 	DefaultRepeatMinutes int `json:"default_repeat_minutes"`
 	FlapWindowMinutes    int `json:"flap_window_minutes"`
 	FlapThreshold        int `json:"flap_threshold"`
-	HostDownSeconds      int `json:"host_down_seconds"`
 	ResolveCount         int `json:"resolve_count"`
 }
 
@@ -133,12 +132,12 @@ type VulnSettings struct {
 }
 
 type Branding struct {
-	ProductName string `json:"product_name"`
-	LogoDataURL string `json:"logo_data_url"`
+	ProductName    string `json:"product_name"`
+	LogoDataURL    string `json:"logo_data_url"`
 	FaviconDataURL string `json:"favicon_data_url"`
-	AccentColor string `json:"accent_color"`
-	LoginText   string `json:"login_text"`
-	FooterText  string `json:"footer_text"`
+	AccentColor    string `json:"accent_color"`
+	LoginText      string `json:"login_text"`
+	FooterText     string `json:"footer_text"`
 }
 
 const (
@@ -176,7 +175,7 @@ func defaultFor(key string) any {
 			CollectDocker: true, CollectTemperatures: true, BruteforceEnabled: true, SecurityIntervalSec: 60, Fail2banEnabled: true,
 			BruteforceWindowMin: 5, AutoBlockMinutes: 60, AutoBlockThreshold: 20}
 	case keyAlerting:
-		return &AlertingSettings{GroupWaitSeconds: 30, DefaultRepeatMinutes: 240, FlapWindowMinutes: 30, FlapThreshold: 6, HostDownSeconds: 120, ResolveCount: 1}
+		return &AlertingSettings{GroupWaitSeconds: 30, DefaultRepeatMinutes: 240, FlapWindowMinutes: 30, FlapThreshold: 6, ResolveCount: 1}
 	case keyVuln:
 		return &VulnSettings{Enabled: true, SyncHour: 2, ScanAfterInventory: true, AlertSeverity: "Critical", OnlyFixable: true}
 	case keyBranding:

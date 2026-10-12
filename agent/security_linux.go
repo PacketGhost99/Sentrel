@@ -139,4 +139,6 @@ func followJournal(ctx context.Context, fc *failureCounter, log *slog.Logger) {
 }
 
 // watchWindowsSecurity is a no-op on Linux.
-func watchWindowsSecurity(ctx context.Context, fc *failureCounter, log *slog.Logger) string { return "" }
+func watchWindowsSecurity(ctx context.Context, fc *failureCounter, log *slog.Logger) string {
+	return ""
+}

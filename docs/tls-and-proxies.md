@@ -2,7 +2,7 @@
 
 The server uses one listener for the UI, the REST API, the agent gRPC stream, installers and `/metrics`. HTTP/2 requests with `Content-Type: application/grpc` go to the gRPC server; everything else goes to the web router. Any proxy in front of Heartbeat therefore has to pass HTTP/2 through to the origin.
 
-TLS is configured under **Settings, TLS** (and in the setup wizard). Changing it rebinds the listeners without a process restart.
+TLS is configured under **Settings, TLS & access** (and in the setup wizard). Changing it rebinds the listeners without a process restart.
 
 | Setting | Meaning |
 |---|---|

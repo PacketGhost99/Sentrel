@@ -69,18 +69,18 @@ type Config struct {
 	URL         string            `json:"url"`
 	Method      string            `json:"method"`
 	Headers     map[string]string `json:"headers"`
-	Template    string            `json:"template"`     // generic webhook body template
+	Template    string            `json:"template"` // generic webhook body template
 	ContentType string            `json:"content_type"`
-	BotToken    string            `json:"bot_token"`    // telegram
-	ChatID      string            `json:"chat_id"`      // telegram
-	Topic       string            `json:"topic"`        // ntfy
-	Server      string            `json:"server"`       // ntfy, gotify
-	Token       string            `json:"token"`        // ntfy access token, gotify app token, pushover app token
-	UserKey     string            `json:"user_key"`     // pushover
+	BotToken    string            `json:"bot_token"` // telegram
+	ChatID      string            `json:"chat_id"`   // telegram
+	Topic       string            `json:"topic"`     // ntfy
+	Server      string            `json:"server"`    // ntfy, gotify
+	Token       string            `json:"token"`     // ntfy access token, gotify app token, pushover app token
+	UserKey     string            `json:"user_key"`  // pushover
 	Priority    int               `json:"priority"`
-	To          []string          `json:"to"`           // email
+	To          []string          `json:"to"` // email
 	SkipVerify  bool              `json:"skip_verify"`
-	Username    string            `json:"username"`     // webhook basic auth / discord display name
+	Username    string            `json:"username"` // webhook basic auth / discord display name
 	Password    string            `json:"password"`
 }
 

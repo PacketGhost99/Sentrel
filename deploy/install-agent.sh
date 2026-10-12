@@ -9,7 +9,10 @@
 #   --ca-fingerprint FP     pin the server CA (self-signed TLS mode)
 #   --binary PATH           use a local binary instead of downloading
 #   --name NAME             display name for the host
-#   --no-docker             do not add the agent user to the docker group
+#   --docker                add the agent user to the docker group (container
+#                           monitoring). Opt-in: docker group membership is
+#                           root-equivalent. Without it container monitoring
+#                           is unavailable.
 #   --insecure-download     skip TLS verification for the binary download
 #                           (the CA fingerprint is still pinned at registration)
 #   --uninstall             remove the agent
@@ -20,7 +23,7 @@ TOKEN=""
 CAFP=""
 BINARY=""
 NAME=""
-DOCKER=1
+DOCKER=0
 INSECURE=""
 UNINSTALL=0
 
@@ -31,7 +34,7 @@ while [ $# -gt 0 ]; do
     --ca-fingerprint) CAFP="$2"; shift 2 ;;
     --binary) BINARY="$2"; shift 2 ;;
     --name) NAME="$2"; shift 2 ;;
-    --no-docker) DOCKER=0; shift ;;
+    --docker) DOCKER=1; shift ;;
     --insecure-download) INSECURE=1; shift ;;
     --uninstall) UNINSTALL=1; shift ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
@@ -146,7 +149,7 @@ say "installing systemd unit"
 cat > "$UNIT" <<EOF
 [Unit]
 Description=Heartbeat monitoring agent
-Documentation=https://github.com/heartbeat-monitor/heartbeat
+Documentation=https://github.com/notspark1999/Heartbeat
 After=network-online.target
 Wants=network-online.target
 

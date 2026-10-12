@@ -106,7 +106,7 @@ The audit log records sign-ins and failures, setup, user, tenant, key, host, che
 
 ## Public surface
 
-Unauthenticated endpoints: `/healthz`, `/api/v1/public/info`, `/api/v1/public/status/{slug}` (public pages, or token-protected ones), the installer scripts under `/install/`, agent binaries under `/download/agent/`, and the login/setup endpoints. `/metrics` is **open by default**; turn on **Settings, Security, Metrics auth** to require an API key with `read` scope. Setup is protected by the one-time setup token until the first administrator exists.
+Unauthenticated endpoints: `/healthz`, `/api/v1/public/info`, `/api/v1/public/status/{slug}` (public pages, or token-protected ones), the installer scripts under `/install/`, agent binaries under `/download/agent/`, and the login/setup endpoints. `/metrics` is **open by default**; turn on **Settings, Security, "Require an API key for /metrics"** (`metrics_auth`) to require an API key with `read` scope. Setup is protected by the one-time setup token until the first administrator exists.
 
 ## Hardening checklist
 
@@ -114,6 +114,6 @@ Unauthenticated endpoints: `/healthz`, `/api/v1/public/info`, `/api/v1/public/st
 2. Enable 2FA for admins; set `Require 2FA` to `admins` or `all`.
 3. Enable `metrics_auth` unless `/metrics` is only reachable from a trusted network.
 4. Leave remote actions off for hosts that do not need them; avoid `allow_scripts` on production hosts.
-5. Install agents with `--no-docker` where container metrics are not needed.
+5. Docker group membership is root-equivalent, so the installer leaves it off by default; pass `--docker` only on hosts where container metrics are worth that risk.
 6. Protect and encrypt backups; keep `pki/` out of shared storage.
 7. Keep the server and (via self-update) the agents current.

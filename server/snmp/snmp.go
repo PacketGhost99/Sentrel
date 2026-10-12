@@ -30,21 +30,21 @@ var builtin embed.FS
 
 // Config describes how to reach a device.
 type Config struct {
-	Version       string `json:"version"` // 2c, 3
-	Community     string `json:"community,omitempty"`
-	Port          int    `json:"port"`
-	TimeoutSec    int    `json:"timeout_seconds"`
-	Retries       int    `json:"retries"`
-	Username      string `json:"username,omitempty"`
-	SecurityLevel string `json:"security_level,omitempty"` // noAuthNoPriv, authNoPriv, authPriv
-	AuthProtocol  string `json:"auth_protocol,omitempty"`  // MD5, SHA, SHA224, SHA256, SHA384, SHA512
-	AuthPassword  string `json:"auth_password,omitempty"`
-	PrivProtocol  string `json:"priv_protocol,omitempty"` // DES, AES, AES192, AES256, AES192C, AES256C
-	PrivPassword  string `json:"priv_password,omitempty"`
-	ContextName   string `json:"context_name,omitempty"`
-	Profile       string `json:"profile"` // "auto" or a profile name
-	IntervalSec   int    `json:"interval_seconds"`
-	PollLLDP      *bool  `json:"poll_lldp,omitempty"`
+	Version       string      `json:"version"` // 2c, 3
+	Community     string      `json:"community,omitempty"`
+	Port          int         `json:"port"`
+	TimeoutSec    int         `json:"timeout_seconds"`
+	Retries       int         `json:"retries"`
+	Username      string      `json:"username,omitempty"`
+	SecurityLevel string      `json:"security_level,omitempty"` // noAuthNoPriv, authNoPriv, authPriv
+	AuthProtocol  string      `json:"auth_protocol,omitempty"`  // MD5, SHA, SHA224, SHA256, SHA384, SHA512
+	AuthPassword  string      `json:"auth_password,omitempty"`
+	PrivProtocol  string      `json:"priv_protocol,omitempty"` // DES, AES, AES192, AES256, AES192C, AES256C
+	PrivPassword  string      `json:"priv_password,omitempty"`
+	ContextName   string      `json:"context_name,omitempty"`
+	Profile       string      `json:"profile"` // "auto" or a profile name
+	IntervalSec   int         `json:"interval_seconds"`
+	PollLLDP      *bool       `json:"poll_lldp,omitempty"`
 	ExtraMetrics  []MetricDef `json:"extra_metrics,omitempty"` // OIDs added from the UI
 }
 

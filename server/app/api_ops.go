@@ -165,15 +165,15 @@ func (a *App) apiListFindings(c *Ctx) (any, error) {
 func (a *App) apiVulnSummary(c *Ctx) (any, error) {
 	tw, args := c.tenantWhere("h.tenant_id")
 	type row struct {
-		HostID   int64  `db:"host_id" json:"host_id"`
-		HostName string `db:"host_name" json:"host_name"`
-		Critical int    `db:"critical" json:"critical"`
-		High     int    `db:"high" json:"high"`
-		Medium   int    `db:"medium" json:"medium"`
-		Low      int    `db:"low" json:"low"`
-		Fixable  int    `db:"fixable" json:"fixable"`
-		KEV      int    `db:"kev" json:"kev"`
-		LastScan int64  `db:"last_scan" json:"last_scan"`
+		HostID     int64  `db:"host_id" json:"host_id"`
+		HostName   string `db:"host_name" json:"host_name"`
+		Critical   int    `db:"critical" json:"critical"`
+		High       int    `db:"high" json:"high"`
+		Medium     int    `db:"medium" json:"medium"`
+		Low        int    `db:"low" json:"low"`
+		Fixable    int    `db:"fixable" json:"fixable"`
+		KEV        int    `db:"kev" json:"kev"`
+		LastScan   int64  `db:"last_scan" json:"last_scan"`
 		LastStatus string `db:"last_status" json:"last_status"`
 		LastError  string `db:"last_error" json:"last_error"`
 	}

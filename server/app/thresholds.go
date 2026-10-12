@@ -178,10 +178,10 @@ func (rs *ruleSet) resolve(h hostRef, metric, labelValue string) *EffectiveRule 
 
 // MergedRule is one row of the merged thresholds view for a host.
 type MergedRule struct {
-	Metric    MetricDef        `json:"metric"`
-	Effective *EffectiveRule   `json:"effective"`
-	Overrides []EffectiveRule  `json:"label_overrides"`
-	Chain     []EffectiveRule  `json:"chain"` // every rule that applies, most specific first
+	Metric    MetricDef       `json:"metric"`
+	Effective *EffectiveRule  `json:"effective"`
+	Overrides []EffectiveRule `json:"label_overrides"`
+	Chain     []EffectiveRule `json:"chain"` // every rule that applies, most specific first
 }
 
 // merged builds the merged view for a host.

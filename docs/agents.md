@@ -20,11 +20,11 @@ curl -fsSL https://monitor.example.com/install/agent.sh | sudo sh -s -- --server
 | `--ca-fingerprint FP` | pin the server CA (self-signed TLS mode; the UI adds it for you) |
 | `--name NAME` | display name |
 | `--binary PATH` | use a local binary instead of downloading from `<server>/download/agent/linux/<arch>` |
-| `--no-docker` | do not add the agent user to the `docker` group |
+| `--docker` | opt in: add the agent user to the `docker` group so containers can be monitored (root-equivalent, off by default) |
 | `--insecure-download` | skip TLS verification for the binary download only |
 | `--uninstall` | remove the agent |
 
-The installer: creates the system user `heartbeat-agent` and adds it to the `adm`, `systemd-journal` and (unless `--no-docker`) `docker` groups; installs `/usr/local/bin/heartbeat-agent`; writes `/etc/heartbeat-agent/agent.yaml`, `/etc/heartbeat-agent/job.pub` (root-owned) and state in `/var/lib/heartbeat-agent` (`0700`); validates and installs the sudoers rule `/etc/sudoers.d/heartbeat-agent` (validated before registering, so a failure does not burn the token); installs the unit `heartbeat-agent.service` (`MemoryMax=192M`, `CPUQuota=25%`, `Nice=10`, `Restart=always`).
+The installer: creates the system user `heartbeat-agent` and adds it to the `adm`, `systemd-journal` and (only with `--docker`) `docker` groups; installs `/usr/local/bin/heartbeat-agent`; writes `/etc/heartbeat-agent/agent.yaml`, `/etc/heartbeat-agent/job.pub` (root-owned) and state in `/var/lib/heartbeat-agent` (`0700`); validates and installs the sudoers rule `/etc/sudoers.d/heartbeat-agent` (validated before registering, so a failure does not burn the token); installs the unit `heartbeat-agent.service` (`MemoryMax=192M`, `CPUQuota=25%`, `Nice=10`, `Restart=always`).
 
 ### Windows
 
@@ -45,7 +45,7 @@ For fleet deployment an MSI can be built (`msiexec /i heartbeat-agent-<version>-
 
 ## Collected data
 
-Intervals and switches come from **Settings, Agent defaults**, overridable per host (host settings). Defaults: collect every 30 s; inventory hourly; top 10 processes; services, listening ports, Docker and temperatures on; security scan every 60 s.
+Intervals and switches come from **Settings, Agents**, overridable per host (host settings). Defaults: collect every 30 s; inventory hourly; top 10 processes; services, listening ports, Docker and temperatures on; security scan every 60 s.
 
 | Data | Details |
 |---|---|
@@ -69,7 +69,7 @@ The helper validates its own arguments. Verbs: `pkg-refresh`, `pkg-upgrade`, `bl
 
 IP blocking uses an `inet heartbeat` nftables table with timeout sets (and falls back to iptables/ip6tables rules tagged `heartbeat-block:<expiry>`). Uninstalling removes the nftables table.
 
-Script jobs run as the unprivileged agent user. Note that membership of the `docker` group is equivalent to root on the host; pass `--no-docker` if you do not want container metrics at that price.
+Script jobs run as the unprivileged agent user. Note that membership of the `docker` group is equivalent to root on the host; for that reason the installer does not add the agent to it unless you pass `--docker`. Without it container monitoring is unavailable; to enable it later run `sudo usermod -aG docker heartbeat-agent && sudo systemctl restart heartbeat-agent`.
 
 **Windows.** The service runs as LocalSystem (the default for a service without an account), so there is no privilege boundary: upgrades install Windows Updates through the Windows Update API, blocks are Windows Firewall rules named `Heartbeat block <ip>`, and scripts run as SYSTEM in PowerShell (or cmd).
 

@@ -101,7 +101,7 @@ Create channels under **Notifications**; **Test** sends a sample message. Secret
 | `ntfy` | `topic` | `server` (default `https://ntfy.sh`), `token`, `priority` |
 | `gotify` | `server`, `token` | `priority` |
 | `pushover` | `token`, `user_key` | `priority` |
-| `email` | `to` (list) | uses the SMTP relay from **Settings, SMTP** |
+| `email` | `to` (list) | uses the SMTP relay from **Settings, Email** |
 
 ### Webhook template
 

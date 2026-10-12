@@ -297,6 +297,15 @@ function Agents({ data }: { data: any }) {
           <Field label="Always-watched services" className="sm:col-span-2"><TagInput value={v.watched_services || []} onChange={(x) => set({ watched_services: x })} placeholder="sshd" /></Field>
         </div>
       </Card>
+      <Card title="Port-scan detection">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="sm:col-span-2"><Toggle checked={!!v.portscan_enabled} onChange={(x) => set({ portscan_enabled: x })} label="Detect port scans (Linux, nftables)" hint="A kernel rule counts SYNs to closed ports per source. It never drops traffic; the agent only reads the result every 30 s. Not available on Windows yet." /></div>
+          <Field label="Threshold (closed-port SYNs per minute per source)"><Input type="number" value={v.portscan_threshold_per_min} onChange={(e) => set({ portscan_threshold_per_min: num(e.target.value) })} /></Field>
+          <div />
+          <Field label="Allowlist" className="sm:col-span-2" hint="IPs or CIDRs never flagged as scanners. The Sentrel server's own address is always excluded."><TagInput value={v.portscan_allowlist || []} onChange={(x) => set({ portscan_allowlist: x })} placeholder="198.51.100.0/24" /></Field>
+        </div>
+        <Note className="mt-3">Alert levels are set under Thresholds, "Port scans". Hosts with auto-block enabled block scanners for the auto-block duration below.</Note>
+      </Card>
       <Card title="Brute-force detection">
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="sm:col-span-2"><Toggle checked={!!v.bruteforce_enabled} onChange={(x) => set({ bruteforce_enabled: x })} label="Watch auth logs and the Windows Security log" /></div>

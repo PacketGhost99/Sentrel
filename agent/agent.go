@@ -43,6 +43,7 @@ type Agent struct {
 
 	collector *Collector
 	failures  *failureCounter
+	ps        portscanState
 	secSource string
 	priv      privRunner
 	privOut   privStreamer
@@ -106,7 +107,7 @@ func New(cfg *Config, log *slog.Logger) (*Agent, error) {
 
 func defaultConfig() *pb.AgentConfig {
 	return &pb.AgentConfig{IntervalSeconds: 30, InventoryIntervalSeconds: 3600, TopProcesses: 10, CollectServices: true, CollectPorts: true,
-		CollectDocker: true, BruteforceEnabled: true, SecurityIntervalSeconds: 60, CollectTemperatures: true}
+		CollectDocker: true, BruteforceEnabled: true, SecurityIntervalSeconds: 60, CollectTemperatures: true, PortscanEnabled: true, PortscanThresholdPerMin: scanDefaultThreshold}
 }
 
 func (a *Agent) config() *pb.AgentConfig {
@@ -152,7 +153,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		a.startSecurityWatch(ctx)
 	}
 	var wg sync.WaitGroup
-	for _, f := range []func(context.Context){a.metricsLoop, a.inventoryLoop, a.securityLoop, a.blocksLoop, a.housekeeping} {
+	for _, f := range []func(context.Context){a.metricsLoop, a.inventoryLoop, a.securityLoop, a.portscanLoop, a.blocksLoop, a.housekeeping} {
 		wg.Add(1)
 		go func(f func(context.Context)) { defer wg.Done(); f(ctx) }(f)
 	}
@@ -456,12 +457,14 @@ func (a *Agent) securityLoop(ctx context.Context) {
 		case <-time.After(iv):
 		}
 		cfg := a.config()
-		if !cfg.BruteforceEnabled && !cfg.Fail2BanEnabled {
+		psStatus, psScans, psSend := a.portscanDrain()
+		if !cfg.BruteforceEnabled && !cfg.Fail2BanEnabled && !psSend {
 			a.failures.Flush()
 			continue
 		}
 		start, end, fl := a.failures.Flush()
-		rep := &pb.SecurityReport{WindowStartMs: start.UnixMilli(), WindowEndMs: end.UnixMilli(), FailedLogins: fl, Source: a.secSource}
+		rep := &pb.SecurityReport{WindowStartMs: start.UnixMilli(), WindowEndMs: end.UnixMilli(), FailedLogins: fl, Source: a.secSource,
+			Portscans: psScans, PortscanStatus: psStatus}
 		if cfg.Fail2BanEnabled && time.Since(f2bAt) > 5*time.Minute {
 			f2bAt = time.Now()
 			if out, err := a.priv(ctx, time.Minute, "fail2ban-status"); err == nil {

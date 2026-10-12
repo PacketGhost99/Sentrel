@@ -133,6 +133,9 @@ export interface AgentOptions {
   collect_temperatures?: boolean
   bruteforce_enabled?: boolean
   fail2ban_enabled?: boolean
+  portscan_enabled?: boolean
+  portscan_threshold_per_min?: number
+  portscan_allowlist?: string[]
   refresh_package_index?: boolean
   watched_services?: string[]
 }

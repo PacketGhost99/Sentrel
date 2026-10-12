@@ -25,7 +25,7 @@ Agents, uptime checks, security, patching and CVEs in one place.
 - 🎨 **Beautiful dashboard and status pages.** Light and dark themes, live beat bars, public or secret-link status pages.
 - 🖥️ **Agents for Linux and Windows.** Copy one line from the Agents page and the host appears.
 - 🌐 **Uptime checks.** HTTP, TCP, ping, DNS and TLS certificate expiry, plus SNMP switches, firewalls and printers.
-- 🛡️ **Intrusion detection built in.** Spots SSH and RDP brute-force attempts, shows fail2ban jails, and blocks attacking IPs from the UI or automatically.
+- 🛡️ **Intrusion detection built in.** Spots SSH and Windows logon brute-force attempts and port scans (Linux), shows fail2ban jails, and blocks attacking IPs from the UI or automatically.
 - 🩹 **One-click patching and CVE scanning.** Pending updates per host, remote upgrades, and CVE matching that tells you exactly what fixes each finding.
 - 💽 **Disk full? See why.** When a disk alert fires, Sentrel shows the biggest folders and files and can clean up caches, old logs and old kernels.
 - 🔔 **Alerts where you already are.** Email, Slack, Discord, Teams, Telegram, ntfy, Pushover, Gotify and webhooks.

@@ -241,6 +241,42 @@ for pp in "GET /push" "POST /push/ssh" "POST /push/winrm" "POST /push/ssh/finger
   [ "$CODE" = 404 ] && ok "$1 $2 is gone (404)" || bad "$1 $2 returned $CODE"
 done
 
+step "port-scan detection (kernel rules, docker nmap scan from the bridge network)"
+SEC=$(api GET "/hosts/$HID/security")
+expect "port-scan status reported by the agent" '.portscan_status.known == true' "$SEC"
+if echo "$SEC" | jq -e '.portscan_status.supported == true and .portscan_status.active == true' >/dev/null; then
+  ok "port-scan detection is active on this host"
+  nft_chain() { sudo nft list chain inet sentrel scan | grep -q "update @scanners4"; }
+  wait_for "detection chain installed" 30 nft_chain
+  if sudo nft list chain inet sentrel scan | grep -qiE '(drop|reject)'; then bad "detection chain must not drop traffic"; else ok "detection chain never drops traffic"; fi
+  expect "scan notification toggle works" '.notify == false' "$(api PUT "/hosts/$HID/notify" '{"metric":"portscan","notify":false}')"
+  api PUT "/hosts/$HID/notify" '{"metric":"portscan","notify":true}' >/dev/null
+  if command -v docker >/dev/null 2>&1 && sudo docker info >/dev/null 2>&1; then
+    BRIP=$(ip -4 -o addr show docker0 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -1)
+    if [ -n "$BRIP" ]; then
+      HAD_IMG=$(sudo docker image ls -q alpine | head -1)
+      # Forget earlier scanners so the agent sees this scan as new (it polls every 30 s).
+      sudo nft flush set inet sentrel scanners4 2>/dev/null; sleep 35
+      T0=$(date +%s)
+      SCANOUT=$(sudo docker run --rm alpine sh -c "apk add -q nmap >/dev/null 2>&1 && nmap -Pn -n -p 1-200 --max-retries 0 $BRIP" 2>&1 | tail -3)
+      ok "nmap scan of $BRIP from a container finished"
+      scan_seen() { api GET "/hosts/$HID/security" | jq -e --argjson t0 "$T0" '[.portscans[] | select(.last_seen >= $t0 - 5)] | length > 0' >/dev/null; }
+      wait_for "port scan reported by the agent" 150 scan_seen
+      SEC=$(api GET "/hosts/$HID/security")
+      expect "scanner is a docker bridge address" "[.portscans[] | select(.last_seen >= $T0 - 5)][0].ip | (startswith(\"172.\") or startswith(\"10.\") or startswith(\"192.168.\"))" "$SEC"
+      scan_alert() { api GET /alerts | jq -e '[.. | objects | select(.metric? == "portscan")] | length > 0' >/dev/null; }
+      wait_for "port-scan alert raised" 30 scan_alert
+      [ -z "$HAD_IMG" ] && sudo docker rmi alpine >/dev/null 2>&1
+    else
+      ok "no docker0 bridge; container scan skipped"
+    fi
+  else
+    ok "docker not available; container scan skipped"
+  fi
+else
+  ok "port-scan detection unsupported here ($(echo "$SEC" | jq -r .portscan_status.reason)); scan skipped"
+fi
+
 step "cleanup"
 for c in $C_PING $C_TCP_UP $C_TCP_DOWN $C_HTTP $C_CERT $C_DNS $C_SVC $C_PORT $C_PROC $C_CONT $C_MISSING $C_FLIP; do api DELETE "/checks/$c" >/dev/null; done
 api DELETE "/notification-channels/$CH" >/dev/null

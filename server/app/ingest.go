@@ -238,6 +238,20 @@ func (a *App) ingestSecurity(ctx context.Context, hostID int64, r *pb.SecurityRe
 	if we == 0 {
 		we = db.Now()
 	}
+	for _, p := range r.Portscans {
+		if net.ParseIP(p.Ip) == nil {
+			continue
+		}
+		fs, ls := p.FirstSeenMs/1000, p.LastSeenMs/1000
+		if ls <= 0 || ls > we+60 {
+			ls = we
+		}
+		if fs <= 0 || fs > ls {
+			fs = ls
+		}
+		_, _ = a.db.ExecContext(ctx, `INSERT INTO security_events (tenant_id, host_id, ip, count, usernames, window_start, window_end, source, kind) VALUES (?,?,?,?,?,?,?,?,?)`,
+			tenant, hostID, p.Ip, 1, "[]", fs, ls, "portscan", "portscan")
+	}
 	for _, f := range r.FailedLogins {
 		if f.Count == 0 || net.ParseIP(f.Ip) == nil {
 			continue
@@ -254,7 +268,15 @@ func (a *App) ingestSecurity(ctx context.Context, hostID int64, r *pb.SecurityRe
 		_, _ = a.db.ExecContext(ctx, `INSERT INTO fail2ban_status (tenant_id, host_id, data, updated_at) VALUES (?,?,?,?)
 			ON CONFLICT(host_id) DO UPDATE SET data=excluded.data, updated_at=excluded.updated_at`, tenant, hostID, string(b), db.Now())
 	}
+	if st := r.PortscanStatus; st != nil {
+		_, _ = a.db.ExecContext(ctx, `INSERT INTO portscan_status (host_id, tenant_id, supported, active, reason, updated_at) VALUES (?,?,?,?,?,?)
+			ON CONFLICT(host_id) DO UPDATE SET supported=excluded.supported, active=excluded.active, reason=excluded.reason, updated_at=excluded.updated_at`,
+			hostID, tenant, st.Supported, st.Active, truncateStr(st.Reason, 300), db.Now())
+	}
 	a.evaluateBruteforce(ctx, hostID)
+	if r.PortscanStatus != nil || len(r.Portscans) > 0 {
+		a.evaluatePortscan(ctx, hostID)
+	}
 }
 
 // evaluateBruteforce sums failures per IP over the configured window, raises
@@ -271,7 +293,7 @@ func (a *App) evaluateBruteforce(ctx context.Context, hostID int64) {
 		Total int    `db:"total"`
 	}
 	var rows []row
-	_ = a.db.SelectContext(ctx, &rows, `SELECT ip, SUM(count) AS total FROM security_events WHERE host_id=? AND window_end>=? GROUP BY ip ORDER BY total DESC`, hostID, since)
+	_ = a.db.SelectContext(ctx, &rows, `SELECT ip, SUM(count) AS total FROM security_events WHERE host_id=? AND kind='login' AND window_end>=? GROUP BY ip ORDER BY total DESC`, hostID, since)
 	top := 0.0
 	topIP := ""
 	for _, r := range rows {
@@ -354,4 +376,88 @@ func decodeJSON[T any](b []byte) T {
 		_ = json.Unmarshal(b, &v)
 	}
 	return v
+}
+
+// portscanWindow is how long a reported scanner counts towards the alert.
+// It matches the agent-side timeout of the kernel set.
+const portscanWindow = 10 * time.Minute
+
+// evaluatePortscan counts distinct scanner sources seen recently, raises the
+// alert and optionally auto-blocks them through the brute-force block flow.
+func (a *App) evaluatePortscan(ctx context.Context, hostID int64) {
+	since := time.Now().Add(-portscanWindow).Unix()
+	type row struct {
+		IP   string `db:"ip"`
+		Last int64  `db:"last"`
+	}
+	var rows []row
+	_ = a.db.SelectContext(ctx, &rows, `SELECT ip, MAX(window_end) AS last FROM security_events WHERE host_id=? AND kind='portscan' AND window_end>=? GROUP BY ip ORDER BY last DESC`, hostID, since)
+	topIP := ""
+	if len(rows) > 0 {
+		topIP = rows[0].IP
+	}
+	tenant := a.hostTenant(ctx, hostID)
+	v := float64(len(rows))
+	_ = a.ts.Append(hostID, tenant, []metrics.Sample{{Name: "portscan_sources", Value: v}})
+	a.alerts.evaluateSamples(ctx, hostID, []metrics.Sample{{Name: "portscan_sources", Value: v, Labels: map[string]string{"ip": topIP}}})
+	if len(rows) == 0 {
+		return
+	}
+	d := a.settings.Agent()
+	host, err := a.getHost(ctx, hostID)
+	if err != nil || !host.AutoBlock || !host.AllowIPBlock {
+		return
+	}
+	for _, r := range rows {
+		if ipWhitelisted(r.IP, d.AutoBlockWhitelist) || ipWhitelisted(r.IP, d.PortscanAllowlist) {
+			continue
+		}
+		var n int
+		_ = a.db.GetContext(ctx, &n, `SELECT COUNT(*) FROM ip_blocks WHERE host_id=? AND ip=? AND status IN ('pending','active') AND expires_at>?`, hostID, r.IP, db.Now())
+		if n > 0 {
+			continue
+		}
+		minutes := d.AutoBlockMinutes
+		if minutes <= 0 {
+			minutes = 60
+		}
+		if _, err := a.blockIP(ctx, host, r.IP, minutes, "auto-block: port scan", "system:auto-block"); err != nil {
+			a.log.Warn("auto-block failed", "host_id", hostID, "ip", r.IP, "err", err)
+		}
+	}
+}
+
+// normalizeAllowlist validates a list of IPs and CIDRs and returns them in
+// canonical form without duplicates.
+func normalizeAllowlist(in []string) ([]string, error) {
+	if len(in) > 200 {
+		return nil, badRequest("at most 200 allowlist entries")
+	}
+	seen := map[string]bool{}
+	var out []string
+	for _, e := range in {
+		e = strings.TrimSpace(e)
+		if e == "" {
+			continue
+		}
+		var canon string
+		if strings.Contains(e, "/") {
+			_, n, err := net.ParseCIDR(e)
+			if err != nil {
+				return nil, badRequest("invalid allowlist entry %q", e)
+			}
+			canon = n.String()
+		} else {
+			ip := net.ParseIP(e)
+			if ip == nil {
+				return nil, badRequest("invalid allowlist entry %q", e)
+			}
+			canon = ip.String()
+		}
+		if !seen[canon] {
+			seen[canon] = true
+			out = append(out, canon)
+		}
+	}
+	return out, nil
 }

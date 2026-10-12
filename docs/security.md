@@ -62,7 +62,7 @@ The agent reports its policy and the fingerprints of its operator keys to the se
 
 ## Privilege boundary and opt-in remote actions
 
-Linux agents run unprivileged. The only sudo rule allows `sentrel-agent priv *`; each verb validates its arguments (see [agents.md](agents.md)). Because the helper trusts nothing from the caller, a compromised agent process can at worst run the limited verbs: refresh or upgrade packages, add or remove an IP block, read fail2ban status, install a validly signed agent update.
+Linux agents run unprivileged. The only sudo rule allows `sentrel-agent priv *`; each verb validates its arguments (see [agents.md](agents.md)). Because the helper trusts nothing from the caller, a compromised agent process can at worst run the limited verbs: refresh or upgrade packages, add or remove an IP block, read fail2ban status, install or refresh the port-scan detection rules (counting only, never dropping traffic), install a validly signed agent update.
 
 Remote actions are denied unless enabled per host:
 
@@ -71,9 +71,13 @@ Remote actions are denied unless enabled per host:
 | `allow_upgrades` | package upgrades | a dry run is always permitted |
 | `allow_ip_block` | manual and automatic IP blocks | loopback and unspecified addresses are refused |
 | `allow_scripts` | script jobs | only users with the `scripts` permission (admin); max 64 KiB; run as the agent user (SYSTEM on Windows) |
-| `auto_block` | automatic blocks from brute-force detection | needs `allow_ip_block`; threshold and whitelist are in agent defaults |
+| `auto_block` | automatic blocks from brute-force detection and port scans | needs `allow_ip_block`; threshold and whitelist are in agent defaults (port-scan sources are blocked for the same duration and respect the same whitelist) |
 
 State-changing jobs also need an explicit `confirm`, are recorded in the audit log with the requesting user and (truncated) parameters, and can be scheduled for a maintenance window. Agent self-update needs only `confirm` and the `jobs` permission.
+
+## Port-scan detection
+
+On Linux hosts with nftables the agent installs a detection-only chain in the `inet sentrel` table (details in [agents.md](agents.md#port-scan-detection-linux)). It counts TCP SYNs to ports nobody listens on, per source; a source above the threshold (default 20 per minute) is flagged for 10 minutes, reported to the server as a `portscan` security event, and raises the `portscan` alert (warning at 1 source, enabled by default, mutable per host like the failed-login alert). Hosts with auto-block enabled block flagged sources through the usual `block_ip` job. The agent's own overhead is a 30-second poll; the per-packet work happens in the kernel and the chain never drops traffic. Sources on the allowlist, the Sentrel server and loopback are never flagged. Windows is not yet supported.
 
 ## Roles, permissions and tenancy
 

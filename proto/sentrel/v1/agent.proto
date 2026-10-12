@@ -234,6 +234,21 @@ message SecurityReport {
   Fail2Ban fail2ban = 4;
   string source = 5; // auth.log, journald, windows-security-log
   string error = 6;
+  repeated PortScan portscans = 7;     // scanners newly seen (or still active) since the last report
+  PortScanStatus portscan_status = 8;  // unset when the agent predates port-scan detection
+}
+
+// A source address that probed closed TCP ports above the host's threshold.
+message PortScan {
+  string ip = 1;
+  int64 first_seen_ms = 2;
+  int64 last_seen_ms = 3;
+}
+
+message PortScanStatus {
+  bool supported = 1; // false when the host cannot run kernel-side detection
+  bool active = 2;    // rules installed and enabled
+  string reason = 3;  // why unsupported or inactive
 }
 
 message FailedLogins {
@@ -309,6 +324,9 @@ message AgentConfig {
   repeated string watched_services = 10; // always reported even if many services
   bool collect_temperatures = 11;
   bool refresh_package_index = 12; // run apt-get update / dnf makecache before listing
+  bool portscan_enabled = 13;
+  uint32 portscan_threshold_per_min = 14; // closed-port SYNs per minute per source
+  repeated string portscan_allowlist = 15; // IPs / CIDRs never flagged
 }
 
 // A job is a protobuf-serialized JobSpec plus an Ed25519 signature over

@@ -18,6 +18,7 @@ First public release (0.9.x). Nothing has been tagged yet; the entries below sum
 - Documentation, CONTRIBUTING with DCO, GitHub Actions CI and signed releases.
 - Windows agent fixes (read-only service enumeration, per-user installed applications, clearer message when the Security log is unreadable) and an MSI installer built from `deploy/windows/agent.wxs` when `wixl` is available.
 - Redesigned web UI: light theme by default with dark toggle, beat bars and uptime pills for hosts and checks, refreshed dashboard, self-hosted Inter font.
+- Port-scan detection on Linux (nftables): a detection-only kernel chain counts SYNs to closed ports per source, the agent polls the result, and flagged sources raise a `portscan` alert and can be auto-blocked. Windows is not yet supported.
 - Per-rule notification muting and a host toggle for failed-logon alerts.
 - Disk usage analysis (run automatically when disk alerts fire) and opt-in disk cleanup jobs for Linux and Windows.
 - Vulnerability findings show the available fixed version and can queue an upgrade to it.

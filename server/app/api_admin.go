@@ -311,7 +311,7 @@ func (a *App) apiDeleteTenant(c *Ctx) (any, error) {
 		return nil, err
 	}
 	// Rows without FK cascade.
-	for _, tbl := range []string{"alert_events", "notification_log", "security_events", "ip_blocks", "vuln_scans", "vuln_findings", "uptime_daily", "audit_log", "lldp_neighbors", "packages", "inventory_status", "fail2ban_status"} {
+	for _, tbl := range []string{"alert_events", "notification_log", "security_events", "ip_blocks", "vuln_scans", "vuln_findings", "uptime_daily", "audit_log", "lldp_neighbors", "packages", "inventory_status", "fail2ban_status", "portscan_status"} {
 		_, _ = a.db.ExecContext(c.ctx(), `DELETE FROM `+tbl+` WHERE tenant_id=?`, id)
 	}
 	for _, hid := range hostIDs {
@@ -545,6 +545,17 @@ func (a *App) apiPutSettings(c *Ctx) (any, error) {
 		if s.InventoryIntervalSec < 300 {
 			return nil, badRequest("inventory interval must be at least 300 seconds")
 		}
+		if s.PortscanThresholdPerMin < 1 {
+			s.PortscanThresholdPerMin = 20
+		}
+		if s.PortscanThresholdPerMin > 100000 {
+			return nil, badRequest("port-scan threshold must be 1-100000 per minute")
+		}
+		pl, err := normalizeAllowlist(s.PortscanAllowlist)
+		if err != nil {
+			return nil, err
+		}
+		s.PortscanAllowlist = pl
 	case *AlertingSettings:
 		if s.GroupWaitSeconds < 0 || s.GroupWaitSeconds > 3600 {
 			return nil, badRequest("group wait must be 0-3600 seconds")

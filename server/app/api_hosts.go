@@ -318,6 +318,14 @@ func (a *App) apiUpdateHost(c *Ctx) (any, error) {
 		set("retention_days", nil)
 	}
 	if req.AgentOptions != nil {
+		if t := req.AgentOptions.PortscanThresholdPerMin; t != nil && (*t < 1 || *t > 100000) {
+			return nil, badRequest("port-scan threshold must be 1-100000 per minute")
+		}
+		pl, err := normalizeAllowlist(req.AgentOptions.PortscanAllowlist)
+		if err != nil {
+			return nil, err
+		}
+		req.AgentOptions.PortscanAllowlist = pl
 		set("agent_options", mustJSON(req.AgentOptions))
 		changes["agent_options"] = req.AgentOptions
 	}
@@ -407,6 +415,7 @@ func (a *App) moveHostTenant(ctx context.Context, hostID, tenant int64) error {
 			`UPDATE security_events SET tenant_id=? WHERE host_id=?`,
 			`UPDATE ip_blocks SET tenant_id=? WHERE host_id=?`,
 			`UPDATE fail2ban_status SET tenant_id=? WHERE host_id=?`,
+			`UPDATE portscan_status SET tenant_id=? WHERE host_id=?`,
 			`UPDATE vuln_scans SET tenant_id=? WHERE host_id=?`,
 			`UPDATE vuln_findings SET tenant_id=? WHERE host_id=?`,
 			`UPDATE lldp_neighbors SET tenant_id=? WHERE host_id=?`,
@@ -616,7 +625,7 @@ func (a *App) apiHostSecurity(c *Ctx) (any, error) {
 		WindowEnd int64   `db:"window_end"`
 	}
 	var evs []ev
-	_ = a.db.SelectContext(ctx, &evs, `SELECT ip, count, usernames, window_end FROM security_events WHERE host_id=? AND window_end>=? ORDER BY window_end DESC LIMIT 20000`, h.ID, since)
+	_ = a.db.SelectContext(ctx, &evs, `SELECT ip, count, usernames, window_end FROM security_events WHERE host_id=? AND kind='login' AND window_end>=? ORDER BY window_end DESC LIMIT 20000`, h.ID, since)
 	byIP := map[string]*agg{}
 	userSeen := map[string]map[string]bool{}
 	for _, e := range evs {
@@ -665,9 +674,31 @@ func (a *App) apiHostSecurity(c *Ctx) (any, error) {
 	for _, r := range rows {
 		total += r.Total
 	}
+	type scanRow struct {
+		IP        string `db:"ip" json:"ip"`
+		FirstSeen int64  `db:"first_seen" json:"first_seen"`
+		LastSeen  int64  `db:"last_seen" json:"last_seen"`
+		Reports   int    `db:"reports" json:"reports"`
+		Blocked   bool   `db:"-" json:"blocked"`
+	}
+	scans := []scanRow{}
+	_ = a.db.SelectContext(ctx, &scans, `SELECT ip, MIN(window_start) AS first_seen, MAX(window_end) AS last_seen, COUNT(*) AS reports FROM security_events
+		WHERE host_id=? AND kind='portscan' AND window_end>=? GROUP BY ip ORDER BY last_seen DESC LIMIT 200`, h.ID, since)
+	for i := range scans {
+		scans[i].Blocked = active[scans[i].IP]
+	}
+	ps := struct {
+		Known     bool   `db:"-" json:"known"`
+		Supported bool   `db:"supported" json:"supported"`
+		Active    bool   `db:"active" json:"active"`
+		Reason    string `db:"reason" json:"reason"`
+		UpdatedAt int64  `db:"updated_at" json:"updated_at"`
+	}{}
+	ps.Known = a.db.GetContext(ctx, &ps, `SELECT supported, active, reason, updated_at FROM portscan_status WHERE host_id=?`, h.ID) == nil
 	d := a.settings.Agent()
 	return map[string]any{"failed_logins": rows, "total": total, "blocks": blocks, "fail2ban": f2b, "hours": hours,
-		"allow_ip_block": h.AllowIPBlock, "auto_block": h.AutoBlock, "notify_failed_logins": a.hostNotifies(h, "bruteforce"), "auto_block_threshold": d.AutoBlockThreshold, "window_minutes": d.BruteforceWindowMin}, nil
+		"allow_ip_block": h.AllowIPBlock, "auto_block": h.AutoBlock, "notify_failed_logins": a.hostNotifies(h, "bruteforce"), "auto_block_threshold": d.AutoBlockThreshold, "window_minutes": d.BruteforceWindowMin,
+		"portscans": scans, "portscan_status": ps, "notify_portscan": a.hostNotifies(h, "portscan")}, nil
 }
 
 type blockReq struct {

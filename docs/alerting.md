@@ -43,6 +43,7 @@ Metrics where lower is worse (disk-fill forecast) alert at or below the value; a
 | `security_updates` | Security updates pending | | | 1 | none | 1 | no |
 | `reboot_required` | Reboot required | | | 1 | none | 1 | no |
 | `bruteforce` | Failed logins from one IP in the window | | | 10 | 50 | 1 | yes |
+| `portscan` | Distinct sources flagged as port scanners in the last 10 minutes (Linux) | | | 1 | none | 1 | yes |
 | `container_restarts` | Container restarts since last collection | `container` | | 1 | 5 | 1 | yes |
 | `host_down` | Seconds without contact (critical only) | | s | none | 120 | 1 | yes |
 | `host_storage_mb` | Stored metric data for one host (checked nightly) | | MB | 512 | none | 1 | yes |
@@ -82,7 +83,7 @@ Each fire and resolve of an alert is a transition. When an alert records `flap_t
 
 Every threshold rule has a `notify` flag (default on). When it is off, alerts raised by that rule still fire, appear in the alert list and timeline and are marked `muted`, but nothing is sent to notification channels for them: not on firing, escalation, flapping, resolution or reminders. Each skipped notification is recorded in the alert timeline as `silenced` with the detail "notifications disabled for this rule". Rules set the flag like any other field, so it follows the same inheritance (host, group, tenant, provider).
 
-To mute one metric on a single host without editing the rule chain, use the toggle on the host page or `PUT /api/v1/hosts/{id}/notify` with `{"metric":"bruteforce","notify":false}`. This writes a host-level rule that copies the effective warning, critical, `for_count` and enabled values and changes only `notify`. `GET /api/v1/hosts/{id}/security` reports the effective setting for failed-login alerts as `notify_failed_logins`.
+To mute one metric on a single host without editing the rule chain, use the toggle on the host page or `PUT /api/v1/hosts/{id}/notify` with `{"metric":"bruteforce","notify":false}`. This writes a host-level rule that copies the effective warning, critical, `for_count` and enabled values and changes only `notify`. `GET /api/v1/hosts/{id}/security` reports the effective setting for failed-login alerts as `notify_failed_logins` and for port-scan alerts (metric `portscan`) as `notify_portscan`.
 
 ## Acknowledgements
 

@@ -220,6 +220,9 @@ type AgentOptions struct {
 	CollectTemperatures *bool    `json:"collect_temperatures,omitempty"`
 	BruteforceEnabled   *bool    `json:"bruteforce_enabled,omitempty"`
 	Fail2banEnabled     *bool    `json:"fail2ban_enabled,omitempty"`
+	PortscanEnabled         *bool    `json:"portscan_enabled,omitempty"`
+	PortscanThresholdPerMin *int     `json:"portscan_threshold_per_min,omitempty"`
+	PortscanAllowlist       []string `json:"portscan_allowlist,omitempty"`
 	RefreshPackageIndex *bool    `json:"refresh_package_index,omitempty"`
 	WatchedServices     []string `json:"watched_services,omitempty"`
 }

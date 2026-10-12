@@ -170,6 +170,17 @@ func describeThreshold(h hostRef, def MetricDef, lv string, v float64, thr *floa
 	if def.Key == "bruteforce" && labels["ip"] != "" {
 		msg += " from " + labels["ip"]
 	}
+	if def.Key == "portscan" {
+		if ip := labels["ip"]; ip != "" {
+			title = fmt.Sprintf("Port scan from %s on %s", ip, h.Name)
+			msg = fmt.Sprintf("%s probed closed ports in the last 10 minutes", ip)
+			if n := int(v); n > 1 {
+				msg = fmt.Sprintf("%s and %d other sources probed closed ports in the last 10 minutes", ip, n-1)
+			}
+		} else {
+			title = "Port scan on " + h.Name
+		}
+	}
 	return title, msg
 }
 

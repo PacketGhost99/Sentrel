@@ -1878,15 +1878,17 @@ func (x *Package) GetPublisher() string {
 }
 
 type SecurityReport struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	WindowStartMs int64                  `protobuf:"varint,1,opt,name=window_start_ms,json=windowStartMs,proto3" json:"window_start_ms,omitempty"`
-	WindowEndMs   int64                  `protobuf:"varint,2,opt,name=window_end_ms,json=windowEndMs,proto3" json:"window_end_ms,omitempty"`
-	FailedLogins  []*FailedLogins        `protobuf:"bytes,3,rep,name=failed_logins,json=failedLogins,proto3" json:"failed_logins,omitempty"`
-	Fail2Ban      *Fail2Ban              `protobuf:"bytes,4,opt,name=fail2ban,proto3" json:"fail2ban,omitempty"`
-	Source        string                 `protobuf:"bytes,5,opt,name=source,proto3" json:"source,omitempty"` // auth.log, journald, windows-security-log
-	Error         string                 `protobuf:"bytes,6,opt,name=error,proto3" json:"error,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	WindowStartMs  int64                  `protobuf:"varint,1,opt,name=window_start_ms,json=windowStartMs,proto3" json:"window_start_ms,omitempty"`
+	WindowEndMs    int64                  `protobuf:"varint,2,opt,name=window_end_ms,json=windowEndMs,proto3" json:"window_end_ms,omitempty"`
+	FailedLogins   []*FailedLogins        `protobuf:"bytes,3,rep,name=failed_logins,json=failedLogins,proto3" json:"failed_logins,omitempty"`
+	Fail2Ban       *Fail2Ban              `protobuf:"bytes,4,opt,name=fail2ban,proto3" json:"fail2ban,omitempty"`
+	Source         string                 `protobuf:"bytes,5,opt,name=source,proto3" json:"source,omitempty"` // auth.log, journald, windows-security-log
+	Error          string                 `protobuf:"bytes,6,opt,name=error,proto3" json:"error,omitempty"`
+	Portscans      []*PortScan            `protobuf:"bytes,7,rep,name=portscans,proto3" json:"portscans,omitempty"`                                 // scanners newly seen (or still active) since the last report
+	PortscanStatus *PortScanStatus        `protobuf:"bytes,8,opt,name=portscan_status,json=portscanStatus,proto3" json:"portscan_status,omitempty"` // unset when the agent predates port-scan detection
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *SecurityReport) Reset() {
@@ -1961,6 +1963,141 @@ func (x *SecurityReport) GetError() string {
 	return ""
 }
 
+func (x *SecurityReport) GetPortscans() []*PortScan {
+	if x != nil {
+		return x.Portscans
+	}
+	return nil
+}
+
+func (x *SecurityReport) GetPortscanStatus() *PortScanStatus {
+	if x != nil {
+		return x.PortscanStatus
+	}
+	return nil
+}
+
+// A source address that probed closed TCP ports above the host's threshold.
+type PortScan struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ip            string                 `protobuf:"bytes,1,opt,name=ip,proto3" json:"ip,omitempty"`
+	FirstSeenMs   int64                  `protobuf:"varint,2,opt,name=first_seen_ms,json=firstSeenMs,proto3" json:"first_seen_ms,omitempty"`
+	LastSeenMs    int64                  `protobuf:"varint,3,opt,name=last_seen_ms,json=lastSeenMs,proto3" json:"last_seen_ms,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PortScan) Reset() {
+	*x = PortScan{}
+	mi := &file_sentrel_v1_agent_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PortScan) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PortScan) ProtoMessage() {}
+
+func (x *PortScan) ProtoReflect() protoreflect.Message {
+	mi := &file_sentrel_v1_agent_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PortScan.ProtoReflect.Descriptor instead.
+func (*PortScan) Descriptor() ([]byte, []int) {
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *PortScan) GetIp() string {
+	if x != nil {
+		return x.Ip
+	}
+	return ""
+}
+
+func (x *PortScan) GetFirstSeenMs() int64 {
+	if x != nil {
+		return x.FirstSeenMs
+	}
+	return 0
+}
+
+func (x *PortScan) GetLastSeenMs() int64 {
+	if x != nil {
+		return x.LastSeenMs
+	}
+	return 0
+}
+
+type PortScanStatus struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Supported     bool                   `protobuf:"varint,1,opt,name=supported,proto3" json:"supported,omitempty"` // false when the host cannot run kernel-side detection
+	Active        bool                   `protobuf:"varint,2,opt,name=active,proto3" json:"active,omitempty"`       // rules installed and enabled
+	Reason        string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`        // why unsupported or inactive
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PortScanStatus) Reset() {
+	*x = PortScanStatus{}
+	mi := &file_sentrel_v1_agent_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PortScanStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PortScanStatus) ProtoMessage() {}
+
+func (x *PortScanStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_sentrel_v1_agent_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PortScanStatus.ProtoReflect.Descriptor instead.
+func (*PortScanStatus) Descriptor() ([]byte, []int) {
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *PortScanStatus) GetSupported() bool {
+	if x != nil {
+		return x.Supported
+	}
+	return false
+}
+
+func (x *PortScanStatus) GetActive() bool {
+	if x != nil {
+		return x.Active
+	}
+	return false
+}
+
+func (x *PortScanStatus) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
 type FailedLogins struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Ip            string                 `protobuf:"bytes,1,opt,name=ip,proto3" json:"ip,omitempty"`
@@ -1973,7 +2110,7 @@ type FailedLogins struct {
 
 func (x *FailedLogins) Reset() {
 	*x = FailedLogins{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[19]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1985,7 +2122,7 @@ func (x *FailedLogins) String() string {
 func (*FailedLogins) ProtoMessage() {}
 
 func (x *FailedLogins) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[19]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1998,7 +2135,7 @@ func (x *FailedLogins) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FailedLogins.ProtoReflect.Descriptor instead.
 func (*FailedLogins) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{19}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *FailedLogins) GetIp() string {
@@ -2040,7 +2177,7 @@ type Fail2Ban struct {
 
 func (x *Fail2Ban) Reset() {
 	*x = Fail2Ban{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[20]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2052,7 +2189,7 @@ func (x *Fail2Ban) String() string {
 func (*Fail2Ban) ProtoMessage() {}
 
 func (x *Fail2Ban) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[20]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2065,7 +2202,7 @@ func (x *Fail2Ban) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Fail2Ban.ProtoReflect.Descriptor instead.
 func (*Fail2Ban) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{20}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *Fail2Ban) GetAvailable() bool {
@@ -2103,7 +2240,7 @@ type Fail2BanJail struct {
 
 func (x *Fail2BanJail) Reset() {
 	*x = Fail2BanJail{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[21]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2115,7 +2252,7 @@ func (x *Fail2BanJail) String() string {
 func (*Fail2BanJail) ProtoMessage() {}
 
 func (x *Fail2BanJail) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[21]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2128,7 +2265,7 @@ func (x *Fail2BanJail) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Fail2BanJail.ProtoReflect.Descriptor instead.
 func (*Fail2BanJail) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{21}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *Fail2BanJail) GetName() string {
@@ -2184,7 +2321,7 @@ type JobOutput struct {
 
 func (x *JobOutput) Reset() {
 	*x = JobOutput{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[22]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2196,7 +2333,7 @@ func (x *JobOutput) String() string {
 func (*JobOutput) ProtoMessage() {}
 
 func (x *JobOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[22]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2209,7 +2346,7 @@ func (x *JobOutput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JobOutput.ProtoReflect.Descriptor instead.
 func (*JobOutput) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{22}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *JobOutput) GetJobId() string {
@@ -2249,7 +2386,7 @@ type JobResult struct {
 
 func (x *JobResult) Reset() {
 	*x = JobResult{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[23]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2261,7 +2398,7 @@ func (x *JobResult) String() string {
 func (*JobResult) ProtoMessage() {}
 
 func (x *JobResult) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[23]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2274,7 +2411,7 @@ func (x *JobResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JobResult.ProtoReflect.Descriptor instead.
 func (*JobResult) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{23}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *JobResult) GetJobId() string {
@@ -2335,7 +2472,7 @@ type Pong struct {
 
 func (x *Pong) Reset() {
 	*x = Pong{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[24]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2347,7 +2484,7 @@ func (x *Pong) String() string {
 func (*Pong) ProtoMessage() {}
 
 func (x *Pong) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[24]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2360,7 +2497,7 @@ func (x *Pong) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Pong.ProtoReflect.Descriptor instead.
 func (*Pong) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{24}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *Pong) GetUnixMs() int64 {
@@ -2386,7 +2523,7 @@ type ServerMessage struct {
 
 func (x *ServerMessage) Reset() {
 	*x = ServerMessage{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[25]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2398,7 +2535,7 @@ func (x *ServerMessage) String() string {
 func (*ServerMessage) ProtoMessage() {}
 
 func (x *ServerMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[25]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2411,7 +2548,7 @@ func (x *ServerMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerMessage.ProtoReflect.Descriptor instead.
 func (*ServerMessage) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{25}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *ServerMessage) GetMsg() isServerMessage_Msg {
@@ -2512,7 +2649,7 @@ type Welcome struct {
 
 func (x *Welcome) Reset() {
 	*x = Welcome{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[26]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2524,7 +2661,7 @@ func (x *Welcome) String() string {
 func (*Welcome) ProtoMessage() {}
 
 func (x *Welcome) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[26]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2537,7 +2674,7 @@ func (x *Welcome) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Welcome.ProtoReflect.Descriptor instead.
 func (*Welcome) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{26}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *Welcome) GetHostId() string {
@@ -2582,13 +2719,16 @@ type AgentConfig struct {
 	WatchedServices          []string               `protobuf:"bytes,10,rep,name=watched_services,json=watchedServices,proto3" json:"watched_services,omitempty"` // always reported even if many services
 	CollectTemperatures      bool                   `protobuf:"varint,11,opt,name=collect_temperatures,json=collectTemperatures,proto3" json:"collect_temperatures,omitempty"`
 	RefreshPackageIndex      bool                   `protobuf:"varint,12,opt,name=refresh_package_index,json=refreshPackageIndex,proto3" json:"refresh_package_index,omitempty"` // run apt-get update / dnf makecache before listing
+	PortscanEnabled          bool                   `protobuf:"varint,13,opt,name=portscan_enabled,json=portscanEnabled,proto3" json:"portscan_enabled,omitempty"`
+	PortscanThresholdPerMin  uint32                 `protobuf:"varint,14,opt,name=portscan_threshold_per_min,json=portscanThresholdPerMin,proto3" json:"portscan_threshold_per_min,omitempty"` // closed-port SYNs per minute per source
+	PortscanAllowlist        []string               `protobuf:"bytes,15,rep,name=portscan_allowlist,json=portscanAllowlist,proto3" json:"portscan_allowlist,omitempty"`                        // IPs / CIDRs never flagged
 	unknownFields            protoimpl.UnknownFields
 	sizeCache                protoimpl.SizeCache
 }
 
 func (x *AgentConfig) Reset() {
 	*x = AgentConfig{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[27]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2600,7 +2740,7 @@ func (x *AgentConfig) String() string {
 func (*AgentConfig) ProtoMessage() {}
 
 func (x *AgentConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[27]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2613,7 +2753,7 @@ func (x *AgentConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AgentConfig.ProtoReflect.Descriptor instead.
 func (*AgentConfig) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{27}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *AgentConfig) GetIntervalSeconds() uint32 {
@@ -2700,6 +2840,27 @@ func (x *AgentConfig) GetRefreshPackageIndex() bool {
 	return false
 }
 
+func (x *AgentConfig) GetPortscanEnabled() bool {
+	if x != nil {
+		return x.PortscanEnabled
+	}
+	return false
+}
+
+func (x *AgentConfig) GetPortscanThresholdPerMin() uint32 {
+	if x != nil {
+		return x.PortscanThresholdPerMin
+	}
+	return 0
+}
+
+func (x *AgentConfig) GetPortscanAllowlist() []string {
+	if x != nil {
+		return x.PortscanAllowlist
+	}
+	return nil
+}
+
 // A job is a protobuf-serialized JobSpec plus an Ed25519 signature over
 // those exact bytes. Agents verify the signature with the key received at
 // registration and refuse anything else.
@@ -2717,7 +2878,7 @@ type SignedJob struct {
 
 func (x *SignedJob) Reset() {
 	*x = SignedJob{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[28]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2729,7 +2890,7 @@ func (x *SignedJob) String() string {
 func (*SignedJob) ProtoMessage() {}
 
 func (x *SignedJob) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[28]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2742,7 +2903,7 @@ func (x *SignedJob) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SignedJob.ProtoReflect.Descriptor instead.
 func (*SignedJob) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{28}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *SignedJob) GetSpec() []byte {
@@ -2789,7 +2950,7 @@ type JobSpec struct {
 
 func (x *JobSpec) Reset() {
 	*x = JobSpec{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[29]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2801,7 +2962,7 @@ func (x *JobSpec) String() string {
 func (*JobSpec) ProtoMessage() {}
 
 func (x *JobSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[29]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2814,7 +2975,7 @@ func (x *JobSpec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JobSpec.ProtoReflect.Descriptor instead.
 func (*JobSpec) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{29}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *JobSpec) GetId() string {
@@ -2882,7 +3043,7 @@ type Ping struct {
 
 func (x *Ping) Reset() {
 	*x = Ping{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[30]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2894,7 +3055,7 @@ func (x *Ping) String() string {
 func (*Ping) ProtoMessage() {}
 
 func (x *Ping) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[30]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2907,7 +3068,7 @@ func (x *Ping) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Ping.ProtoReflect.Descriptor instead.
 func (*Ping) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{30}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *Ping) GetUnixMs() int64 {
@@ -2927,7 +3088,7 @@ type Goodbye struct {
 
 func (x *Goodbye) Reset() {
 	*x = Goodbye{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[31]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2939,7 +3100,7 @@ func (x *Goodbye) String() string {
 func (*Goodbye) ProtoMessage() {}
 
 func (x *Goodbye) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[31]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2952,7 +3113,7 @@ func (x *Goodbye) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Goodbye.ProtoReflect.Descriptor instead.
 func (*Goodbye) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{31}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *Goodbye) GetReason() string {
@@ -3154,14 +3315,25 @@ const file_sentrel_v1_agent_proto_rawDesc = "" +
 	"\bsecurity\x18\x06 \x01(\bR\bsecurity\x12\x0e\n" +
 	"\x02kb\x18\a \x01(\tR\x02kb\x12\x12\n" +
 	"\x04type\x18\b \x01(\tR\x04type\x12\x1c\n" +
-	"\tpublisher\x18\t \x01(\tR\tpublisher\"\xfb\x01\n" +
+	"\tpublisher\x18\t \x01(\tR\tpublisher\"\xf4\x02\n" +
 	"\x0eSecurityReport\x12&\n" +
 	"\x0fwindow_start_ms\x18\x01 \x01(\x03R\rwindowStartMs\x12\"\n" +
 	"\rwindow_end_ms\x18\x02 \x01(\x03R\vwindowEndMs\x12=\n" +
 	"\rfailed_logins\x18\x03 \x03(\v2\x18.sentrel.v1.FailedLoginsR\ffailedLogins\x120\n" +
 	"\bfail2ban\x18\x04 \x01(\v2\x14.sentrel.v1.Fail2BanR\bfail2ban\x12\x16\n" +
 	"\x06source\x18\x05 \x01(\tR\x06source\x12\x14\n" +
-	"\x05error\x18\x06 \x01(\tR\x05error\"t\n" +
+	"\x05error\x18\x06 \x01(\tR\x05error\x122\n" +
+	"\tportscans\x18\a \x03(\v2\x14.sentrel.v1.PortScanR\tportscans\x12C\n" +
+	"\x0fportscan_status\x18\b \x01(\v2\x1a.sentrel.v1.PortScanStatusR\x0eportscanStatus\"`\n" +
+	"\bPortScan\x12\x0e\n" +
+	"\x02ip\x18\x01 \x01(\tR\x02ip\x12\"\n" +
+	"\rfirst_seen_ms\x18\x02 \x01(\x03R\vfirstSeenMs\x12 \n" +
+	"\flast_seen_ms\x18\x03 \x01(\x03R\n" +
+	"lastSeenMs\"^\n" +
+	"\x0ePortScanStatus\x12\x1c\n" +
+	"\tsupported\x18\x01 \x01(\bR\tsupported\x12\x16\n" +
+	"\x06active\x18\x02 \x01(\bR\x06active\x12\x16\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\"t\n" +
 	"\fFailedLogins\x12\x0e\n" +
 	"\x02ip\x18\x01 \x01(\tR\x02ip\x12\x14\n" +
 	"\x05count\x18\x02 \x01(\rR\x05count\x12\x1c\n" +
@@ -3208,7 +3380,7 @@ const file_sentrel_v1_agent_proto_rawDesc = "" +
 	"\ahost_id\x18\x01 \x01(\tR\x06hostId\x12/\n" +
 	"\x06config\x18\x02 \x01(\v2\x17.sentrel.v1.AgentConfigR\x06config\x12$\n" +
 	"\x0eserver_unix_ms\x18\x03 \x01(\x03R\fserverUnixMs\x12%\n" +
-	"\x0eserver_version\x18\x04 \x01(\tR\rserverVersion\"\xba\x04\n" +
+	"\x0eserver_version\x18\x04 \x01(\tR\rserverVersion\"\xd1\x05\n" +
 	"\vAgentConfig\x12)\n" +
 	"\x10interval_seconds\x18\x01 \x01(\rR\x0fintervalSeconds\x12<\n" +
 	"\x1ainventory_interval_seconds\x18\x02 \x01(\rR\x18inventoryIntervalSeconds\x12#\n" +
@@ -3222,7 +3394,10 @@ const file_sentrel_v1_agent_proto_rawDesc = "" +
 	"\x10watched_services\x18\n" +
 	" \x03(\tR\x0fwatchedServices\x121\n" +
 	"\x14collect_temperatures\x18\v \x01(\bR\x13collectTemperatures\x122\n" +
-	"\x15refresh_package_index\x18\f \x01(\bR\x13refreshPackageIndex\"\x94\x01\n" +
+	"\x15refresh_package_index\x18\f \x01(\bR\x13refreshPackageIndex\x12)\n" +
+	"\x10portscan_enabled\x18\r \x01(\bR\x0fportscanEnabled\x12;\n" +
+	"\x1aportscan_threshold_per_min\x18\x0e \x01(\rR\x17portscanThresholdPerMin\x12-\n" +
+	"\x12portscan_allowlist\x18\x0f \x03(\tR\x11portscanAllowlist\"\x94\x01\n" +
 	"\tSignedJob\x12\x12\n" +
 	"\x04spec\x18\x01 \x01(\fR\x04spec\x12\x1c\n" +
 	"\tsignature\x18\x02 \x01(\fR\tsignature\x12-\n" +
@@ -3266,7 +3441,7 @@ func file_sentrel_v1_agent_proto_rawDescGZIP() []byte {
 }
 
 var file_sentrel_v1_agent_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_sentrel_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 34)
+var file_sentrel_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 36)
 var file_sentrel_v1_agent_proto_goTypes = []any{
 	(SchemaVersion)(0),       // 0: sentrel.v1.SchemaVersion
 	(*RegisterRequest)(nil),  // 1: sentrel.v1.RegisterRequest
@@ -3288,35 +3463,37 @@ var file_sentrel_v1_agent_proto_goTypes = []any{
 	(*Inventory)(nil),        // 17: sentrel.v1.Inventory
 	(*Package)(nil),          // 18: sentrel.v1.Package
 	(*SecurityReport)(nil),   // 19: sentrel.v1.SecurityReport
-	(*FailedLogins)(nil),     // 20: sentrel.v1.FailedLogins
-	(*Fail2Ban)(nil),         // 21: sentrel.v1.Fail2Ban
-	(*Fail2BanJail)(nil),     // 22: sentrel.v1.Fail2BanJail
-	(*JobOutput)(nil),        // 23: sentrel.v1.JobOutput
-	(*JobResult)(nil),        // 24: sentrel.v1.JobResult
-	(*Pong)(nil),             // 25: sentrel.v1.Pong
-	(*ServerMessage)(nil),    // 26: sentrel.v1.ServerMessage
-	(*Welcome)(nil),          // 27: sentrel.v1.Welcome
-	(*AgentConfig)(nil),      // 28: sentrel.v1.AgentConfig
-	(*SignedJob)(nil),        // 29: sentrel.v1.SignedJob
-	(*JobSpec)(nil),          // 30: sentrel.v1.JobSpec
-	(*Ping)(nil),             // 31: sentrel.v1.Ping
-	(*Goodbye)(nil),          // 32: sentrel.v1.Goodbye
-	nil,                      // 33: sentrel.v1.Sample.LabelsEntry
-	nil,                      // 34: sentrel.v1.JobSpec.ParamsEntry
+	(*PortScan)(nil),         // 20: sentrel.v1.PortScan
+	(*PortScanStatus)(nil),   // 21: sentrel.v1.PortScanStatus
+	(*FailedLogins)(nil),     // 22: sentrel.v1.FailedLogins
+	(*Fail2Ban)(nil),         // 23: sentrel.v1.Fail2Ban
+	(*Fail2BanJail)(nil),     // 24: sentrel.v1.Fail2BanJail
+	(*JobOutput)(nil),        // 25: sentrel.v1.JobOutput
+	(*JobResult)(nil),        // 26: sentrel.v1.JobResult
+	(*Pong)(nil),             // 27: sentrel.v1.Pong
+	(*ServerMessage)(nil),    // 28: sentrel.v1.ServerMessage
+	(*Welcome)(nil),          // 29: sentrel.v1.Welcome
+	(*AgentConfig)(nil),      // 30: sentrel.v1.AgentConfig
+	(*SignedJob)(nil),        // 31: sentrel.v1.SignedJob
+	(*JobSpec)(nil),          // 32: sentrel.v1.JobSpec
+	(*Ping)(nil),             // 33: sentrel.v1.Ping
+	(*Goodbye)(nil),          // 34: sentrel.v1.Goodbye
+	nil,                      // 35: sentrel.v1.Sample.LabelsEntry
+	nil,                      // 36: sentrel.v1.JobSpec.ParamsEntry
 }
 var file_sentrel_v1_agent_proto_depIdxs = []int32{
 	5,  // 0: sentrel.v1.RegisterRequest.host:type_name -> sentrel.v1.HostInfo
-	28, // 1: sentrel.v1.RegisterResponse.config:type_name -> sentrel.v1.AgentConfig
+	30, // 1: sentrel.v1.RegisterResponse.config:type_name -> sentrel.v1.AgentConfig
 	4,  // 2: sentrel.v1.AgentMessage.hello:type_name -> sentrel.v1.Hello
 	7,  // 3: sentrel.v1.AgentMessage.metrics:type_name -> sentrel.v1.MetricBatch
 	8,  // 4: sentrel.v1.AgentMessage.state:type_name -> sentrel.v1.HostState
 	17, // 5: sentrel.v1.AgentMessage.inventory:type_name -> sentrel.v1.Inventory
 	19, // 6: sentrel.v1.AgentMessage.security:type_name -> sentrel.v1.SecurityReport
-	23, // 7: sentrel.v1.AgentMessage.job_output:type_name -> sentrel.v1.JobOutput
-	24, // 8: sentrel.v1.AgentMessage.job_result:type_name -> sentrel.v1.JobResult
-	25, // 9: sentrel.v1.AgentMessage.pong:type_name -> sentrel.v1.Pong
+	25, // 7: sentrel.v1.AgentMessage.job_output:type_name -> sentrel.v1.JobOutput
+	26, // 8: sentrel.v1.AgentMessage.job_result:type_name -> sentrel.v1.JobResult
+	27, // 9: sentrel.v1.AgentMessage.pong:type_name -> sentrel.v1.Pong
 	5,  // 10: sentrel.v1.Hello.host:type_name -> sentrel.v1.HostInfo
-	33, // 11: sentrel.v1.Sample.labels:type_name -> sentrel.v1.Sample.LabelsEntry
+	35, // 11: sentrel.v1.Sample.labels:type_name -> sentrel.v1.Sample.LabelsEntry
 	6,  // 12: sentrel.v1.MetricBatch.samples:type_name -> sentrel.v1.Sample
 	9,  // 13: sentrel.v1.HostState.disks:type_name -> sentrel.v1.Disk
 	10, // 14: sentrel.v1.HostState.interfaces:type_name -> sentrel.v1.NetInterface
@@ -3328,25 +3505,27 @@ var file_sentrel_v1_agent_proto_depIdxs = []int32{
 	16, // 20: sentrel.v1.HostState.blocked_ips:type_name -> sentrel.v1.BlockedIP
 	18, // 21: sentrel.v1.Inventory.installed:type_name -> sentrel.v1.Package
 	18, // 22: sentrel.v1.Inventory.upgradable:type_name -> sentrel.v1.Package
-	20, // 23: sentrel.v1.SecurityReport.failed_logins:type_name -> sentrel.v1.FailedLogins
-	21, // 24: sentrel.v1.SecurityReport.fail2ban:type_name -> sentrel.v1.Fail2Ban
-	22, // 25: sentrel.v1.Fail2Ban.jails:type_name -> sentrel.v1.Fail2BanJail
-	27, // 26: sentrel.v1.ServerMessage.welcome:type_name -> sentrel.v1.Welcome
-	28, // 27: sentrel.v1.ServerMessage.config:type_name -> sentrel.v1.AgentConfig
-	29, // 28: sentrel.v1.ServerMessage.job:type_name -> sentrel.v1.SignedJob
-	31, // 29: sentrel.v1.ServerMessage.ping:type_name -> sentrel.v1.Ping
-	32, // 30: sentrel.v1.ServerMessage.goodbye:type_name -> sentrel.v1.Goodbye
-	28, // 31: sentrel.v1.Welcome.config:type_name -> sentrel.v1.AgentConfig
-	34, // 32: sentrel.v1.JobSpec.params:type_name -> sentrel.v1.JobSpec.ParamsEntry
-	1,  // 33: sentrel.v1.AgentService.Register:input_type -> sentrel.v1.RegisterRequest
-	3,  // 34: sentrel.v1.AgentService.Connect:input_type -> sentrel.v1.AgentMessage
-	2,  // 35: sentrel.v1.AgentService.Register:output_type -> sentrel.v1.RegisterResponse
-	26, // 36: sentrel.v1.AgentService.Connect:output_type -> sentrel.v1.ServerMessage
-	35, // [35:37] is the sub-list for method output_type
-	33, // [33:35] is the sub-list for method input_type
-	33, // [33:33] is the sub-list for extension type_name
-	33, // [33:33] is the sub-list for extension extendee
-	0,  // [0:33] is the sub-list for field type_name
+	22, // 23: sentrel.v1.SecurityReport.failed_logins:type_name -> sentrel.v1.FailedLogins
+	23, // 24: sentrel.v1.SecurityReport.fail2ban:type_name -> sentrel.v1.Fail2Ban
+	20, // 25: sentrel.v1.SecurityReport.portscans:type_name -> sentrel.v1.PortScan
+	21, // 26: sentrel.v1.SecurityReport.portscan_status:type_name -> sentrel.v1.PortScanStatus
+	24, // 27: sentrel.v1.Fail2Ban.jails:type_name -> sentrel.v1.Fail2BanJail
+	29, // 28: sentrel.v1.ServerMessage.welcome:type_name -> sentrel.v1.Welcome
+	30, // 29: sentrel.v1.ServerMessage.config:type_name -> sentrel.v1.AgentConfig
+	31, // 30: sentrel.v1.ServerMessage.job:type_name -> sentrel.v1.SignedJob
+	33, // 31: sentrel.v1.ServerMessage.ping:type_name -> sentrel.v1.Ping
+	34, // 32: sentrel.v1.ServerMessage.goodbye:type_name -> sentrel.v1.Goodbye
+	30, // 33: sentrel.v1.Welcome.config:type_name -> sentrel.v1.AgentConfig
+	36, // 34: sentrel.v1.JobSpec.params:type_name -> sentrel.v1.JobSpec.ParamsEntry
+	1,  // 35: sentrel.v1.AgentService.Register:input_type -> sentrel.v1.RegisterRequest
+	3,  // 36: sentrel.v1.AgentService.Connect:input_type -> sentrel.v1.AgentMessage
+	2,  // 37: sentrel.v1.AgentService.Register:output_type -> sentrel.v1.RegisterResponse
+	28, // 38: sentrel.v1.AgentService.Connect:output_type -> sentrel.v1.ServerMessage
+	37, // [37:39] is the sub-list for method output_type
+	35, // [35:37] is the sub-list for method input_type
+	35, // [35:35] is the sub-list for extension type_name
+	35, // [35:35] is the sub-list for extension extendee
+	0,  // [0:35] is the sub-list for field type_name
 }
 
 func init() { file_sentrel_v1_agent_proto_init() }
@@ -3364,7 +3543,7 @@ func file_sentrel_v1_agent_proto_init() {
 		(*AgentMessage_JobResult)(nil),
 		(*AgentMessage_Pong)(nil),
 	}
-	file_sentrel_v1_agent_proto_msgTypes[25].OneofWrappers = []any{
+	file_sentrel_v1_agent_proto_msgTypes[27].OneofWrappers = []any{
 		(*ServerMessage_Welcome)(nil),
 		(*ServerMessage_Config)(nil),
 		(*ServerMessage_Job)(nil),
@@ -3377,7 +3556,7 @@ func file_sentrel_v1_agent_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_sentrel_v1_agent_proto_rawDesc), len(file_sentrel_v1_agent_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   34,
+			NumMessages:   36,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

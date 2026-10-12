@@ -98,11 +98,16 @@ export function HostSettings({ host }: { host: HostDetail }) {
             <Toggle checked={opt('collect_temperatures')} onChange={(v) => setOpt('collect_temperatures', v)} label="Temperatures" />
             <Toggle checked={opt('bruteforce_enabled')} onChange={(v) => setOpt('bruteforce_enabled', v)} label="Brute-force detection" hint="Watch auth logs / Security log" />
             <Toggle checked={opt('fail2ban_enabled')} onChange={(v) => setOpt('fail2ban_enabled', v)} label="Read fail2ban status" />
+            <Toggle checked={opt('portscan_enabled')} onChange={(v) => setOpt('portscan_enabled', v)} label="Port-scan detection" hint="Linux with nftables; the kernel counts, the agent only polls" />
             <Toggle checked={opt('refresh_package_index')} onChange={(v) => setOpt('refresh_package_index', v)} label="Refresh package index" hint="apt-get update / dnf makecache before inventory" />
           </div>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <Field label="Top processes reported"><Input type="number" min={0} max={50} value={opts.top_processes ?? (eff.top_processes as number) ?? 10} onChange={(e) => setOpt('top_processes', Number(e.target.value))} /></Field>
             <Field label="Watched services" hint="Always reported (in addition to service checks)"><TagInput value={opts.watched_services || []} onChange={(v) => setOpt('watched_services', v)} placeholder="nginx, postgresql" /></Field>
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <Field label="Port-scan threshold (closed-port SYNs per minute per source)" hint={`Default ${(eff.portscan_threshold_per_min as number) ?? 20}`}><Input type="number" min={1} placeholder="inherit" value={(opts.portscan_threshold_per_min ?? '') as any} onChange={(e) => setOpt('portscan_threshold_per_min', e.target.value === '' ? undefined : Number(e.target.value))} /></Field>
+            <Field label="Port-scan allowlist" hint="IPs or CIDRs never flagged on this host (added to the global list)"><TagInput value={opts.portscan_allowlist || []} onChange={(v) => setOpt('portscan_allowlist', v)} placeholder="198.51.100.0/24" /></Field>
           </div>
         </Card>
       )}

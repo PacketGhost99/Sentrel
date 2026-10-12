@@ -110,6 +110,15 @@ func PrivMain(args []string) error {
 			return err
 		}
 		return json.NewEncoder(w).Encode(blocks)
+	case "scan-sync":
+		return privScanSync(ctx, w, rest)
+	case "scan-list":
+		if len(rest) != 0 {
+			return errors.New("usage: scan-list")
+		}
+		return privScanList(ctx, w)
+	case "scan-off":
+		return privScanOff(ctx, w)
 	case "fail2ban-status":
 		f := fail2banStatus(ctx)
 		b, _ := protojson.Marshal(f)

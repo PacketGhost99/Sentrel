@@ -233,6 +233,35 @@ func (a *App) seed(ctx context.Context) error {
 			}
 		}
 	}
+	return a.seedMissingDefaults(ctx)
+}
+
+// seedMissingDefaults adds default rules introduced after the first install
+// (once each, so a rule an admin deleted stays deleted).
+func (a *App) seedMissingDefaults(ctx context.Context) error {
+	for _, d := range defaultThresholds() {
+		if d.Metric != "portscan" {
+			continue
+		}
+		flag := "seeded_rule:" + d.Metric
+		var done int
+		_ = a.db.GetContext(ctx, &done, `SELECT COUNT(*) FROM settings WHERE tenant_id=0 AND key=?`, flag)
+		if done > 0 {
+			continue
+		}
+		now := db.Now()
+		var have int
+		_ = a.db.GetContext(ctx, &have, `SELECT COUNT(*) FROM threshold_rules WHERE scope='global' AND metric=?`, d.Metric)
+		if have == 0 {
+			if _, err := a.db.ExecContext(ctx, `INSERT INTO threshold_rules (tenant_id, scope, scope_id, metric, label_match, warn, crit, for_count, enabled, notify, created_at, updated_at)
+				VALUES (0,'global',0,?,'',?,?,?,?,1,?,?)`, d.Metric, d.Warn, d.Crit, d.ForCount, d.Enabled, now, now); err != nil {
+				return err
+			}
+		}
+		if _, err := a.db.ExecContext(ctx, `INSERT INTO settings (tenant_id, key, value, updated_at) VALUES (0,?,'1',?) ON CONFLICT(tenant_id, key) DO NOTHING`, flag, now); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -270,6 +299,9 @@ func (a *App) agentConfig(h *Host) *pb.AgentConfig {
 		WatchedServices:          d.WatchedServices,
 		CollectTemperatures:      d.CollectTemperatures,
 		RefreshPackageIndex:      d.RefreshPackageIndex,
+		PortscanEnabled:          d.PortscanEnabled,
+		PortscanThresholdPerMin:  uint32(max(d.PortscanThresholdPerMin, 1)),
+		PortscanAllowlist:        d.PortscanAllowlist,
 	}
 	if h == nil {
 		return cfg
@@ -299,6 +331,13 @@ func (a *App) agentConfig(h *Host) *pb.AgentConfig {
 	setB(&cfg.BruteforceEnabled, o.BruteforceEnabled)
 	setB(&cfg.Fail2BanEnabled, o.Fail2banEnabled)
 	setB(&cfg.RefreshPackageIndex, o.RefreshPackageIndex)
+	setB(&cfg.PortscanEnabled, o.PortscanEnabled)
+	if o.PortscanThresholdPerMin != nil && *o.PortscanThresholdPerMin >= 1 {
+		cfg.PortscanThresholdPerMin = uint32(*o.PortscanThresholdPerMin)
+	}
+	if len(o.PortscanAllowlist) > 0 {
+		cfg.PortscanAllowlist = append(append([]string{}, cfg.PortscanAllowlist...), o.PortscanAllowlist...)
+	}
 	if len(o.WatchedServices) > 0 {
 		cfg.WatchedServices = append(append([]string{}, cfg.WatchedServices...), o.WatchedServices...)
 	}

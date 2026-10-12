@@ -147,6 +147,9 @@ type AgentDefaults struct {
 	AutoBlockMinutes     int      `json:"auto_block_minutes"`
 	AutoBlockThreshold   int      `json:"auto_block_threshold"`
 	AutoBlockWhitelist   []string `json:"auto_block_whitelist"`
+	PortscanEnabled         bool     `json:"portscan_enabled"`
+	PortscanThresholdPerMin int      `json:"portscan_threshold_per_min"`
+	PortscanAllowlist       []string `json:"portscan_allowlist"`
 	AutoUpdate           bool     `json:"auto_update"` // push agent updates automatically
 }
 
@@ -218,7 +221,8 @@ func defaultFor(key string) any {
 	case keyAgent:
 		return &AgentDefaults{IntervalSeconds: 30, InventoryIntervalSec: 3600, TopProcesses: 10, CollectServices: true, CollectPorts: true,
 			CollectDocker: true, CollectTemperatures: true, BruteforceEnabled: true, SecurityIntervalSec: 60, Fail2banEnabled: true,
-			BruteforceWindowMin: 5, AutoBlockMinutes: 60, AutoBlockThreshold: 20}
+			BruteforceWindowMin: 5, AutoBlockMinutes: 60, AutoBlockThreshold: 20,
+			PortscanEnabled: true, PortscanThresholdPerMin: 20}
 	case keyAlerting:
 		return &AlertingSettings{GroupWaitSeconds: 30, DefaultRepeatMinutes: 240, FlapWindowMinutes: 30, FlapThreshold: 6, ResolveCount: 1}
 	case keyVuln:

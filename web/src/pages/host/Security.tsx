@@ -18,6 +18,9 @@ interface SecData {
   auto_block_threshold: number
   window_minutes: number
   notify_failed_logins?: boolean
+  notify_portscan?: boolean
+  portscans?: { ip: string; first_seen: number; last_seen: number; reports: number; blocked: boolean }[]
+  portscan_status?: { known: boolean; supported: boolean; active: boolean; reason: string; updated_at: number }
 }
 
 export function HostSecurity({ host }: { host: HostDetail }) {
@@ -31,6 +34,11 @@ export function HostSecurity({ host }: { host: HostDetail }) {
   if (d.isLoading) return <Loading />
   const x = d.data!
   const f2b = x.fail2ban?.data
+  const scans = x.portscans || []
+  const ps = x.portscan_status
+  const psLine = !ps?.known ? 'Status not reported yet (the agent may need an update)'
+    : !ps.supported ? `Not available on this host${ps.reason ? ': ' + ps.reason : ''}`
+    : ps.active ? 'Detection active (kernel-side, nftables)' : `Detection off${ps.reason ? ': ' + ps.reason : ''}`
   const unblock = async (ip: string) => {
     try {
       await post(`/hosts/${host.id}/unblock`, { ip })
@@ -40,10 +48,11 @@ export function HostSecurity({ host }: { host: HostDetail }) {
       toast(errorMessage(e), 'crit')
     }
   }
-  const setNotify = async (notify: boolean) => {
+  const setNotify = async (notify: boolean, metric: 'bruteforce' | 'portscan' = 'bruteforce') => {
+    const what = metric === 'portscan' ? 'Port-scan' : 'Failed-login'
     try {
-      await put(`/hosts/${host.id}/notify`, { metric: 'bruteforce', notify })
-      toast(notify ? 'Failed-login notifications enabled' : 'Failed-login notifications disabled')
+      await put(`/hosts/${host.id}/notify`, { metric, notify })
+      toast(notify ? `${what} notifications enabled` : `${what} notifications disabled`)
       qc.invalidateQueries({ queryKey: ['security', host.id] })
       qc.invalidateQueries({ queryKey: ['host-thresholds', host.id] })
     } catch (e) {
@@ -56,6 +65,11 @@ export function HostSecurity({ host }: { host: HostDetail }) {
         <Toggle checked={x.notify_failed_logins !== false} onChange={setNotify} disabled={!can('host_settings') && !can('hosts')}
           label="Send notifications for failed-login alerts"
           hint="When off, failed-login alerts still appear in Sentrel, but no emails or webhooks are sent for this host." />
+      </Card>
+      <Card bodyClass="p-5">
+        <Toggle checked={x.notify_portscan !== false} onChange={(v) => setNotify(v, 'portscan')} disabled={!can('host_settings') && !can('hosts')}
+          label="Send notifications for port-scan alerts"
+          hint="When off, port-scan alerts still appear in Sentrel, but no emails or webhooks are sent for this host." />
       </Card>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap gap-2 text-sm">
@@ -81,6 +95,27 @@ export function HostSecurity({ host }: { host: HostDetail }) {
                   <Td className="text-xs text-muted">{ago(r.last_seen)}</Td>
                   <Td className="text-right">
                     {can('jobs') && x.allow_ip_block && !r.blocked && <Button size="sm" variant="ghost" icon={<Ban className="size-3.5" />} onClick={() => setBlockIp(r.ip)}>Block</Button>}
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        )}
+      </Card>
+      <Card title={`Port scans (${scans.length} source${scans.length === 1 ? '' : 's'})`} subtitle={psLine} bodyClass="p-0">
+        {!scans.length ? <Empty title={ps?.supported ? 'No port scans in this period' : 'Port-scan detection is not available on this host'} /> : (
+          <Table>
+            <thead><tr><Th>Source IP</Th><Th>First seen</Th><Th>Last seen</Th><Th className="hidden md:table-cell">Host</Th><Th /></tr></thead>
+            <tbody>
+              {scans.map((r) => (
+                <tr key={r.ip}>
+                  <Td className="mono text-xs">{r.ip} {r.blocked && <Badge tone="crit">blocked</Badge>}</Td>
+                  <Td className="text-xs text-muted" title={dateTime(r.first_seen)}>{ago(r.first_seen)}</Td>
+                  <Td className="text-xs text-muted" title={dateTime(r.last_seen)}>{ago(r.last_seen)}</Td>
+                  <Td className="hidden text-xs md:table-cell">{host.name}</Td>
+                  <Td className="text-right">
+                    {can('jobs') && x.allow_ip_block && !r.blocked && <Button size="sm" variant="ghost" icon={<Ban className="size-3.5" />} onClick={() => setBlockIp(r.ip)}>Block</Button>}
+                    {can('jobs') && r.blocked && <Button size="sm" variant="ghost" icon={<ShieldOff className="size-3.5" />} onClick={() => unblock(r.ip)}>Unblock</Button>}
                   </Td>
                 </tr>
               ))}

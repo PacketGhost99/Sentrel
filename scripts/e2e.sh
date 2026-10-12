@@ -1,0 +1,179 @@
+#!/usr/bin/env bash
+# End-to-end system test against a running server with at least one Linux
+# agent (run it on the agent host). Needs curl, jq, nft.
+#
+#   HB_URL=http://127.0.0.1:8080 HB_USER=admin HB_PASSWORD=... scripts/e2e.sh
+#
+# It creates checks, channels, windows, blocks and jobs prefixed "e2e-" and
+# removes them at the end.
+set -uo pipefail
+
+URL="${HB_URL:-http://127.0.0.1:8080}"
+USER_="${HB_USER:-admin}"
+PASS="${HB_PASSWORD:?set HB_PASSWORD}"
+JAR=$(mktemp)
+PASSED=0
+FAILED=0
+trap 'rm -f "$JAR"' EXIT
+
+ok()   { PASSED=$((PASSED+1)); printf '  \033[32mPASS\033[0m %s\n' "$*"; }
+bad()  { FAILED=$((FAILED+1)); printf '  \033[31mFAIL\033[0m %s\n' "$*"; }
+step() { printf '\n== %s\n' "$*"; }
+
+CSRF=""
+api() { # method path [json]
+  local m=$1 p=$2 d=${3:-}
+  if [ -n "$d" ]; then
+    curl -s -b "$JAR" -c "$JAR" -X "$m" -H "Content-Type: application/json" -H "X-CSRF-Token: $CSRF" "$URL/api/v1$p" -d "$d"
+  else
+    curl -s -b "$JAR" -c "$JAR" -X "$m" -H "X-CSRF-Token: $CSRF" "$URL/api/v1$p"
+  fi
+}
+expect() { # description jq-filter json
+  if echo "$3" | jq -e "$2" >/dev/null 2>&1; then ok "$1"; else bad "$1 :: $(echo "$3" | head -c 300)"; fi
+}
+wait_for() { # description seconds command...
+  local desc=$1 secs=$2; shift 2
+  local end=$((SECONDS+secs))
+  while [ $SECONDS -lt $end ]; do
+    if "$@" >/dev/null 2>&1; then ok "$desc"; return 0; fi
+    sleep 3
+  done
+  bad "$desc (timed out after ${secs}s)"
+  return 1
+}
+
+step "login"
+R=$(curl -s -c "$JAR" -H "Content-Type: application/json" "$URL/api/v1/auth/login" -d "{\"username\":\"$USER_\",\"password\":\"$PASS\"}")
+CSRF=$(echo "$R" | jq -r .csrf_token)
+expect "session login" '.user.username != null' "$R"
+
+step "agent host"
+HOSTS=$(api GET /hosts)
+HID=$(echo "$HOSTS" | jq -r '[.[] | select(.kind=="agent" and .connected)][0].id')
+[ "$HID" != "null" ] && ok "connected agent host #$HID" || { bad "no connected agent"; exit 1; }
+H=$(api GET "/hosts/$HID")
+expect "host has disks and services" '(.state.disks | length) > 0 and (.state.services | length) > 0' "$H"
+expect "inventory received" '.inventory.installed_count > 100' "$H"
+expect "metrics flowing" '.summary.cpu != null and .summary.memory != null' "$H"
+M=$(api GET "/hosts/$HID/metrics?panel=network&start=900s")
+expect "network series" '(.series | length) > 0' "$M"
+
+step "checks (server-side and agent-evaluated)"
+mk() { api POST /checks "$1" | jq -r '.id // empty'; }
+C_PING=$(mk '{"name":"e2e-ping","type":"ping","target":"127.0.0.1","interval_seconds":10,"failure_threshold":1}')
+C_TCP_UP=$(mk '{"name":"e2e-tcp-up","type":"tcp","target":"127.0.0.1:8080","interval_seconds":10,"failure_threshold":1}')
+C_TCP_DOWN=$(mk '{"name":"e2e-tcp-down","type":"tcp","target":"127.0.0.1:1","interval_seconds":10,"failure_threshold":1}')
+C_HTTP=$(mk '{"name":"e2e-http","type":"http","target":"http://127.0.0.1:8080/healthz","config":{"keyword":"ok"},"interval_seconds":10,"failure_threshold":1}')
+C_CERT=$(mk '{"name":"e2e-cert","type":"cert","target":"www.google.com:443","interval_seconds":60}')
+C_DNS=$(mk '{"name":"e2e-dns","type":"dns","target":"one.one.one.one","config":{"record_type":"A","expect":"1.1.1.1"},"interval_seconds":60}')
+C_SVC=$(mk "{\"name\":\"e2e-svc-sshd\",\"type\":\"service\",\"target\":\"ssh\",\"host_id\":$HID}")
+C_PORT=$(mk "{\"name\":\"e2e-port-22\",\"type\":\"port\",\"target\":\"22\",\"host_id\":$HID}")
+C_PROC=$(mk "{\"name\":\"e2e-proc\",\"type\":\"process\",\"target\":\"heartbeat-agent\",\"host_id\":$HID}")
+C_CONT=$(mk "{\"name\":\"e2e-container\",\"type\":\"container\",\"target\":\"hb-test-nginx\",\"host_id\":$HID}")
+C_MISSING=$(mk "{\"name\":\"e2e-svc-missing\",\"type\":\"service\",\"target\":\"no-such-service-xyz\",\"host_id\":$HID,\"failure_threshold\":1}")
+for c in "$C_PING" "$C_TCP_UP" "$C_TCP_DOWN" "$C_HTTP" "$C_CERT" "$C_DNS"; do api POST "/checks/$c/run" >/dev/null; done
+status_is() { [ "$(api GET "/checks/$1" | jq -r .status)" = "$2" ]; }
+wait_for "ping 127.0.0.1 up (ICMP via cap_net_raw)" 30 status_is "$C_PING" up
+wait_for "tcp :8080 up" 30 status_is "$C_TCP_UP" up
+wait_for "tcp :1 down" 30 status_is "$C_TCP_DOWN" down
+wait_for "http /healthz keyword up" 30 status_is "$C_HTTP" up
+wait_for "certificate check up" 60 status_is "$C_CERT" up
+wait_for "dns A record up" 60 status_is "$C_DNS" up
+wait_for "service ssh running (agent)" 90 status_is "$C_SVC" up
+wait_for "port 22 listening (agent)" 90 status_is "$C_PORT" up
+wait_for "process heartbeat-agent (agent)" 90 status_is "$C_PROC" up
+wait_for "container hb-test-nginx running (agent)" 90 status_is "$C_CONT" up
+wait_for "missing service reported down" 90 status_is "$C_MISSING" down
+alert_for() { api GET "/alerts?status=active" | jq -e --arg c "$1" '[.[] | select((.check_id|tostring)==$c and .status=="firing")] | length > 0'; }
+wait_for "down check fires an alert" 60 alert_for "$C_TCP_DOWN"
+
+step "notifications (webhook, grouping, resolve)"
+HOOK_LOG=$(mktemp)
+python3 - "$HOOK_LOG" <<'PY' &
+import http.server, sys
+log = sys.argv[1]
+class H(http.server.BaseHTTPRequestHandler):
+    def do_POST(self):
+        n = int(self.headers.get('Content-Length', 0))
+        with open(log, 'ab') as f: f.write(self.rfile.read(n) + b"\n")
+        self.send_response(204); self.end_headers()
+    def log_message(self, *a): pass
+http.server.HTTPServer(('127.0.0.1', 18099), H).serve_forever()
+PY
+HOOK_PID=$!
+sleep 1
+CH=$(api POST /notification-channels '{"name":"e2e-hook","type":"webhook","config":{"url":"http://127.0.0.1:18099/hook"},"repeat_minutes":0}' | jq -r .id)
+T=$(api POST "/notification-channels/$CH/test")
+expect "test notification delivered" '.ok == true' "$T"
+api PUT /settings/alerting '{"group_wait_seconds":5,"default_repeat_minutes":240,"flap_window_minutes":30,"flap_threshold":6,"resolve_count":1}' >/dev/null
+C_FLIP=$(mk '{"name":"e2e-flip","type":"tcp","target":"127.0.0.1:18098","interval_seconds":10,"failure_threshold":1}')
+api POST "/checks/$C_FLIP/run" >/dev/null
+hook_has() { grep -q "$1" "$HOOK_LOG"; }
+wait_for "firing alert delivered to webhook" 60 hook_has 'e2e-flip is down'
+python3 -c "import socket,time;s=socket.socket();s.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1);s.bind(('127.0.0.1',18098));s.listen(5);time.sleep(60)" &
+LISTEN_PID=$!
+api POST "/checks/$C_FLIP/run" >/dev/null
+wait_for "resolved notification delivered" 60 hook_has '"status":"resolved"'
+kill $LISTEN_PID 2>/dev/null
+
+step "acknowledgement and maintenance"
+AID=$(api GET "/alerts?status=active" | jq -r --arg c "$C_TCP_DOWN" '[.[] | select((.check_id|tostring)==$c)][0].id')
+A=$(api POST "/alerts/$AID/ack" '{"comment":"e2e"}')
+expect "alert acknowledged" '.acked_by != ""' "$A"
+NOW=$(date +%s)
+MW=$(api POST /maintenance "{\"name\":\"e2e-window\",\"scope\":\"host\",\"scope_ids\":[$HID],\"starts_at\":$((NOW-60)),\"ends_at\":$((NOW+600)),\"recurrence\":\"none\",\"timezone\":\"UTC\"}")
+expect "maintenance window active" '.active_now == true' "$MW"
+expect "host shows in maintenance" '.in_maintenance == true' "$(api GET "/hosts/$HID")"
+api DELETE "/maintenance/$(echo "$MW" | jq -r .id)" >/dev/null
+
+step "thresholds (host override)"
+R=$(api POST /thresholds "{\"scope\":\"host\",\"scope_id\":$HID,\"metric\":\"disk\",\"label_match\":\"/boot*\",\"warn\":99,\"crit\":99.5,\"for_count\":1}")
+expect "label override saved" '.id > 0' "$R"
+MR=$(api GET "/hosts/$HID/thresholds")
+expect "merged view shows host label override" '[.[] | select(.metric.key=="disk") | .label_overrides[]? | select(.origin=="host")] | length == 1' "$MR"
+api DELETE "/thresholds/$(echo "$R" | jq -r .id)" >/dev/null
+
+step "remote actions: IP block (nftables) and upgrade dry run"
+api PUT "/hosts/$HID" '{"allow_ip_block":true}' >/dev/null
+J=$(api POST "/hosts/$HID/block" '{"ip":"203.0.113.77","minutes":5,"reason":"e2e","confirm":true}')
+JID=$(echo "$J" | jq -r .id)
+job_done() { [ "$(api GET "/jobs/$1" | jq -r .status)" = "$2" ]; }
+wait_for "block job succeeded" 60 job_done "$JID" succeeded
+nft_has() { sudo nft list set inet heartbeat blocklist4 | grep -q "$1"; }
+wait_for "IP present in nftables set with timeout" 10 nft_has 203.0.113.77
+UJ=$(api POST "/hosts/$HID/unblock" '{"ip":"203.0.113.77"}' | jq -r .id)
+wait_for "unblock job succeeded" 60 job_done "$UJ" succeeded
+nft_gone() { ! sudo nft list set inet heartbeat blocklist4 | grep -q 203.0.113.77; }
+wait_for "IP removed from nftables" 10 nft_gone
+R=$(api POST "/hosts/$HID/block" '{"ip":"127.0.0.1","minutes":5,"confirm":true}')
+expect "loopback cannot be blocked" '.code != null' "$R"
+api PUT "/hosts/$HID" '{"allow_ip_block":false}' >/dev/null
+DJ=$(api POST /jobs "{\"host_id\":$HID,\"type\":\"upgrade\",\"dry_run\":true}" | jq -r .id)
+wait_for "upgrade dry run succeeded" 300 job_done "$DJ" succeeded
+expect "dry run captured package manager output" '.output | test("Reading package lists|upgraded|DRY RUN")' "$(api GET "/jobs/$DJ")"
+R=$(api POST /jobs "{\"host_id\":$HID,\"type\":\"upgrade\",\"confirm\":true}")
+expect "real upgrade refused without host opt-in" '.code == "forbidden"' "$R"
+
+step "status page, metrics endpoint, backup, audit"
+SP=$(api POST /status-pages "{\"slug\":\"e2e-status\",\"title\":\"E2E\",\"public\":true,\"items\":[{\"type\":\"check\",\"id\":$C_HTTP,\"label\":\"API\"}]}")
+PUB=$(curl -s "$URL/api/v1/public/status/e2e-status")
+expect "public status page works without login" '.items[0].label == "API" and .overall != null' "$PUB"
+api DELETE "/status-pages/$(echo "$SP" | jq -r .id)" >/dev/null
+curl -s "$URL/metrics" | grep -q '^hb_cpu_usage_percent{' && ok "/metrics exposes host series" || bad "/metrics missing host series"
+curl -s -b "$JAR" -o /tmp/e2e-backup.tgz "$URL/api/v1/server/backup"
+LIST=$(tar tzf /tmp/e2e-backup.tgz) # not piped into grep -q: SIGPIPE + pipefail
+grep -qx 'heartbeat.db' <<<"$LIST" && grep -qx 'pki/ca.key' <<<"$LIST" && ok "backup contains database and PKI" || bad "backup incomplete"
+rm -f /tmp/e2e-backup.tgz
+AUD=$(api GET "/audit?q=job.created&limit=5")
+expect "jobs are audited" 'length > 0' "$AUD"
+
+step "cleanup"
+for c in $C_PING $C_TCP_UP $C_TCP_DOWN $C_HTTP $C_CERT $C_DNS $C_SVC $C_PORT $C_PROC $C_CONT $C_MISSING $C_FLIP; do api DELETE "/checks/$c" >/dev/null; done
+api DELETE "/notification-channels/$CH" >/dev/null
+kill $HOOK_PID 2>/dev/null
+rm -f "$HOOK_LOG"
+ok "removed e2e objects"
+
+printf '\n%d passed, %d failed\n' "$PASSED" "$FAILED"
+[ "$FAILED" -eq 0 ]

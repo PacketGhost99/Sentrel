@@ -1,0 +1,333 @@
+// Heartbeat agent <-> server protocol.
+//
+// Versioning: SCHEMA_VERSION is bumped on any breaking change. Fields are only
+// ever added, never renumbered. Agents send their schema version in Register
+// and Hello; the server rejects versions it cannot speak.
+syntax = "proto3";
+
+package heartbeat.v1;
+
+option go_package = "heartbeat/gen/heartbeatv1;heartbeatv1";
+
+enum SchemaVersion {
+  SCHEMA_VERSION_UNSPECIFIED = 0;
+  SCHEMA_VERSION_CURRENT = 1;
+}
+
+service AgentService {
+  // Enrol a new agent with a one-time token. The agent sends a CSR and gets
+  // back a client certificate signed by the server's internal CA.
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+  // Long-lived bidirectional stream. The first message must be Hello.
+  rpc Connect(stream AgentMessage) returns (stream ServerMessage);
+}
+
+// ---------- registration ----------
+
+message RegisterRequest {
+  string token = 1;
+  bytes csr_pem = 2;
+  HostInfo host = 3;
+  uint32 schema_version = 4;
+  // "agent" (default) or "probe" (reserved for future use).
+  string mode = 5;
+}
+
+message RegisterResponse {
+  string agent_id = 1;
+  bytes cert_pem = 2;
+  bytes ca_pem = 3;
+  // Ed25519 public key that signs every job and binary update.
+  bytes job_public_key = 4;
+  AgentConfig config = 5;
+}
+
+// ---------- agent -> server ----------
+
+message AgentMessage {
+  oneof msg {
+    Hello hello = 1;
+    MetricBatch metrics = 2;
+    HostState state = 3;
+    Inventory inventory = 4;
+    SecurityReport security = 5;
+    JobOutput job_output = 6;
+    JobResult job_result = 7;
+    Pong pong = 8;
+  }
+}
+
+message Hello {
+  string agent_id = 1;
+  uint32 schema_version = 2;
+  string agent_version = 3;
+  HostInfo host = 4;
+  // Application-level proof of possession, used when mTLS is terminated by a
+  // proxy in front of the server (e.g. a Cloudflare tunnel). The agent signs
+  // "heartbeat-hello|<agent_id>|<unix_ms>" with its private key.
+  bytes cert_pem = 5;
+  int64 unix_ms = 6;
+  bytes signature = 7;
+  // Set when the agent was just upgraded and this is its first connection.
+  string updated_from = 8;
+  // Set by `heartbeat-agent self-test`: the server verifies auth then closes.
+  bool self_test = 9;
+}
+
+message HostInfo {
+  string hostname = 1;
+  string os = 2;               // linux, windows
+  string platform = 3;         // ubuntu, debian, rocky, Microsoft Windows 11 Pro
+  string platform_family = 4;  // debian, rhel, windows
+  string platform_version = 5; // 24.04, 9.4, 10.0.22631
+  string kernel_version = 6;
+  string arch = 7;             // amd64, arm64
+  string cpu_model = 8;
+  uint32 cpu_cores = 9;
+  uint64 memory_total = 10;
+  int64 boot_time = 11;
+  repeated string ip_addresses = 12;
+  string virtualization = 13;
+  // os-release ID / VERSION_ID, used for vulnerability matching.
+  string os_id = 14;
+  string os_version_id = 15;
+  string machine_id = 16;
+}
+
+message Sample {
+  string name = 1;
+  map<string, string> labels = 2;
+  double value = 3;
+  int64 ts_ms = 4;
+}
+
+message MetricBatch { repeated Sample samples = 1; }
+
+// Point-in-time structured state shown in host detail and used for
+// service/process/port/container checks.
+message HostState {
+  int64 ts_ms = 1;
+  uint64 uptime_seconds = 2;
+  repeated Disk disks = 3;
+  repeated NetInterface interfaces = 4;
+  repeated Service services = 5;
+  repeated ListeningPort ports = 6;
+  repeated Process top_processes = 7;
+  repeated Container containers = 8;
+  repeated Temperature temperatures = 9;
+  bool reboot_required = 10;
+  repeated string reboot_required_packages = 11;
+  uint32 process_count = 12;
+  repeated string process_names = 13; // distinct names, for process checks
+  repeated string collection_errors = 14;
+  bool docker_available = 15;
+  repeated BlockedIP blocked_ips = 16;
+}
+
+message Disk {
+  string mountpoint = 1;
+  string device = 2;
+  string fstype = 3;
+  uint64 total = 4;
+  uint64 used = 5;
+  double used_percent = 6;
+  uint64 inodes_total = 7;
+  uint64 inodes_used = 8;
+  // Linear fit over the last 24h. <0 when not filling or not enough data.
+  double fill_eta_seconds = 9;
+  double growth_bytes_per_hour = 10;
+}
+
+message NetInterface {
+  string name = 1;
+  repeated string addresses = 2;
+  string mac = 3;
+  bool up = 4;
+  uint64 bytes_sent = 5;
+  uint64 bytes_recv = 6;
+  uint64 errors_in = 7;
+  uint64 errors_out = 8;
+}
+
+message Service {
+  string name = 1;
+  string display_name = 2;
+  string state = 3;     // active, inactive, failed / running, stopped
+  string sub_state = 4; // running, exited, dead
+  string start_type = 5; // enabled, disabled / auto, manual, disabled
+}
+
+message ListeningPort {
+  string protocol = 1; // tcp, udp, tcp6
+  string address = 2;
+  uint32 port = 3;
+  int32 pid = 4;
+  string process = 5;
+}
+
+message Process {
+  int32 pid = 1;
+  string name = 2;
+  string user = 3;
+  double cpu_percent = 4;
+  float memory_percent = 5;
+  uint64 rss = 6;
+  string cmdline = 7;
+}
+
+message Container {
+  string id = 1;
+  string name = 2;
+  string image = 3;
+  string state = 4;  // running, exited, restarting
+  string status = 5; // "Up 3 hours"
+  int64 created = 6;
+  uint32 restart_count = 7;
+  double cpu_percent = 8;
+  uint64 memory_usage = 9;
+  uint64 memory_limit = 10;
+  string health = 11;
+}
+
+message Temperature {
+  string sensor = 1;
+  double celsius = 2;
+}
+
+message BlockedIP {
+  string ip = 1;
+  int64 expires_unix = 2;
+  string reason = 3;
+  string backend = 4; // nftables, iptables, windows-firewall
+}
+
+message Inventory {
+  int64 ts_ms = 1;
+  string package_manager = 2; // apt, dnf, zypper, pacman, apk, windows
+  repeated Package installed = 3;
+  repeated Package upgradable = 4;
+  string error = 5;
+  bool security_updates_known = 6;
+}
+
+message Package {
+  string name = 1;
+  string version = 2;
+  string arch = 3;
+  string new_version = 4; // for upgradable
+  string source = 5;      // repo / source package
+  bool security = 6;      // upgrade comes from a security pocket / is a security update
+  string kb = 7;          // Windows KB
+  string type = 8;        // deb, rpm, apk, pacman, msi, windows-update
+  string publisher = 9;
+}
+
+message SecurityReport {
+  int64 window_start_ms = 1;
+  int64 window_end_ms = 2;
+  repeated FailedLogins failed_logins = 3;
+  Fail2Ban fail2ban = 4;
+  string source = 5; // auth.log, journald, windows-security-log
+  string error = 6;
+}
+
+message FailedLogins {
+  string ip = 1;
+  uint32 count = 2;
+  repeated string usernames = 3;
+  int64 last_seen_ms = 4;
+}
+
+message Fail2Ban {
+  bool available = 1;
+  repeated Fail2BanJail jails = 2;
+  string error = 3;
+}
+
+message Fail2BanJail {
+  string name = 1;
+  uint32 currently_failed = 2;
+  uint32 total_failed = 3;
+  uint32 currently_banned = 4;
+  uint32 total_banned = 5;
+  repeated string banned_ips = 6;
+}
+
+message JobOutput {
+  string job_id = 1;
+  string stream = 2; // stdout, stderr, info
+  bytes data = 3;
+}
+
+message JobResult {
+  string job_id = 1;
+  string status = 2; // succeeded, failed, rejected, timeout
+  int32 exit_code = 3;
+  string error = 4;
+  int64 started_ms = 5;
+  int64 finished_ms = 6;
+  // Optional structured result (JSON), e.g. a dry-run package list.
+  bytes result_json = 7;
+}
+
+message Pong { int64 unix_ms = 1; }
+
+// ---------- server -> agent ----------
+
+message ServerMessage {
+  oneof msg {
+    Welcome welcome = 1;
+    AgentConfig config = 2;
+    SignedJob job = 3;
+    Ping ping = 4;
+    Goodbye goodbye = 5;
+  }
+}
+
+message Welcome {
+  string host_id = 1;
+  AgentConfig config = 2;
+  int64 server_unix_ms = 3;
+  string server_version = 4;
+}
+
+message AgentConfig {
+  uint32 interval_seconds = 1;
+  uint32 inventory_interval_seconds = 2;
+  uint32 top_processes = 3; // 0 disables
+  bool collect_services = 4;
+  bool collect_ports = 5;
+  bool collect_docker = 6;
+  bool bruteforce_enabled = 7;
+  uint32 security_interval_seconds = 8;
+  bool fail2ban_enabled = 9;
+  repeated string watched_services = 10; // always reported even if many services
+  bool collect_temperatures = 11;
+  bool refresh_package_index = 12; // run apt-get update / dnf makecache before listing
+}
+
+// A job is a protobuf-serialized JobSpec plus an Ed25519 signature over
+// those exact bytes. Agents verify the signature with the key received at
+// registration and refuse anything else.
+message SignedJob {
+  bytes spec = 1;
+  bytes signature = 2;
+}
+
+message JobSpec {
+  string id = 1;
+  string agent_id = 2;
+  string type = 3; // upgrade, refresh_inventory, block_ip, unblock_ip, self_update, script, collect_now
+  map<string, string> params = 4;
+  int64 issued_unix = 5;
+  int64 expires_unix = 6;
+  bool dry_run = 7;
+  uint32 timeout_seconds = 8;
+}
+
+message Ping { int64 unix_ms = 1; }
+
+message Goodbye {
+  string reason = 1;
+  bool revoked = 2; // agent should stop reconnecting
+}

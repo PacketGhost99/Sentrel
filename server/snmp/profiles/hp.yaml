@@ -1,0 +1,14 @@
+name: hp
+description: HPE / Aruba ProCurve switches (HP-SWITCH-MIB, STATISTICS-MIB)
+match:
+  sys_object_id: ["1.3.6.1.4.1.11.2.3.7"]
+  sys_descr: ["ProCurve", "HP J", "Aruba J", "HPE OfficeConnect"]
+metrics:
+  - name: cpu_usage_percent
+    oid: 1.3.6.1.4.1.11.2.14.11.5.1.9.6.1.0     # hpSwitchCpuStat
+  - name: mem_used_percent
+    expr: "(total - free) * 100 / total"
+    vars:
+      total: 1.3.6.1.4.1.11.2.14.11.5.1.1.2.1.1.1.5   # hpLocalMemTotalBytes
+      free: 1.3.6.1.4.1.11.2.14.11.5.1.1.2.1.1.1.6    # hpLocalMemFreeBytes
+    aggregate: max

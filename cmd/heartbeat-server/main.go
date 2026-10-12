@@ -1,0 +1,254 @@
+// Command heartbeat-server runs the Heartbeat monitoring server.
+package main
+
+import (
+	"context"
+	"crypto/rand"
+	"crypto/tls"
+	"flag"
+	"fmt"
+	"io"
+	"log/slog"
+	"net/http"
+	"os"
+	"os/signal"
+	"path/filepath"
+	"strings"
+	"syscall"
+	"time"
+
+	"heartbeat/internal/version"
+	"heartbeat/server/app"
+	"heartbeat/server/authn"
+	"heartbeat/server/db"
+)
+
+const usage = `Heartbeat server %s
+
+Usage:
+  heartbeat-server serve      [--data-dir DIR] [--listen ADDR] [--force-http]
+  heartbeat-server backup     [--data-dir DIR] --out FILE [--with-tsdb]
+  heartbeat-server restore    [--data-dir DIR] --in FILE [--force]
+  heartbeat-server reset-password [--data-dir DIR] --user NAME
+  heartbeat-server healthcheck [--url URL]
+  heartbeat-server version
+
+Environment: HEARTBEAT_DATA_DIR, HEARTBEAT_LISTEN, HEARTBEAT_LOG_LEVEL (debug|info|warn), HEARTBEAT_LOG_FORMAT (text|json)
+`
+
+func defaultDataDir() string {
+	if d := os.Getenv("HEARTBEAT_DATA_DIR"); d != "" {
+		return d
+	}
+	if os.Geteuid() == 0 || dirWritable("/var/lib/heartbeat") {
+		return "/var/lib/heartbeat"
+	}
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".heartbeat")
+}
+
+func dirWritable(d string) bool {
+	f, err := os.CreateTemp(d, ".probe")
+	if err != nil {
+		return false
+	}
+	f.Close()
+	os.Remove(f.Name())
+	return true
+}
+
+func newLogger() *slog.Logger {
+	lvl := slog.LevelInfo
+	switch strings.ToLower(os.Getenv("HEARTBEAT_LOG_LEVEL")) {
+	case "debug":
+		lvl = slog.LevelDebug
+	case "warn":
+		lvl = slog.LevelWarn
+	case "error":
+		lvl = slog.LevelError
+	}
+	opts := &slog.HandlerOptions{Level: lvl}
+	if strings.ToLower(os.Getenv("HEARTBEAT_LOG_FORMAT")) == "json" {
+		return slog.New(slog.NewJSONHandler(os.Stderr, opts))
+	}
+	return slog.New(slog.NewTextHandler(os.Stderr, opts))
+}
+
+func main() {
+	if len(os.Args) < 2 {
+		fmt.Fprintf(os.Stderr, usage, version.Version)
+		os.Exit(2)
+	}
+	cmd, args := os.Args[1], os.Args[2:]
+	var err error
+	switch cmd {
+	case "serve":
+		err = serve(args)
+	case "backup":
+		err = backup(args)
+	case "restore":
+		err = restore(args)
+	case "reset-password":
+		err = resetPassword(args)
+	case "healthcheck":
+		err = healthcheck(args)
+	case "version", "--version", "-v":
+		fmt.Println("heartbeat-server", version.String())
+	case "help", "-h", "--help":
+		fmt.Printf(usage, version.Version)
+	default:
+		fmt.Fprintf(os.Stderr, "unknown command %q\n\n"+usage, cmd, version.Version)
+		os.Exit(2)
+	}
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(1)
+	}
+}
+
+func serve(args []string) error {
+	fs := flag.NewFlagSet("serve", flag.ExitOnError)
+	dataDir := fs.String("data-dir", defaultDataDir(), "data directory")
+	listen := fs.String("listen", os.Getenv("HEARTBEAT_LISTEN"), "listen address (overrides the stored setting)")
+	forceHTTP := fs.Bool("force-http", false, "ignore the stored TLS mode and serve plain HTTP (recovery)")
+	devUI := fs.String("dev-ui", "", "serve the UI from this directory (development)")
+	agentDir := fs.String("agent-bin-dir", "", "serve agent binaries from this directory instead of the embedded ones")
+	fs.Parse(args)
+	log := newLogger()
+	slog.SetDefault(log)
+	log.Info("starting Heartbeat server", "version", version.String(), "data_dir", *dataDir)
+	a, err := app.New(app.Config{DataDir: *dataDir, Listen: *listen, ForceHTTP: *forceHTTP, DevUIDir: *devUI, AgentBinDir: *agentDir, Log: log})
+	if err != nil {
+		return err
+	}
+	defer a.Close()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	return a.Run(ctx)
+}
+
+func backup(args []string) error {
+	fs := flag.NewFlagSet("backup", flag.ExitOnError)
+	dataDir := fs.String("data-dir", defaultDataDir(), "data directory")
+	out := fs.String("out", "", "output file (.tar.gz), - for stdout")
+	withTSDB := fs.Bool("with-tsdb", false, "include metrics (stop the server first for a consistent copy)")
+	fs.Parse(args)
+	if *out == "" {
+		*out = fmt.Sprintf("heartbeat-backup-%s.tar.gz", time.Now().UTC().Format("20060102-150405"))
+	}
+	d, err := db.Open(*dataDir)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	var w io.Writer = os.Stdout
+	if *out != "-" {
+		f, err := os.OpenFile(*out, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		w = f
+	}
+	if err := app.WriteBackup(context.Background(), d, *dataDir, w, *withTSDB); err != nil {
+		return err
+	}
+	if *out != "-" {
+		fmt.Println("backup written to", *out)
+	}
+	return nil
+}
+
+func restore(args []string) error {
+	fs := flag.NewFlagSet("restore", flag.ExitOnError)
+	dataDir := fs.String("data-dir", defaultDataDir(), "data directory")
+	in := fs.String("in", "", "backup file (.tar.gz)")
+	force := fs.Bool("force", false, "overwrite an existing database")
+	fs.Parse(args)
+	if *in == "" {
+		return fmt.Errorf("--in is required")
+	}
+	f, err := os.Open(*in)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	if err := app.RestoreBackup(f, *dataDir, *force); err != nil {
+		return err
+	}
+	fmt.Println("restored into", *dataDir, "- start the server; agents reconnect automatically")
+	return nil
+}
+
+func resetPassword(args []string) error {
+	fs := flag.NewFlagSet("reset-password", flag.ExitOnError)
+	dataDir := fs.String("data-dir", defaultDataDir(), "data directory")
+	user := fs.String("user", "", "username")
+	disable2FA := fs.Bool("disable-2fa", false, "also remove TOTP and passkeys")
+	fs.Parse(args)
+	if *user == "" {
+		return fmt.Errorf("--user is required")
+	}
+	d, err := db.Open(*dataDir)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	pw := strings.ToLower(randomPassword())
+	h, err := authn.HashPassword(pw)
+	if err != nil {
+		return err
+	}
+	res, err := d.Exec(`UPDATE users SET password_hash=?, auth_source='local', disabled=0, must_change_pw=1 WHERE username=?`, h, *user)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("no user %q", *user)
+	}
+	if *disable2FA {
+		_, _ = d.Exec(`UPDATE users SET totp_enabled=0, totp_secret='', recovery_codes='[]' WHERE username=?`, *user)
+		_, _ = d.Exec(`DELETE FROM webauthn_credentials WHERE user_id=(SELECT id FROM users WHERE username=?)`, *user)
+	}
+	_, _ = d.Exec(`DELETE FROM sessions WHERE user_id=(SELECT id FROM users WHERE username=?)`, *user)
+	_, _ = d.Exec(`INSERT INTO audit_log (tenant_id, actor, action, target_type, details, created_at) VALUES (0,'cli','user.password_reset_cli','user','{}',?)`, time.Now().Unix())
+	fmt.Printf("new password for %s: %s\n(you will be asked to change it after logging in)\n", *user, pw)
+	return nil
+}
+
+func randomPassword() string {
+	b := make([]byte, 18)
+	_, _ = rand.Read(b)
+	const alpha = "abcdefghjkmnpqrstuvwxyz23456789"
+	out := make([]byte, len(b))
+	for i, c := range b {
+		out[i] = alpha[int(c)%len(alpha)]
+	}
+	return string(out[:6]) + "-" + string(out[6:12]) + "-" + string(out[12:])
+}
+
+func healthcheck(args []string) error {
+	fs := flag.NewFlagSet("healthcheck", flag.ExitOnError)
+	url := fs.String("url", "http://127.0.0.1:8080/healthz", "health URL")
+	fs.Parse(args)
+	cl := &http.Client{Timeout: 5 * time.Second, Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}}
+	try := func(u string) error {
+		resp, err := cl.Get(u)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != 200 {
+			return fmt.Errorf("HTTP %d", resp.StatusCode)
+		}
+		return nil
+	}
+	err := try(*url)
+	if err != nil && strings.HasPrefix(*url, "http://") {
+		// The server may have switched to TLS on the same port.
+		if err2 := try("https://" + strings.TrimPrefix(*url, "http://")); err2 == nil {
+			return nil
+		}
+	}
+	return err
+}

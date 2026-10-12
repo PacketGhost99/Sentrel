@@ -1,0 +1,79 @@
+@import "tailwindcss";
+@import "uplot/dist/uPlot.min.css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Semantic colour tokens. The accent comes from branding (set at runtime). */
+:root {
+  --accent: #e11d48;
+  --accent-fg: #ffffff;
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --panel-2: #f1f3f6;
+  --border: #e3e6eb;
+  --text: #0f172a;
+  --muted: #5b6474;
+  --ok: #16a34a;
+  --warn: #d97706;
+  --crit: #dc2626;
+  --info: #2563eb;
+  --maint: #7c3aed;
+  color-scheme: light;
+}
+.dark {
+  --bg: #0b0f17;
+  --panel: #121826;
+  --panel-2: #182032;
+  --border: #243049;
+  --text: #e6eaf2;
+  --muted: #8b95a8;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --crit: #ef4444;
+  --info: #60a5fa;
+  --maint: #a78bfa;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-line: var(--border);
+  --color-fg: var(--text);
+  --color-muted: var(--muted);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-crit: var(--crit);
+  --color-info: var(--info);
+  --color-maint: var(--maint);
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+}
+
+html, body, #root { height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  font-size: 14px;
+}
+* { border-color: var(--border); }
+::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+
+.scrollbar-thin { scrollbar-width: thin; }
+a { color: inherit; }
+
+/* uPlot theming */
+.uplot, .u-legend { font-family: var(--font-sans); color: var(--text); }
+.u-legend { font-size: 12px; }
+.u-legend .u-marker { border-radius: 2px; }
+.u-select { background: color-mix(in srgb, var(--accent) 15%, transparent); }
+
+.mono { font-family: var(--font-mono); }
+
+@keyframes pulse-ring { 0% { transform: scale(.8); opacity: .7 } 100% { transform: scale(2.2); opacity: 0 } }
+.pulse-ring { animation: pulse-ring 1.6s ease-out infinite; }

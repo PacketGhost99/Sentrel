@@ -1,0 +1,16 @@
+name: ubiquiti
+description: Ubiquiti EdgeOS / UniFi / airMAX (net-snmp based, plus UBNT airMAX MIB)
+include: [net-snmp]
+match:
+  sys_object_id: ["1.3.6.1.4.1.41112"]
+  sys_descr: ["EdgeOS", "UniFi", "EdgeSwitch", "Ubiquiti", "UBNT"]
+metrics:
+  - name: wireless_signal_dbm
+    oid: 1.3.6.1.4.1.41112.1.4.5.1.5     # ubntWlStatSignal
+    aggregate: avg
+  - name: wireless_ccq_percent
+    oid: 1.3.6.1.4.1.41112.1.4.5.1.7     # ubntWlStatCcq
+    aggregate: avg
+  - name: wireless_clients
+    oid: 1.3.6.1.4.1.41112.1.4.5.1.15    # ubntWlStatStaCount
+    aggregate: sum

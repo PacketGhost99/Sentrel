@@ -1,0 +1,40 @@
+# Generic profile: HOST-RESOURCES-MIB. Interfaces (IF-MIB) and LLDP are
+# always polled and are not part of profiles.
+#
+# Metric format:
+#   name:      metric name (cpu_usage_percent, mem_used_percent and
+#              disk_used_percent feed the standard thresholds)
+#   oid:       single OID; ".0" suffix = scalar GET, otherwise a table walk
+#   expr/vars: expression over several OIDs, evaluated per table index
+#   filter:    keep only indices whose value at filter.oid equals/regex-matches
+#   aggregate: avg (default), sum, min, max, first - collapses table rows
+#   label_oid: emit one series per index labelled with this column instead
+#   scale:     multiply the result
+name: generic
+description: Any device supporting HOST-RESOURCES-MIB (servers, many routers and NAS devices)
+metrics:
+  - name: cpu_usage_percent
+    oid: 1.3.6.1.2.1.25.3.3.1.2        # hrProcessorLoad
+    aggregate: avg
+  - name: mem_used_percent
+    expr: "used * 100 / size"
+    vars:
+      used: 1.3.6.1.2.1.25.2.3.1.6     # hrStorageUsed
+      size: 1.3.6.1.2.1.25.2.3.1.5     # hrStorageSize
+    filter:
+      oid: 1.3.6.1.2.1.25.2.3.1.2      # hrStorageType
+      equals: 1.3.6.1.2.1.25.2.1.2     # hrStorageRam
+    aggregate: max
+  - name: disk_used_percent
+    expr: "used * 100 / size"
+    vars:
+      used: 1.3.6.1.2.1.25.2.3.1.6
+      size: 1.3.6.1.2.1.25.2.3.1.5
+    filter:
+      oid: 1.3.6.1.2.1.25.2.3.1.2
+      equals: 1.3.6.1.2.1.25.2.1.4     # hrStorageFixedDisk
+    label_oid: 1.3.6.1.2.1.25.2.3.1.3  # hrStorageDescr
+    label_name: mount
+    label_exclude: "^/(run|dev|sys|proc)(/|$)"
+  - name: process_count
+    oid: 1.3.6.1.2.1.25.1.6.0          # hrSystemProcesses

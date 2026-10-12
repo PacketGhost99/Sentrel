@@ -1,0 +1,19 @@
+name: mikrotik
+description: MikroTik RouterOS (HOST-RESOURCES + MIKROTIK-MIB health)
+include: [generic]
+match:
+  sys_object_id: ["1.3.6.1.4.1.14988"]
+  sys_descr: ["RouterOS"]
+metrics:
+  - name: temperature_celsius
+    oid: 1.3.6.1.4.1.14988.1.1.3.10.0    # mtxrHlTemperature (0.1 C)
+    scale: 0.1
+  - name: cpu_temperature_celsius
+    oid: 1.3.6.1.4.1.14988.1.1.3.11.0    # mtxrHlProcessorTemperature (0.1 C)
+    scale: 0.1
+  - name: voltage_volts
+    oid: 1.3.6.1.4.1.14988.1.1.3.8.0     # mtxrHlVoltage (0.1 V)
+    scale: 0.1
+  - name: wireless_clients
+    oid: 1.3.6.1.4.1.14988.1.1.1.3.1.6   # mtxrWlApClientCount
+    aggregate: sum

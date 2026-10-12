@@ -1,0 +1,8 @@
+.git
+.github
+dist
+web/node_modules
+web/dist
+*.exe
+.dev-credentials
+server/agentdist/bin/heartbeat-agent-*

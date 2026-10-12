@@ -1,0 +1,119 @@
+# Security model
+
+This page describes what Heartbeat protects, how, and where the limits are. To report a vulnerability, contact the maintainers privately rather than opening a public issue.
+
+## Threat model
+
+| Asset | Main threats | Controls |
+|---|---|---|
+| Server and its CA keys | remote compromise, stolen backup | one port, hardened systemd unit, restrictive file modes, authenticated API |
+| Monitored hosts | a compromised server pushing malicious jobs; a stolen network position | per-host opt-in for remote actions, signed and expiring jobs, narrow sudo boundary, binary signatures |
+| Agent identity | enrolling a rogue host, replaying a captured session | one-time enrolment tokens, client certificates, signed hello with replay guard, revocation |
+| Operators and API clients | credential stuffing, CSRF, privilege escalation across tenants | lockout, 2FA and passkeys, CSRF tokens, RBAC, tenant isolation, audit log |
+
+Important limits. Whoever controls the server (or holds `pki/ca.key` and `pki/job.key`) can enrol agents and sign jobs; the per-host opt-ins are the protection that remains. Heartbeat does not encrypt its database at rest. A TLS-terminating proxy or plain HTTP mode removes transport confidentiality between agent and server (see below).
+
+## Enrolment
+
+- A token is 12 characters from an unambiguous 32-symbol alphabet, shown as `XXXX-XXXX-XXXX`. Only its SHA-256 hash is stored.
+- Tokens are single use (consumed in the same transaction that creates the host), default to 15 minutes and are limited to 7 days. They can pre-select tenant, group, tags and name.
+- Registration is rate limited to 20 attempts per minute per source IP, and failed attempts are logged.
+- The server signs the agent's CSR (ECDSA or Ed25519 keys only). The agent's private key never leaves the host.
+- In self-signed TLS mode the agent pins the CA fingerprint supplied by the installer command, so the very first connection cannot be intercepted by someone without the CA.
+
+## Internal CA and agent authentication
+
+The CA (ECDSA P-256, 20 years, path length 0) is created at first start in `pki/`. Agent certificates have `CN=<agent uuid>`, client-auth usage only and a 10-year lifetime; they are revoked server-side (a revoked serial or a deleted host gets a "revoked" goodbye and the agent stops retrying).
+
+Every connection starts with a `Hello`. The server authenticates it in one of two ways:
+
+1. **mTLS**: when the server terminates TLS it requests a client certificate (verified against the internal CA when presented) and uses it.
+2. **Signed hello**: when TLS is terminated elsewhere (proxy) or not used, the agent sends its certificate and an ECDSA signature over `agent id + timestamp`. The server verifies the signature and certificate chain, accepts a clock skew of at most 5 minutes, and rejects any hello not newer than the last accepted one for that agent (replay guard).
+
+In both cases the certificate serial must match the host record and must not be revoked. The protocol is versioned (`SCHEMA_VERSION`); unsupported versions are refused.
+
+## Signed jobs and binaries
+
+The server holds an Ed25519 key (`pki/job.key`); agents receive the public key at enrolment and (on Linux) keep a root-owned copy. Every job is a protobuf message containing the job id, target agent id, type, parameters, issue and expiry times, dry-run flag and timeout, serialised deterministically and signed. The agent rejects a job when:
+
+- the signature is invalid, the agent id differs, it has expired (jobs are valid for 15 minutes after dispatch), or it is issued more than 5 minutes in the future;
+- its id has been seen before (the replay set survives restarts).
+
+Agent updates are signed over `OS, architecture, version, SHA-256`. The unprivileged agent checks hash and signature, runs the candidate's `self-test`, and the root helper repeats the verification on a root-owned copy of the file before installing it, so the agent user cannot swap the file between check and install. A failed update rolls back automatically (see [agents.md](agents.md)).
+
+## Privilege boundary and opt-in remote actions
+
+Linux agents run unprivileged. The only sudo rule allows `heartbeat-agent priv *`; each verb validates its arguments (see [agents.md](agents.md)). Because the helper trusts nothing from the caller, a compromised agent process can at worst run the limited verbs: refresh or upgrade packages, add or remove an IP block, read fail2ban status, install a validly signed agent update.
+
+Remote actions are denied unless enabled per host:
+
+| Host flag | Enables | Notes |
+|---|---|---|
+| `allow_upgrades` | package upgrades | a dry run is always permitted |
+| `allow_ip_block` | manual and automatic IP blocks | loopback and unspecified addresses are refused |
+| `allow_scripts` | script jobs | only users with the `scripts` permission (admin); max 64 KiB; run as the agent user (SYSTEM on Windows) |
+| `auto_block` | automatic blocks from brute-force detection | needs `allow_ip_block`; threshold and whitelist are in agent defaults |
+
+State-changing jobs also need an explicit `confirm`, are recorded in the audit log with the requesting user and (truncated) parameters, and can be scheduled for a maintenance window. Agent self-update needs only `confirm` and the `jobs` permission.
+
+## Roles, permissions and tenancy
+
+| Permission | admin | operator | viewer | tenant_admin | tenant_viewer |
+|---|:-:|:-:|:-:|:-:|:-:|
+| read | x | x | x | x | x |
+| ack (acknowledge alerts) | x | x | | x | |
+| monitoring (checks, thresholds, maintenance, channels, status pages, groups, vulnerability ignore) | x | x | | x | |
+| hosts (enrol, delete, SNMP/target hosts, push install) | x | x | | | |
+| host_settings (per-host options and opt-ins) | x | x | | x | |
+| jobs (upgrades, IP blocks, scans, agent update) | x | x | | x | |
+| scripts | x | | | | |
+| users | x | | | x (own tenant) | |
+| tenants | x | | | | |
+| settings | x | | | | |
+| branding | x | | | x (own tenant) | |
+| audit | x | | | x (own tenant) | |
+
+`admin`, `operator` and `viewer` belong to the provider (tenant 0) and see every tenant; `tenant_admin` and `tenant_viewer` are bound to one tenant and every query is restricted to it (hosts, alerts, checks, metrics, channels, status pages, API keys). Threshold rules inherit provider, tenant, group and host in that order. Tenants can have their own branding and a login hostname.
+
+Sign-in sources: local password (Argon2id, minimum length 10 by default and at least 8, common weak passwords refused), LDAP and RADIUS (users are provisioned on first login with a role from the group/attribute mapping; no mapping and no default role means denied).
+
+## Two-factor authentication
+
+Users can enrol TOTP (with recovery codes) and passkeys (WebAuthn, usable as a second factor or for password-less login). **Settings, Security, Require 2FA** can enforce it for `none`, `admins` or `all`; users who are required but not enrolled are held in a limited session that can only enrol. An administrator can reset another user's second factors, and `heartbeat-server reset-password --disable-2fa` does so from the console.
+
+## Sessions, CSRF and brute force
+
+- The session cookie `hb_session` is `HttpOnly`, `SameSite=Lax`, `Secure` over HTTPS; the token is stored hashed. Lifetime defaults to 12 hours (`session_hours`). Users can list sessions and revoke the others.
+- Cookie-authenticated requests that change state must carry the `X-CSRF-Token` header (issued at login); requests authenticated with an API key (`Authorization: Bearer`) are not subject to CSRF checks.
+- Lockout: 8 failed logins (default) within 15 minutes for the same username and IP return HTTP 429; a per-IP ceiling of five times that applies across usernames. Counters follow the client IP, so configure `trust_proxy` correctly ([tls-and-proxies.md](tls-and-proxies.md)).
+- Responses carry `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options: DENY` (except public status pages, which may be embedded) and, over TLS, HSTS. The UI is served with a strict Content-Security-Policy.
+
+## API keys
+
+Keys look like `hb_<prefix>_<secret>`; only a hash of the secret is stored and the key is shown once. A key acts as its owner, limited to the intersection of the owner's role and the key's scopes (`read`, `write`, `jobs`, `admin`); it can expire; keys cannot create keys; a disabled owner disables the key. See [api.md](api.md).
+
+## Audit log
+
+The audit log records sign-ins and failures, setup, user, tenant, key, host, check, threshold, channel, maintenance, status-page, settings, vulnerability and job actions with actor, target, source IP and details (secrets in settings changes are redacted). It is retained for 365 days by default (`audit_days`) and visible to users with the `audit` permission, scoped to their tenant.
+
+## Handling of secrets
+
+- **Stored in clear text in `heartbeat.db`** (the database is not encrypted): SMTP, LDAP bind and RADIUS secrets, notification channel tokens and webhook credentials, SNMP communities and v3 passwords, HTTP-check basic-auth passwords, TOTP secrets. They are redacted from every API response, and sending a redacted or omitted value on update keeps the stored one.
+- **Stored hashed**: user passwords (Argon2id), session tokens, API keys, enrolment tokens.
+- **Not stored**: SSH/WinRM credentials used for push install (only target, user name and install log are kept).
+- **Key files**: `pki/ca.key`, `pki/job.key`, `pki/server.key` are mode `0600`; the data directory is `0750`.
+- **Backups contain all of the above.** Encrypt and restrict them (see [operations.md](operations.md)).
+
+## Public surface
+
+Unauthenticated endpoints: `/healthz`, `/api/v1/public/info`, `/api/v1/public/status/{slug}` (public pages, or token-protected ones), the installer scripts under `/install/`, agent binaries under `/download/agent/`, and the login/setup endpoints. `/metrics` is **open by default**; turn on **Settings, Security, Metrics auth** to require an API key with `read` scope. Setup is protected by the one-time setup token until the first administrator exists.
+
+## Hardening checklist
+
+1. Use TLS (`selfsigned` or `acme`, or a proxy with `trust_proxy`); do not expose plain HTTP.
+2. Enable 2FA for admins; set `Require 2FA` to `admins` or `all`.
+3. Enable `metrics_auth` unless `/metrics` is only reachable from a trusted network.
+4. Leave remote actions off for hosts that do not need them; avoid `allow_scripts` on production hosts.
+5. Install agents with `--no-docker` where container metrics are not needed.
+6. Protect and encrypt backups; keep `pki/` out of shared storage.
+7. Keep the server and (via self-update) the agents current.

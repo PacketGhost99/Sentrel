@@ -1,0 +1,36 @@
+name: net-snmp
+description: Linux/BSD hosts running net-snmp (UCD-SNMP-MIB)
+include: [generic]
+match:
+  sys_object_id: ["1.3.6.1.4.1.8072"]
+metrics:
+  - name: cpu_usage_percent
+    expr: "100 - idle"
+    vars:
+      idle: 1.3.6.1.4.1.2021.11.11.0   # ssCpuIdle (older net-snmp)
+  # Newer net-snmp builds only expose raw tick counters; rates need two polls.
+  # The same name is tried in order; the first that returns data wins.
+  - name: cpu_usage_percent
+    expr: "100 - (idle + wait) * 100 / (user + nice + system + idle + wait)"
+    counters: true
+    vars:
+      user: 1.3.6.1.4.1.2021.11.50.0   # ssCpuRawUser
+      nice: 1.3.6.1.4.1.2021.11.51.0   # ssCpuRawNice
+      system: 1.3.6.1.4.1.2021.11.52.0 # ssCpuRawSystem
+      idle: 1.3.6.1.4.1.2021.11.53.0   # ssCpuRawIdle
+      wait: 1.3.6.1.4.1.2021.11.54.0   # ssCpuRawWait
+  - name: mem_used_percent
+    expr: "(total - avail - buffer - cached) * 100 / total"
+    vars:
+      total: 1.3.6.1.4.1.2021.4.5.0    # memTotalReal
+      avail: 1.3.6.1.4.1.2021.4.6.0    # memAvailReal
+      buffer: 1.3.6.1.4.1.2021.4.14.0  # memBuffer
+      cached: 1.3.6.1.4.1.2021.4.15.0  # memCached
+  - name: swap_used_percent
+    expr: "total > 0 ? (total - avail) * 100 / total : 0"
+    vars:
+      total: 1.3.6.1.4.1.2021.4.3.0    # memTotalSwap
+      avail: 1.3.6.1.4.1.2021.4.4.0    # memAvailSwap
+  - name: load1
+    oid: 1.3.6.1.4.1.2021.10.1.5.1     # laLoadInt (x100)
+    scale: 0.01

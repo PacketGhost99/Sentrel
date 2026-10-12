@@ -6,9 +6,10 @@ import { del, errorMessage, get, post, put } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { ago, dateTime } from '@/lib/format'
 import type { Check, Host } from '@/lib/types'
+import { BeatBar, type Beat, checkBeatsToBeats, checkSuccessRate, useCheckBeats } from '@/components/BeatBar'
 import { Chart, RangePicker, rangeSeconds, type RangeId } from '@/components/Chart'
 import { useTenantFilter } from '@/components/Layout'
-import { Badge, Button, Card, Empty, ErrorBox, Field, Input, KV, Loading, Modal, Note, PageHeader, Select, StatusDot, Table, Td, Th, Toggle, cx, statusTone, useConfirm, useSort, useToast } from '@/components/ui'
+import { Badge, Button, Card, Empty, ErrorBox, Field, Input, KV, Loading, Modal, Note, PageHeader, Select, StatusDot, Table, Td, Th, Toggle, UptimePill, cx, statusTone, useConfirm, useSort, useToast } from '@/components/ui'
 
 export const checkTypes: { id: string; label: string; agent?: boolean; target: string; hint: string }[] = [
   { id: 'ping', label: 'Ping (ICMP)', target: 'Host or IP', hint: 'e.g. 192.168.1.1' },
@@ -41,6 +42,7 @@ export function ChecksTable({ hostId, hostKind, tenantId, canCreate = true }: { 
   const [status, setStatus] = useState('')
   const [editing, setEditing] = useState<Partial<Check> | null>(null)
   const checks = useQuery({ queryKey: ['checks', hostId ?? 'all', tenant], queryFn: () => get<Check[]>('/checks', { host_id: hostId, tenant_id: hostId ? undefined : tenant ?? undefined }), refetchInterval: 30_000 })
+  const beats = useCheckBeats(40, hostId ? undefined : tenant)
   const rows = useMemo(() => (checks.data || []).filter((c) => (!status || c.status === status) && (!q || c.name.toLowerCase().includes(q.toLowerCase()) || c.target.toLowerCase().includes(q.toLowerCase()) || (c.host_name || '').toLowerCase().includes(q.toLowerCase()))), [checks.data, q, status])
   const { sorted, th } = useSort(rows, { key: 'status', dir: 'desc' }, {
     status: (c) => (c.status === 'down' ? 3 : c.status === 'warning' ? 2 : c.status === 'pending' ? 1 : 0),
@@ -48,7 +50,7 @@ export function ChecksTable({ hostId, hostKind, tenantId, canCreate = true }: { 
   })
   return (
     <Card bodyClass="p-0">
-      <div className="flex flex-wrap items-center gap-2 border-b border-line p-3">
+      <div className="flex flex-wrap items-center gap-2 border-b border-line/70 p-4">
         <Input placeholder="Filter checks" value={q} onChange={(e) => setQ(e.target.value)} className="w-full sm:w-64" />
         <div className="w-36"><Select value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="">Any status</option><option value="up">Up</option><option value="down">Down</option><option value="warning">Warning</option><option value="pending">Pending</option>
@@ -61,7 +63,7 @@ export function ChecksTable({ hostId, hostKind, tenantId, canCreate = true }: { 
           <thead><tr>
             <Th {...th('status')}>Status</Th><Th {...th('name')}>Check</Th><Th className="hidden md:table-cell">Type</Th>
             {!hostId && <Th className="hidden lg:table-cell">Host</Th>}
-            <Th {...th('latency')} className="hidden sm:table-cell">Latency</Th><Th {...th('uptime')} className="hidden md:table-cell">24h uptime</Th>
+            <Th {...th('latency')} className="hidden sm:table-cell">Latency</Th><Th className="hidden md:table-cell">Recent results</Th><Th {...th('uptime')} className="hidden md:table-cell">Uptime</Th>
             <Th className="hidden xl:table-cell">Last result</Th><Th {...th('checked')} className="hidden lg:table-cell">Checked</Th><Th />
           </tr></thead>
           <tbody>
@@ -72,7 +74,8 @@ export function ChecksTable({ hostId, hostKind, tenantId, canCreate = true }: { 
                 <Td className="hidden text-xs md:table-cell">{checkTypes.find((t) => t.id === c.type)?.label || c.type}</Td>
                 {!hostId && <Td className="hidden text-xs lg:table-cell">{c.host_id ? <Link to={`/hosts/${c.host_id}`} className="hover:underline">{c.host_name}</Link> : <span className="text-muted">–</span>}</Td>}
                 <Td className="hidden text-xs tabular-nums sm:table-cell">{c.last_latency_ms ? `${c.last_latency_ms.toFixed(1)} ms` : '–'}</Td>
-                <Td className="hidden text-xs tabular-nums md:table-cell">{c.uptime_24h !== undefined && c.uptime_24h !== null ? <span className={c.uptime_24h < 99 ? 'text-warn' : 'text-ok'}>{c.uptime_24h.toFixed(2)}%</span> : '–'}</Td>
+                <Td className="hidden w-[260px] md:table-cell"><BeatBar beats={checkBeatsToBeats(beats.data?.[String(c.id)])} count={40} height={24} /></Td>
+                <Td className="hidden md:table-cell"><UptimePill value={c.uptime_24h ?? checkSuccessRate(beats.data?.[String(c.id)])} title="24h uptime" /></Td>
                 <Td className="hidden max-w-sm truncate text-xs text-muted xl:table-cell" title={c.last_message}>{c.last_message}</Td>
                 <Td className="hidden text-xs text-muted lg:table-cell">{ago(c.last_checked_at)}</Td>
                 <Td className="whitespace-nowrap text-right">
@@ -150,7 +153,7 @@ export function CheckEditor({ initial, onClose, hostKind }: { initial: Partial<C
         </div>
 
         {c.type === 'http' && (
-          <div className="grid gap-3 rounded-md border border-line p-3 sm:grid-cols-2">
+          <div className="grid gap-3 rounded-xl border border-line/70 bg-panel-2/40 p-4 sm:grid-cols-2">
             <Field label="Method"><Select value={cfg.method || 'GET'} onChange={(e) => setCfg({ method: e.target.value })}>{['GET', 'HEAD', 'POST', 'PUT'].map((m) => <option key={m}>{m}</option>)}</Select></Field>
             <Field label="Expected status" hint="e.g. 200, 2xx, 200-299,301"><Input value={cfg.expect_status || ''} placeholder="2xx/3xx" onChange={(e) => setCfg({ expect_status: e.target.value })} /></Field>
             <Field label="Keyword" hint="Must appear in the response body"><Input value={cfg.keyword || ''} onChange={(e) => setCfg({ keyword: e.target.value })} /></Field>
@@ -214,19 +217,17 @@ function DeleteCheck({ id, name, onDone }: { id: number; name: string; onDone: (
 
 export function UptimeBars({ days, total = 90 }: { days: { day: string; percent: number; up_seconds: number; down_seconds: number }[]; total?: number }) {
   const map = new Map(days.map((d) => [d.day, d]))
-  const cells = Array.from({ length: total }, (_, i) => {
-    const d = new Date(Date.now() - (total - 1 - i) * 86400_000).toISOString().slice(0, 10)
-    return { day: d, v: map.get(d) }
+  const beats: Beat[] = Array.from({ length: total }, (_, i) => {
+    const day = new Date(Date.now() - (total - 1 - i) * 86400_000).toISOString().slice(0, 10)
+    const v = map.get(day)
+    const p = v ? v.percent : -1
+    return {
+      status: p < 0 ? 'none' : p >= 99 ? 'up' : p >= 90 ? 'warn' : 'down',
+      label: new Date(day + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }),
+      detail: p < 0 ? 'No data' : `${p.toFixed(2)}% uptime`,
+    }
   })
-  return (
-    <div className="flex h-8 items-stretch gap-[2px]">
-      {cells.map(({ day, v }) => {
-        const p = v ? v.percent : -1
-        const c = p < 0 ? 'bg-line' : p >= 99.9 ? 'bg-ok' : p >= 99 ? 'bg-ok/60' : p >= 95 ? 'bg-warn' : 'bg-crit'
-        return <div key={day} title={`${day}: ${p < 0 ? 'no data' : p.toFixed(2) + '% up'}`} className={cx('flex-1 rounded-[2px]', c)} />
-      })}
-    </div>
-  )
+  return <BeatBar beats={beats} count={total} height={32} />
 }
 
 export function CheckDetail() {

@@ -58,7 +58,7 @@ export function Setup() {
       <AuthShell>
         <Card>
           <Note tone="ok">Setup complete. The server is switching to HTTPS; you will be redirected to <b>{done}</b>.</Note>
-          {f.tls_mode === 'selfsigned' && <p className="mt-3 text-sm text-muted">Your browser will warn about the self-signed certificate the first time; that is expected for LAN use.</p>}
+          {f.tls_mode === 'selfsigned' && <p className="mt-3 text-sm text-muted">Your browser shows a certificate warning the first time because the certificate is self-signed.</p>}
         </Card>
       </AuthShell>
     )
@@ -111,12 +111,12 @@ export function Setup() {
             <Field label="How should the server be reached?">
               <div className="grid gap-2 sm:grid-cols-3">
                 {[
-                  ['http', 'Plain HTTP', 'Behind a Cloudflare tunnel or reverse proxy (Caddy) that terminates TLS'],
+                  ['http', 'Plain HTTP', 'Behind a reverse proxy that terminates TLS'],
                   ['selfsigned', 'Self-signed TLS', 'LAN use; certificate from the internal CA, pinned by agents'],
                   ['acme', "Let's Encrypt", 'Public DNS name pointing here, ports 80 and 443 open'],
                 ].map(([id, t, d]) => (
                   <button key={id} type="button" onClick={() => setF({ ...f, tls_mode: id })}
-                    className={cx('rounded-md border p-3 text-left', f.tls_mode === id ? 'border-accent bg-accent/8' : 'border-line hover:border-muted')}>
+                    className={cx('rounded-xl border p-4 text-left transition-colors', f.tls_mode === id ? 'border-accent bg-accent/8' : 'border-line hover:border-muted')}>
                     <div className="text-sm font-medium">{t}</div>
                     <div className="mt-1 text-xs text-muted">{d}</div>
                   </button>
@@ -128,8 +128,8 @@ export function Setup() {
                 <Field label="Public server URL" hint="The address agents and links in notifications use (e.g. https://monitor.example.com behind a proxy).">
                   <Input value={f.server_url} onChange={set('server_url')} />
                 </Field>
-                <Toggle checked={f.trust_proxy} onChange={(v) => setF({ ...f, trust_proxy: v })} label="Behind a reverse proxy or tunnel"
-                  hint="Trust X-Forwarded-For / X-Forwarded-Proto / CF-Connecting-IP for client IPs and HTTPS detection." />
+                <Toggle checked={f.trust_proxy} onChange={(v) => setF({ ...f, trust_proxy: v })} label="Behind a reverse proxy"
+                  hint="Use X-Forwarded-For and X-Forwarded-Proto for client IPs and HTTPS detection." />
               </>
             ) : (
               <div className="grid gap-4 sm:grid-cols-2">

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, RotateCcw, Save, X } from 'lucide-react'
+import { BellOff, Plus, RotateCcw, Save, X } from 'lucide-react'
 import { del, errorMessage, get, post } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import type { HostDetail, HostGroup, MergedRule, MetricDef, Tenant, ThresholdRule } from '@/lib/types'
@@ -18,9 +18,9 @@ export function Thresholds() {
   const s: Scope = { scope: scope as Scope['scope'], scope_id: Number(id), tenant_id: Number(tenant) }
   return (
     <div>
-      <PageHeader title="Thresholds" subtitle="Alert thresholds inherit provider → tenant → group → host. The most specific rule wins; label rules (e.g. a single mount) beat wildcard rules at the same level." />
+      <PageHeader title="Thresholds" subtitle="Thresholds inherit from provider to tenant, group and host. The most specific rule wins, and label rules (for example a single mount) take precedence over wildcard rules at the same level." />
       <Card bodyClass="p-0">
-        <div className="flex flex-wrap items-center gap-3 border-b border-line p-3">
+        <div className="flex flex-wrap items-center gap-3 border-b border-line/70 p-4">
           <span className="text-sm text-muted">Editing</span>
           <div className="w-72">
             <Select value={sel} onChange={(e) => setSel(e.target.value)}>
@@ -55,7 +55,7 @@ export function ThresholdTable({ scope, editable, inherited }: { scope: Scope; e
   }
   return (
     <Table>
-      <thead><tr><Th>Metric</Th><Th className="w-40">Label match</Th><Th className="w-28">Warning</Th><Th className="w-28">Critical</Th><Th className="w-24" title="Consecutive evaluations before firing">For</Th><Th className="w-20">Enabled</Th><Th className="w-40" /></tr></thead>
+      <thead><tr><Th>Metric</Th><Th className="w-40">Label match</Th><Th className="w-28">Warning</Th><Th className="w-28">Critical</Th><Th className="w-24" title="Consecutive evaluations before firing">For</Th><Th className="w-20">Enabled</Th><Th className="w-24" title="Send emails and webhooks when this rule fires. Alerts always show in Heartbeat.">Notify</Th><Th className="w-40" /></tr></thead>
       <tbody>
         {catalog.data!.map((m) => {
           const base = mine.find((r) => r.metric === m.key && !r.label_match)
@@ -82,14 +82,15 @@ function RuleRow({ metric, scope, rule, inherited, label, isNew, editable, onSav
   const [crit, setCrit] = useState(fmt(src?.crit))
   const [forC, setForC] = useState(String(src?.for_count ?? 2))
   const [enabled, setEnabled] = useState(src?.enabled ?? true)
+  const [notify, setNotify] = useState(src?.notify ?? true)
   const [lm, setLm] = useState(rule?.label_match || '')
   const [busy, setBusy] = useState(false)
-  const dirty = isNew || fmt(rule?.warn) !== warn || fmt(rule?.crit) !== crit || String(rule?.for_count ?? 2) !== forC || (rule?.enabled ?? true) !== enabled || !rule
-  const changed = isNew || !rule ? warn !== fmt(inherited?.warn) || crit !== fmt(inherited?.crit) || forC !== String(inherited?.for_count ?? 2) || enabled !== (inherited?.enabled ?? true) : dirty
+  const dirty = isNew || fmt(rule?.warn) !== warn || fmt(rule?.crit) !== crit || String(rule?.for_count ?? 2) !== forC || (rule?.enabled ?? true) !== enabled || (rule?.notify ?? true) !== notify || !rule
+  const changed = isNew || !rule ? warn !== fmt(inherited?.warn) || crit !== fmt(inherited?.crit) || forC !== String(inherited?.for_count ?? 2) || enabled !== (inherited?.enabled ?? true) || notify !== (inherited?.notify ?? true) : dirty
   const save = async () => {
     setBusy(true)
     try {
-      await post('/thresholds', { ...scope, metric: metric.key, label_match: label ? lm : '', warn: warn === '' ? null : Number(warn), crit: crit === '' ? null : Number(crit), for_count: Number(forC) || 1, enabled })
+      await post('/thresholds', { ...scope, metric: metric.key, label_match: label ? lm : '', warn: warn === '' ? null : Number(warn), crit: crit === '' ? null : Number(crit), for_count: Number(forC) || 1, enabled, notify })
       toast(`${metric.name} saved`)
       onSaved()
     } catch (e) {
@@ -121,6 +122,7 @@ function RuleRow({ metric, scope, rule, inherited, label, isNew, editable, onSav
       <Td><div className="flex items-center gap-1"><Input className="h-7 w-20 text-xs" disabled={dis} value={crit} onChange={(e) => setCrit(e.target.value)} placeholder="off" />{unit}</div></Td>
       <Td><Input className="h-7 w-16 text-xs" type="number" min={1} disabled={dis} value={forC} onChange={(e) => setForC(e.target.value)} /></Td>
       <Td><Toggle checked={enabled} onChange={setEnabled} disabled={dis} /></Td>
+      <Td><div className="flex items-center gap-1.5" title={notify ? 'Notifications on' : 'Muted: alerts show in Heartbeat but no emails or webhooks are sent'}><Toggle checked={notify} onChange={setNotify} disabled={dis} />{!notify && <BellOff className="size-3.5 text-muted" />}</div></Td>
       <Td className="whitespace-nowrap text-right">
         {editable && changed && <Button size="sm" variant="primary" loading={busy} icon={<Save className="size-3.5" />} onClick={save} disabled={label && !lm}>Save</Button>}
         {editable && rule && !(scope.scope === 'global' && scope.tenant_id === 0 && !label) && <Button size="sm" variant="ghost" title="Remove override" icon={label ? <X className="size-3.5" /> : <RotateCcw className="size-3.5" />} onClick={remove} />}
@@ -149,7 +151,7 @@ export function HostThresholds({ host }: { host: HostDetail }) {
         actions={can('monitoring') && <Button size="sm" onClick={() => setEdit(!edit)}>{edit ? 'Done' : 'Edit host overrides'}</Button>}>
         {edit ? (
           <>
-            <div className="p-3"><Note>Values shown come from the inherited rule; saving creates an override for this host only. Remove an override to inherit again.</Note></div>
+            <div className="p-4"><Note>Values shown come from the inherited rule; saving creates an override for this host only. Remove an override to inherit again.</Note></div>
             <ThresholdTable scope={{ scope: 'host', scope_id: host.id, tenant_id: host.tenant_id }} editable inherited={inherited} />
           </>
         ) : (

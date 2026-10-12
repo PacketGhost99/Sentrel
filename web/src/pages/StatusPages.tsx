@@ -147,12 +147,12 @@ export function PublicStatus() {
           {b.logo_data_url ? <img src={b.logo_data_url} alt="" className="h-9 max-w-[180px] object-contain" /> : <Logo />}
           <div><h1 className="text-xl font-semibold">{x.title}</h1>{x.description && <p className="text-sm text-muted">{x.description}</p>}</div>
         </div>
-        {x.announcement && <div className="mb-4 rounded-lg border border-info/40 bg-info/10 p-4 text-sm whitespace-pre-line">{x.announcement}</div>}
-        <div className={cx('mb-6 flex items-center gap-3 rounded-lg p-4 text-white', statusColor[x.overall])}>
+        {x.announcement && <div className="mb-4 rounded-2xl border border-info/30 bg-info/10 p-4 text-sm whitespace-pre-line">{x.announcement}</div>}
+        <div className={cx('mb-6 flex items-center gap-3 rounded-2xl p-5 text-white shadow-card', statusColor[x.overall])}>
           <span className="text-lg font-semibold">{x.overall === 'operational' ? 'All systems operational' : x.overall === 'down' ? 'Some systems are down' : x.overall === 'degraded' ? 'Degraded performance' : 'Maintenance in progress'}</span>
         </div>
         <Card bodyClass="p-0">
-          <ul className="divide-y divide-line">
+          <ul className="divide-y divide-line/60">
             {x.items.map((it, i) => (
               <li key={i} className="p-4">
                 <div className="flex items-center justify-between gap-3">

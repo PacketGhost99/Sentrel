@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Activity, Bell, Boxes, Building2, CalendarClock, ChevronDown, ClipboardList, Cog, FileClock, Gauge, KeyRound, LayoutDashboard, LogOut,
-  Menu, Monitor, Moon, PlayCircle, Radar, Search, Server, ShieldAlert, SlidersHorizontal, Sun, User as UserIcon, Users, Wrench, X, Globe, BookOpen,
+  Menu, Moon, PlayCircle, Radar, Search, Server, ShieldAlert, SlidersHorizontal, Sun, User as UserIcon, Users, Wrench, X, Globe, BookOpen,
 } from 'lucide-react'
 import { useAuth, getThemePref, setThemePref, type ThemePref } from '@/lib/auth'
 import { get } from '@/lib/api'
@@ -92,33 +92,49 @@ export function Layout() {
   ]
 
   const b = me?.branding
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem('hb-nav-collapsed') || '{}') } catch { return {} }
+  })
+  const toggleSection = (t: string) => setCollapsed((c) => {
+    const n = { ...c, [t]: !c[t] }
+    try { localStorage.setItem('hb-nav-collapsed', JSON.stringify(n)) } catch { /* storage unavailable */ }
+    return n
+  })
   const sidebar = (
     <nav className="flex h-full flex-col">
-      <div className="flex h-14 items-center gap-2.5 border-b border-line px-4">
+      <div className="flex h-16 items-center gap-2.5 px-5">
         {b?.logo_data_url ? <img src={b.logo_data_url} alt="" className="h-7 max-w-[140px] object-contain" /> : <Logo />}
-        {!b?.logo_data_url && <span className="truncate text-base font-semibold tracking-tight">{b?.product_name || 'Heartbeat'}</span>}
+        {!b?.logo_data_url && <span className="truncate text-[17px] font-semibold tracking-tight">{b?.product_name || 'Heartbeat'}</span>}
       </div>
-      <div className="scrollbar-thin flex-1 overflow-y-auto px-2 py-3">
+      <div className="scrollbar-thin flex-1 overflow-y-auto px-3 pb-3">
         {sections.map((s) => {
           const items = s.items.filter((i) => !i.perm || can(i.perm))
           if (!items.length) return null
+          const hasActive = items.some((i) => (i.to === '/' ? loc.pathname === '/' : loc.pathname.startsWith(i.to)))
+          const closed = !!s.title && !!collapsed[s.title] && !hasActive
           return (
-            <div key={s.title} className="mb-4">
-              {s.title && <div className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wider text-muted/80">{s.title}</div>}
-              {items.map((i) => (
+            <div key={s.title} className="mb-3">
+              {s.title && (
+                <button onClick={() => toggleSection(s.title)} aria-expanded={!closed}
+                  className="mb-1 flex w-full items-center justify-between rounded-md px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-muted hover:text-fg">
+                  {s.title}
+                  <ChevronDown className={cx('size-3.5 transition-transform', closed && '-rotate-90')} />
+                </button>
+              )}
+              {!closed && items.map((i) => (
                 <NavLink key={i.to} to={i.to} end={i.to === '/'}
-                  className={({ isActive }) => cx('group flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm [&_svg]:size-4',
-                    isActive ? 'bg-accent/12 font-medium text-accent' : 'text-muted hover:bg-panel-2 hover:text-fg')}>
+                  className={({ isActive }) => cx('group relative flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm [&_svg]:size-[17px] [&_svg]:shrink-0',
+                    isActive ? 'bg-accent/10 font-medium text-accent' : 'text-muted hover:bg-panel-2 hover:text-fg')}>
                   {i.icon}
                   <span className="flex-1 truncate">{i.label}</span>
-                  {!!i.badge && <span className="rounded-full bg-crit px-1.5 text-[11px] font-semibold text-white">{i.badge}</span>}
+                  {!!i.badge && <span className="rounded-full bg-crit px-1.5 py-px text-[11px] font-semibold leading-4 text-white">{i.badge}</span>}
                 </NavLink>
               ))}
             </div>
           )
         })}
       </div>
-      <div className="flex items-center justify-between border-t border-line px-4 py-2 text-[11px] text-muted">
+      <div className="flex items-center justify-between px-5 py-3 text-[11px] text-muted">
         <span>v{me?.version}</span>
         <span className="flex items-center gap-1.5" title={live ? 'Live updates connected' : 'Live updates reconnecting'}>
           <StatusDot status={live ? 'up' : 'warning'} />{live ? 'live' : 'offline'}
@@ -130,36 +146,36 @@ export function Layout() {
   return (
     <TenantCtx.Provider value={{ tenant, setTenant }}>
       <div className="flex h-full">
-        <aside className="hidden w-60 shrink-0 border-r border-line bg-panel lg:block">{sidebar}</aside>
+        <aside className="hidden w-60 shrink-0 border-r border-line/70 bg-panel lg:block">{sidebar}</aside>
         {mobileOpen && (
           <div className="fixed inset-0 z-40 lg:hidden" onClick={() => setMobileOpen(false)}>
-            <div className="absolute inset-0 bg-black/50" />
-            <aside className="absolute inset-y-0 left-0 w-64 border-r border-line bg-panel" onClick={(e) => e.stopPropagation()}>{sidebar}</aside>
+            <div className="fade-in absolute inset-0 bg-slate-950/45 backdrop-blur-sm" />
+            <aside className="pop-in absolute inset-y-0 left-0 w-64 border-r border-line bg-panel shadow-pop" onClick={(e) => e.stopPropagation()}>{sidebar}</aside>
           </div>
         )}
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="flex h-14 shrink-0 items-center gap-2 border-b border-line bg-panel/80 px-3 backdrop-blur sm:px-5">
-            <button className="rounded p-1.5 text-muted hover:bg-panel-2 lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Menu"><Menu className="size-5" /></button>
-            <button onClick={() => setPaletteOpen(true)} className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-md border border-line bg-panel-2 px-3 text-sm text-muted hover:text-fg sm:max-w-sm">
+          <header className="flex h-16 shrink-0 items-center gap-2 border-b border-line/70 bg-bg/80 px-3 backdrop-blur sm:px-6">
+            <button className="rounded-lg p-2 text-muted hover:bg-panel-2 lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Menu"><Menu className="size-5" /></button>
+            <button onClick={() => setPaletteOpen(true)} className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-xl border border-line/70 bg-panel px-3.5 text-sm text-muted shadow-card hover:border-muted/40 hover:text-fg sm:max-w-sm">
               <Search className="size-4 shrink-0" /><span className="truncate">Search hosts and pages…</span>
-              <kbd className="ml-auto hidden rounded border border-line px-1.5 text-[10px] sm:inline">Ctrl K</kbd>
+              <kbd className="ml-auto hidden rounded-md border border-line bg-panel-2 px-1.5 text-[10px] sm:inline">Ctrl K</kbd>
             </button>
             <div className="flex-1" />
             {provider && (tenants.data?.length ?? 0) > 1 && (
               <div className="relative hidden sm:block">
                 <select value={tenant ?? ''} onChange={(e) => setTenant(e.target.value === '' ? null : Number(e.target.value))}
-                  className="h-9 appearance-none rounded-md border border-line bg-panel pl-3 pr-8 text-sm">
+                  className="h-10 appearance-none rounded-xl border border-line/70 bg-panel pl-3.5 pr-8 text-sm shadow-card">
                   <option value="">All tenants</option>
                   {tenants.data!.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
-                <ChevronDown className="pointer-events-none absolute right-2.5 top-2.5 size-4 text-muted" />
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-3 size-4 text-muted" />
               </div>
             )}
             <ThemeSwitch />
             <UserMenu name={me?.user.display_name || me?.user.username || ''} onLogout={logout} />
           </header>
           <main className="scrollbar-thin flex-1 overflow-y-auto">
-            <div className="mx-auto max-w-[1600px] p-3 sm:p-5">
+            <div className="fade-in mx-auto max-w-[1500px] p-4 sm:p-6 lg:p-8">
               <Outlet />
             </div>
             {me?.branding.footer_text && <footer className="px-5 pb-4 text-center text-xs text-muted">{me.branding.footer_text}</footer>}
@@ -174,7 +190,7 @@ export function Layout() {
 export function Logo({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 32 32" className={cx('size-7 shrink-0', className)} aria-hidden>
-      <rect width="32" height="32" rx="7" fill="var(--accent)" />
+      <rect width="32" height="32" rx="9" fill="var(--accent)" />
       <path d="M4 17h6l3-7 5 13 3-6h7" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
@@ -182,11 +198,12 @@ export function Logo({ className }: { className?: string }) {
 
 function ThemeSwitch() {
   const [pref, setPref] = useState<ThemePref>(getThemePref())
-  const next: Record<ThemePref, ThemePref> = { system: 'light', light: 'dark', dark: 'system' }
-  const icon = pref === 'dark' ? <Moon className="size-4" /> : pref === 'light' ? <Sun className="size-4" /> : <Monitor className="size-4" />
+  const next: ThemePref = pref === 'dark' ? 'light' : 'dark'
   return (
-    <button title={`Theme: ${pref}`} onClick={() => { const n = next[pref]; setPref(n); setThemePref(n) }} className="rounded-md p-2 text-muted hover:bg-panel-2 hover:text-fg">
-      {icon}
+    <button title={pref === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} aria-label="Toggle colour theme"
+      onClick={() => { setPref(next); setThemePref(next) }}
+      className="rounded-xl p-2.5 text-muted hover:bg-panel-2 hover:text-fg">
+      {pref === 'dark' ? <Sun className="size-[18px]" /> : <Moon className="size-[18px]" />}
     </button>
   )
 }
@@ -202,17 +219,17 @@ function UserMenu({ name, onLogout }: { name: string; onLogout: () => void }) {
   }, [])
   return (
     <div className="relative" ref={ref}>
-      <button onClick={() => setOpen(!open)} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-panel-2">
-        <span className="flex size-7 items-center justify-center rounded-full bg-accent/15 text-xs font-semibold uppercase text-accent">{name.slice(0, 2)}</span>
+      <button onClick={() => setOpen(!open)} className="flex items-center gap-2 rounded-xl px-2 py-1.5 text-sm hover:bg-panel-2">
+        <span className="flex size-8 items-center justify-center rounded-full bg-accent/12 text-xs font-semibold uppercase text-accent">{name.slice(0, 2)}</span>
         <span className="hidden max-w-32 truncate sm:inline">{name}</span>
         <ChevronDown className="size-4 text-muted" />
       </button>
       {open && (
-        <div className="absolute right-0 z-30 mt-1 w-48 rounded-md border border-line bg-panel py-1 shadow-xl">
-          <button onClick={() => { setOpen(false); nav('/profile') }} className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-panel-2"><UserIcon className="size-4" />Profile & security</button>
-          <button onClick={() => { setOpen(false); nav('/admin/api-keys') }} className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-panel-2"><KeyRound className="size-4" />API keys</button>
-          <div className="my-1 border-t border-line" />
-          <button onClick={onLogout} className="flex w-full items-center gap-2 px-3 py-2 text-sm text-crit hover:bg-panel-2"><LogOut className="size-4" />Log out</button>
+        <div className="pop-in absolute right-0 z-30 mt-2 w-52 rounded-xl border border-line/70 bg-panel p-1 shadow-pop">
+          <button onClick={() => { setOpen(false); nav('/profile') }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-panel-2"><UserIcon className="size-4" />Profile & security</button>
+          <button onClick={() => { setOpen(false); nav('/admin/api-keys') }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-panel-2"><KeyRound className="size-4" />API keys</button>
+          <div className="my-1 border-t border-line/70" />
+          <button onClick={onLogout} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-crit-ink hover:bg-panel-2"><LogOut className="size-4" />Log out</button>
         </div>
       )}
     </div>
@@ -244,9 +261,9 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
   useEffect(() => setSel(0), [q])
   const go = (to: string) => { onClose(); nav(to) }
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 pt-[12vh]" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="w-full max-w-lg overflow-hidden rounded-lg border border-line bg-panel shadow-2xl">
-        <div className="flex items-center gap-2 border-b border-line px-3">
+    <div className="fade-in fixed inset-0 z-50 flex items-start justify-center bg-slate-950/45 p-4 pt-[12vh] backdrop-blur-sm" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="pop-in w-full max-w-lg overflow-hidden rounded-2xl border border-line/70 bg-panel shadow-pop">
+        <div className="flex items-center gap-2 border-b border-line/70 px-4">
           <Search className="size-4 text-muted" />
           <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search hosts, tags, IPs or pages"
             onKeyDown={(e) => {
@@ -258,18 +275,18 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
             className="h-12 flex-1 bg-transparent text-sm outline-none" />
           <button onClick={onClose} className="text-muted hover:text-fg"><X className="size-4" /></button>
         </div>
-        <div className="max-h-80 overflow-y-auto py-1">
+        <div className="max-h-80 overflow-y-auto p-2">
           {results.length === 0 && <div className="px-4 py-6 text-center text-sm text-muted">No matches</div>}
           {results.map((r, i) => (
             <button key={r.kind + r.to} onMouseEnter={() => setSel(i)} onClick={() => go(r.to)}
-              className={cx('flex w-full items-center gap-3 px-4 py-2 text-left text-sm', i === sel && 'bg-panel-2')}>
+              className={cx('flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm', i === sel && 'bg-panel-2')}>
               {r.icon}
               <span className="flex-1 truncate">{r.label}</span>
               <span className="truncate text-xs text-muted">{r.kind} · {r.hint}</span>
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-3 border-t border-line px-4 py-2 text-[11px] text-muted"><Gauge className="size-3" />↑↓ to move · Enter to open · Esc to close</div>
+        <div className="flex items-center gap-3 border-t border-line/70 px-4 py-2.5 text-[11px] text-muted"><Gauge className="size-3" />↑↓ to move · Enter to open · Esc to close</div>
       </div>
     </div>
   )

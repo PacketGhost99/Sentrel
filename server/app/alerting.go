@@ -31,7 +31,8 @@ type condition struct {
 	Value     *float64
 	Threshold *float64
 	ForCount  int
-	Stage     int // escalation stage within the same severity (cert 30/14/7 days)
+	Stage     int  // escalation stage within the same severity (cert 30/14/7 days)
+	Muted     bool // notifications disabled by the resolved rule
 }
 
 // AlertEngine owns alert state. Active (pending/firing) alerts live in
@@ -144,6 +145,7 @@ func (e *AlertEngine) evaluateSamples(ctx context.Context, hostID int64, samples
 			sev, thr := severityFor(def, r.Rule, s.Value)
 			v := s.Value
 			c.Severity, c.Threshold, c.Value, c.ForCount = sev, thr, &v, r.Rule.ForCount
+			c.Muted = !r.Rule.Notify
 			c.Title, c.Message = describeThreshold(h, def, lv, v, thr, s.Labels)
 		}
 		e.apply(ctx, c)
@@ -253,7 +255,7 @@ func (e *AlertEngine) apply(ctx context.Context, c condition) {
 	delete(e.okCount, c.Key)
 	if cur == nil {
 		cur = &Alert{Key: c.Key, TenantID: c.TenantID, HostID: c.HostID, CheckID: c.CheckID, Source: c.Source, Metric: c.Metric, Labels: c.Labels,
-			Severity: c.Severity, Status: "pending", Title: c.Title, Message: c.Message, Value: c.Value, Threshold: c.Threshold, StartedAt: now, LastEvalAt: now}
+			Severity: c.Severity, Status: "pending", Title: c.Title, Message: c.Message, Value: c.Value, Threshold: c.Threshold, StartedAt: now, LastEvalAt: now, Muted: c.Muted}
 		// Reuse a previously resolved row with the same key to keep history together.
 		var prev Alert
 		err := a.db.GetContext(ctx, &prev, `SELECT * FROM alerts WHERE key=?`, c.Key)
@@ -262,13 +264,13 @@ func (e *AlertEngine) apply(ctx context.Context, c condition) {
 			cur.Transitions = prev.Transitions
 			cur.Flapping = prev.Flapping
 			_, err = a.db.ExecContext(ctx, `UPDATE alerts SET tenant_id=?, host_id=?, check_id=?, source=?, metric=?, labels=?, severity=?, status='pending', title=?, message=?,
-				value=?, threshold=?, pending_count=0, started_at=?, fired_at=0, resolved_at=0, last_eval_at=?, acked_by='', acked_at=0, ack_comment='', notify_count=0, last_notified_at=0 WHERE id=?`,
-				c.TenantID, c.HostID, c.CheckID, c.Source, c.Metric, c.Labels, c.Severity, c.Title, c.Message, c.Value, c.Threshold, now, now, cur.ID)
+				value=?, threshold=?, pending_count=0, started_at=?, fired_at=0, resolved_at=0, last_eval_at=?, acked_by='', acked_at=0, ack_comment='', notify_count=0, last_notified_at=0, muted=? WHERE id=?`,
+				c.TenantID, c.HostID, c.CheckID, c.Source, c.Metric, c.Labels, c.Severity, c.Title, c.Message, c.Value, c.Threshold, now, now, c.Muted, cur.ID)
 		} else if errors.Is(err, sql.ErrNoRows) {
 			var res sql.Result
 			res, err = a.db.ExecContext(ctx, `INSERT INTO alerts (tenant_id, host_id, check_id, key, source, metric, labels, severity, status, title, message, value, threshold,
-				pending_count, started_at, last_eval_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?)`,
-				c.TenantID, c.HostID, c.CheckID, c.Key, c.Source, c.Metric, c.Labels, c.Severity, "pending", c.Title, c.Message, c.Value, c.Threshold, now, now)
+				pending_count, started_at, last_eval_at, muted) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?,?)`,
+				c.TenantID, c.HostID, c.CheckID, c.Key, c.Source, c.Metric, c.Labels, c.Severity, "pending", c.Title, c.Message, c.Value, c.Threshold, now, now, c.Muted)
 			if err == nil {
 				cur.ID, _ = res.LastInsertId()
 			}
@@ -280,6 +282,8 @@ func (e *AlertEngine) apply(ctx context.Context, c condition) {
 		e.active[c.Key] = cur
 	}
 	cur.PendingCount++
+	mutedChanged := cur.Muted != c.Muted
+	cur.Muted = c.Muted
 	cur.Value, cur.Threshold = c.Value, c.Threshold
 	if c.Title != "" {
 		cur.Title = c.Title
@@ -289,7 +293,7 @@ func (e *AlertEngine) apply(ctx context.Context, c condition) {
 	if forCount < 1 {
 		forCount = 1
 	}
-	writeNeeded := now-cur.LastEvalAt >= 60
+	writeNeeded := now-cur.LastEvalAt >= 60 || mutedChanged
 
 	switch cur.Status {
 	case "pending":
@@ -303,6 +307,7 @@ func (e *AlertEngine) apply(ctx context.Context, c condition) {
 			e.checkFlapping(ctx, cur, now, al)
 			writeNeeded = true
 			e.event(ctx, cur, "fired", "", "")
+			a.maybeAutoDiskAnalysis(*cur)
 			if !cur.Flapping {
 				if e.suppressed(cur) {
 					e.event(ctx, cur, "silenced", "in maintenance window", "")
@@ -332,9 +337,9 @@ func (e *AlertEngine) apply(ctx context.Context, c condition) {
 	if writeNeeded {
 		cur.LastEvalAt = now
 		_, err := a.db.ExecContext(ctx, `UPDATE alerts SET severity=?, status=?, title=?, message=?, value=?, threshold=?, pending_count=?, fired_at=?, last_eval_at=?,
-			acked_by=?, acked_at=?, ack_comment=?, flapping=?, transitions=? WHERE id=?`,
+			acked_by=?, acked_at=?, ack_comment=?, flapping=?, transitions=?, muted=? WHERE id=?`,
 			cur.Severity, cur.Status, cur.Title, cur.Message, cur.Value, cur.Threshold, cur.PendingCount, cur.FiredAt, cur.LastEvalAt,
-			cur.AckedBy, cur.AckedAt, cur.AckComment, cur.Flapping, cur.Transitions, cur.ID)
+			cur.AckedBy, cur.AckedAt, cur.AckComment, cur.Flapping, cur.Transitions, cur.Muted, cur.ID)
 		if err != nil {
 			a.log.Error("alert update", "err", err)
 		}
@@ -584,6 +589,7 @@ func (e *AlertEngine) checkLiveness(ctx context.Context) {
 		if age > limit {
 			c.Severity = "critical"
 			c.Title = r.Name + " is down"
+			c.Muted = rule != nil && !rule.Rule.Notify
 			c.Message = fmt.Sprintf("No contact from %s for %s", r.Name, humanDuration(time.Duration(age)*time.Second))
 			v := age
 			c.Value, c.Threshold = &v, &limit

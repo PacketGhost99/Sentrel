@@ -44,7 +44,7 @@ export function ApiDocs() {
       <div className="space-y-4">
         {Object.entries(groups).sort().map(([tag, ops]) => (
           <Card key={tag} title={tag} bodyClass="p-0">
-            <ul className="divide-y divide-line">
+            <ul className="divide-y divide-line/60">
               {ops.map(({ path, method, op }) => {
                 const id = method + path
                 const req = schemaFor(op.requestBody?.content?.['application/json']?.schema)

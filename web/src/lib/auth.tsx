@@ -30,24 +30,28 @@ export const useAuth = () => useContext(Ctx)
 export function applyBranding(b?: Branding | null) {
   if (!b) return
   const root = document.documentElement
-  if (b.accent_color) root.style.setProperty('--accent', b.accent_color)
+  // The legacy default accent (#e11d48) is ignored so the refreshed palette applies unless a custom colour was chosen.
+  if (b.accent_color && b.accent_color.toLowerCase() !== '#e11d48') root.style.setProperty('--accent', b.accent_color)
+  else root.style.removeProperty('--accent')
   document.title = b.product_name || 'Heartbeat'
   const fav = document.getElementById('favicon') as HTMLLinkElement | null
   if (fav) fav.href = b.favicon_data_url || '/favicon.svg'
 }
 
-export type ThemePref = 'system' | 'light' | 'dark'
+export type ThemePref = 'light' | 'dark'
 
 export function applyTheme(pref: ThemePref) {
-  const dark = pref === 'dark' || (pref === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
-  document.documentElement.classList.toggle('dark', dark)
+  document.documentElement.classList.toggle('dark', pref === 'dark')
+  const meta = document.querySelector('meta[name="theme-color"]')
+  if (meta) meta.setAttribute('content', pref === 'dark' ? '#0c111d' : '#f4f6fb')
 }
 
+/** Light is the default; any other stored value (including the legacy "system") is treated as light. */
 export function getThemePref(): ThemePref {
   try {
-    return (localStorage.getItem('hb-theme') as ThemePref) || 'system'
+    return localStorage.getItem('hb-theme') === 'dark' ? 'dark' : 'light'
   } catch {
-    return 'system'
+    return 'light'
   }
 }
 
@@ -88,9 +92,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     applyTheme(getThemePref())
-    const mq = window.matchMedia('(prefers-color-scheme: dark)')
-    const h = () => applyTheme(getThemePref())
-    mq.addEventListener('change', h)
     const tenant = new URLSearchParams(location.search).get('tenant') || ''
     Promise.all([
       get<PublicInfo>('/public/info', { tenant }).then((i) => {
@@ -101,7 +102,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ]).finally(() => setLoading(false))
     const off = onUnauthorized(() => setMeState(null))
     return () => {
-      mq.removeEventListener('change', h)
       off()
     }
   }, [refresh])

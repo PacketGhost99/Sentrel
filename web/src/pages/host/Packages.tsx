@@ -29,7 +29,7 @@ export function HostPackages({ host }: { host: HostDetail }) {
           <Segmented options={[{ id: 'upgradable', label: 'Upgradable' }, { id: 'installed', label: 'Installed' }]} value={view} onChange={(v) => { setView(v); setSel(new Set()) }} />
           {can('jobs') && <Button size="sm" variant="primary" icon={<ArrowUpCircle className="size-3.5" />} onClick={() => setDialog(true)} disabled={!inv?.upgradable_count}>Upgrade…</Button>}
         </>}>
-        <div className="border-b border-line p-3"><Input placeholder="Search packages" value={q} onChange={(e) => setQ(e.target.value)} className="max-w-xs" /></div>
+        <div className="border-b border-line/70 p-4"><Input placeholder="Search packages" value={q} onChange={(e) => setQ(e.target.value)} className="max-w-xs" /></div>
         {pk.isLoading ? <Loading /> : !pk.data?.length ? <Empty title={view === 'upgradable' ? 'Everything is up to date' : 'No packages'} /> : (
           <Table className="max-h-[600px] overflow-y-auto">
             <thead><tr>

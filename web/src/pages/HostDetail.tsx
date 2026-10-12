@@ -7,7 +7,8 @@ import { useAuth } from '@/lib/auth'
 import { ago, bits, bytes, dateTime, duration, num, osLabel, pct } from '@/lib/format'
 import type { Alert, HostDetail as HD, Series } from '@/lib/types'
 import { Chart, RangePicker, rangeSeconds, type RangeId, type Unit } from '@/components/Chart'
-import { Badge, Button, Card, Empty, ErrorBox, Input, KV, Loading, Meter, Note, PageHeader, SeverityBadge, StatusDot, Table, Tabs, Td, Th, useConfirm, useToast } from '@/components/ui'
+import { Badge, Button, Card, Empty, ErrorBox, Input, KV, Loading, Meter, MutedBadge, Note, PageHeader, SeverityBadge, StatusDot, StatusPill, Table, Tabs, Td, Th, UptimePill, useConfirm, useToast } from '@/components/ui'
+import { BeatBar, averageUptime, hostBeatsToBeats, useHostBeats } from '@/components/BeatBar'
 import { hostStatusLabel } from './Hosts'
 import { ChecksTable } from './Checks'
 import { AlertsTable } from './Alerts'
@@ -18,6 +19,7 @@ import { HostPackages } from './host/Packages'
 import { HostSecurity } from './host/Security'
 import { HostSettings } from './host/Settings'
 import { RunScript } from './host/RunScript'
+import { StoragePanel } from './host/DiskUsage'
 
 type Tab = 'overview' | 'metrics' | 'system' | 'interfaces' | 'packages' | 'vulns' | 'security' | 'checks' | 'alerts' | 'jobs' | 'thresholds' | 'settings'
 
@@ -41,10 +43,10 @@ export function HostDetail() {
     <div>
       <PageHeader
         back={<Link to="/hosts" className="mb-1 inline-flex items-center gap-1 text-xs text-muted hover:text-fg"><ArrowLeft className="size-3" />Hosts</Link>}
-        title={<span className="flex items-center gap-2"><StatusDot status={host.status} pulse />{host.name}</span>}
+        title={<span className="flex items-center gap-3"><StatusDot status={host.in_maintenance ? 'maintenance' : host.status} pulse />{host.name}</span>}
         subtitle={
           <span className="flex flex-wrap items-center gap-1.5">
-            <Badge tone={st.tone}>{st.label}</Badge>
+            <StatusPill tone={st.tone} label={st.label} />
             <span>{host.address}</span>
             {agent && <span>· {osLabel(host.host_info)}</span>}
             {snmp && host.snmp_info?.system?.descr && <span className="max-w-md truncate">· {host.snmp_info.system.descr}</span>}
@@ -121,13 +123,14 @@ function Overview({ host, alerts }: { host: HD; alerts: Alert[] }) {
       <div className="space-y-4 xl:col-span-2">
         {firing.length > 0 && (
           <Card title="Active alerts" bodyClass="p-0">
-            <ul className="divide-y divide-line">
+            <ul className="divide-y divide-line/60">
               {firing.map((a) => (
-                <li key={a.id} className="flex items-center gap-3 px-4 py-2">
+                <li key={a.id} className="flex items-center gap-3 px-5 py-3">
                   <SeverityBadge severity={a.severity} />
                   <Link to={`/alerts/${a.id}`} className="min-w-0 flex-1 truncate text-sm hover:underline">{a.title}<span className="text-muted"> — {a.message}</span></Link>
                   {a.status === 'pending' && <Badge>pending</Badge>}
                   {a.acked_by && <Badge tone="info">acked</Badge>}
+                  {a.muted && <MutedBadge />}
                   <span className="text-xs text-muted">{ago(a.fired_at || a.started_at)}</span>
                 </li>
               ))}
@@ -139,9 +142,9 @@ function Overview({ host, alerts }: { host: HD; alerts: Alert[] }) {
             <MiniStat label="CPU" value={s.cpu} />
             <MiniStat label="Memory" value={s.memory} />
             <MiniStat label="Worst disk" value={s.disk} />
-            <div className="rounded-lg border border-line bg-panel p-3">
-              <div className="text-xs text-muted">Load / core</div>
-              <div className="mt-1 text-lg font-semibold tabular-nums">{s.load !== undefined && s.load !== null ? s.load.toFixed(2) : '–'}</div>
+            <div className="rounded-2xl border border-line/70 bg-panel p-4 shadow-card">
+              <div className="text-xs font-medium text-muted">Load / core</div>
+              <div className="mt-1 text-2xl font-semibold tabular-nums">{s.load !== undefined && s.load !== null ? s.load.toFixed(2) : '–'}</div>
               <div className="text-xs text-muted">uptime {s.uptime ? duration(s.uptime) : st.uptime_seconds ? duration(st.uptime_seconds) : '–'}</div>
             </div>
           </div>
@@ -173,11 +176,13 @@ function Overview({ host, alerts }: { host: HD; alerts: Alert[] }) {
             </Table>
           </Card>
         )}
+        <StoragePanel host={host} alerts={alerts} />
         {!!st.collection_errors?.length && (
           <Note tone="warn"><b>Collection warnings:</b> {st.collection_errors.join('; ')}</Note>
         )}
       </div>
       <div className="space-y-4">
+        <UptimeCard hostId={host.id} />
         <Card title="Details">
           {host.kind === 'agent' ? (
             <KV items={[
@@ -233,13 +238,23 @@ function Overview({ host, alerts }: { host: HD; alerts: Alert[] }) {
   )
 }
 
-function MiniStat({ label, value }: { label: string; value?: number | null }) {
-  const tone = value === undefined || value === null ? '' : value >= 90 ? 'text-crit' : value >= 80 ? 'text-warn' : ''
+function UptimeCard({ hostId }: { hostId: number }) {
+  const beats = useHostBeats(30)
+  const days = beats.data?.[String(hostId)]
   return (
-    <div className="rounded-lg border border-line bg-panel p-3">
-      <div className="text-xs text-muted">{label}</div>
-      <div className={`mt-1 text-lg font-semibold tabular-nums ${tone}`}>{pct(value)}</div>
-      <div className="mt-1"><Meter value={value} /></div>
+    <Card title="Uptime" subtitle="Last 30 days" actions={<UptimePill value={averageUptime(days)} />}>
+      <BeatBar beats={hostBeatsToBeats(days)} count={30} height={34} />
+    </Card>
+  )
+}
+
+function MiniStat({ label, value }: { label: string; value?: number | null }) {
+  const tone = value === undefined || value === null ? '' : value >= 90 ? 'text-crit-ink' : value >= 80 ? 'text-warn-ink' : ''
+  return (
+    <div className="rounded-2xl border border-line/70 bg-panel p-4 shadow-card">
+      <div className="text-xs font-medium text-muted">{label}</div>
+      <div className={`mt-1 text-2xl font-semibold tabular-nums ${tone}`}>{pct(value)}</div>
+      <div className="mt-2"><Meter value={value} className="flex-1" /></div>
     </div>
   )
 }
@@ -400,7 +415,7 @@ function SystemTab({ host }: { host: HD }) {
         <Card title="Temperatures">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {st.temperatures.map((t) => (
-              <div key={t.sensor} className="rounded-md border border-line p-2">
+              <div key={t.sensor} className="rounded-xl border border-line/70 p-3">
                 <div className="truncate text-xs text-muted">{t.sensor}</div>
                 <div className={`text-lg font-semibold ${t.celsius >= 85 ? 'text-crit' : t.celsius >= 75 ? 'text-warn' : ''}`}>{t.celsius.toFixed(1)} °C</div>
               </div>

@@ -59,22 +59,11 @@ go run ./cmd/heartbeat-server serve --data-dir ./.data --listen 127.0.0.1:8080
 
 `--dev-ui web/dist` serves the UI from disk, and `--agent-bin-dir dist` serves agent binaries from a directory instead of the embedded ones. Create the first user through the setup wizard using the token from `.data/setup-token`.
 
-### Remote build host
-
-`scripts/sync.sh` mirrors the working tree to a Linux machine over SSH (default host `HeartbeatSandbox`, directory `heartbeat`; override with `HB_BUILD_HOST` and `HB_REMOTE_DIR`):
-
-```sh
-scripts/sync.sh push                       # copy sources
-scripts/sync.sh run 'go test ./...'        # run in the remote checkout (with ~/go/bin on PATH)
-scripts/sync.sh pull gen/                  # copy generated files back
-scripts/dev-deploy.sh --version 0.9.0-dev  # push, build, install and restart the systemd service there
-```
-
 ## Tests
 
 ```sh
 go test ./...                              # unit and in-process integration tests
-(cd web && npm run typecheck)            # TypeScript check (`npm test` runs vitest; there are no UI tests yet)
+(cd web && npm run typecheck)            # TypeScript check (`npm test` runs vitest)
 ```
 
 `server/app/integration_test.go` starts the whole server in-process against a temporary data directory and drives the REST API.
@@ -113,7 +102,7 @@ The agent protocol is `proto/heartbeat/v1/agent.proto`. Fields are only ever add
 protoc -I proto --go_out=. --go_opt=module=heartbeat --go-grpc_out=. --go-grpc_opt=module=heartbeat proto/heartbeat/v1/agent.proto
 ```
 
-Install the plugins with `go install google.golang.org/protobuf/cmd/protoc-gen-go@latest` and `go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest`. Output goes to `gen/heartbeatv1/`. On the remote build host: `scripts/sync.sh push`, run the command with `scripts/sync.sh run '...'`, then `scripts/sync.sh pull gen/`.
+Install the plugins with `go install google.golang.org/protobuf/cmd/protoc-gen-go@latest` and `go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest`. Output goes to `gen/heartbeatv1/`.
 
 ## Licences of dependencies
 

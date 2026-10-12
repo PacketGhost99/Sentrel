@@ -36,7 +36,7 @@ From an elevated PowerShell:
 
 Parameters: `-Server`, `-Token`, `-CaFingerprint`, `-BinaryPath`, `-Name`, `-InsecureDownload`, `-Uninstall`. The script installs to `C:\Program Files\Heartbeat Agent\heartbeat-agent.exe`, keeps config and keys in `C:\ProgramData\Heartbeat Agent` (restricted to SYSTEM and Administrators), registers the `HeartbeatAgent` service (automatic delayed start, restart on failure) and starts it.
 
-For fleet deployment an MSI can be built (`msiexec /i heartbeat-agent-<version>-x64.msi SERVER=https://monitor.example.com TOKEN=ABCD-1234-EFGH /qn`). `scripts/build.sh` builds it only when `wixl` and `deploy/agent.wxs` exist; the `.wxs` is not in the repository yet.
+For fleet deployment an MSI can be built (`msiexec /i heartbeat-agent-<version>-x64.msi SERVER=https://monitor.example.com TOKEN=ABCD-1234-EFGH /qn`). `scripts/build.sh` builds it from `deploy/agent.wxs` when `wixl` (msitools) is installed; otherwise the release has no MSI.
 
 ### Push install, manual install
 
@@ -65,7 +65,7 @@ Services named in `service` checks are always reported even when service collect
 heartbeat-agent ALL=(root) NOPASSWD: /usr/local/bin/heartbeat-agent priv *
 ```
 
-The helper validates its own arguments. Verbs: `pkg-refresh`, `pkg-upgrade`, `block-ip`, `unblock-ip`, `list-blocks`, `fail2ban-status`, `install-update`, `rollback-update`. Package names and versions are matched against strict patterns, IPs must parse and not be loopback or unspecified, block durations are 1 to 129600 minutes, and update files must be regular files inside the agent state directory, verified against the root-owned key (`/etc/heartbeat-agent/job.pub`). Package upgrades run in their own `systemd-run --scope` unit, so they are outside the agent's CPU and memory limits and survive an agent restart.
+The helper validates its own arguments. Verbs: `pkg-refresh`, `pkg-upgrade`, `block-ip`, `unblock-ip`, `list-blocks`, `fail2ban-status`, `disk-usage`, `disk-cleanup`, `install-update`, `rollback-update`. Package names and versions are matched against strict patterns, IPs must parse and not be loopback or unspecified, block durations are 1 to 129600 minutes, and update files must be regular files inside the agent state directory, verified against the root-owned key (`/etc/heartbeat-agent/job.pub`). Package upgrades run in their own `systemd-run --scope` unit, so they are outside the agent's CPU and memory limits and survive an agent restart.
 
 IP blocking uses an `inet heartbeat` nftables table with timeout sets (and falls back to iptables/ip6tables rules tagged `heartbeat-block:<expiry>`). Uninstalling removes the nftables table.
 
@@ -73,7 +73,7 @@ Script jobs run as the unprivileged agent user. Note that membership of the `doc
 
 **Windows.** The service runs as LocalSystem (the default for a service without an account), so there is no privilege boundary: upgrades install Windows Updates through the Windows Update API, blocks are Windows Firewall rules named `Heartbeat block <ip>`, and scripts run as SYSTEM in PowerShell (or cmd).
 
-Remote actions (upgrade, IP block, scripts) are disabled for every host until an operator enables them in the host settings; see [security.md](security.md).
+Remote actions (upgrade, IP block, scripts, disk cleanup) are disabled for every host until an operator enables them in the host settings; see [security.md](security.md).
 
 ## Configuration file
 

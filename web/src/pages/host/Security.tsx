@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Ban, ShieldOff } from 'lucide-react'
-import { errorMessage, get, post } from '@/lib/api'
+import { errorMessage, get, post, put } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { ago, dateTime, until } from '@/lib/format'
 import type { HostDetail, Series } from '@/lib/types'
 import { Chart } from '@/components/Chart'
-import { Badge, Button, Card, Empty, Field, Input, Loading, Modal, Note, Segmented, Table, Td, Th, useToast } from '@/components/ui'
+import { Badge, Button, Card, Empty, Field, Input, Loading, Modal, Note, Segmented, Table, Td, Th, Toggle, useToast } from '@/components/ui'
 
 interface SecData {
   failed_logins: { ip: string; total: number; last_seen: number; usernames: string[]; blocked: boolean }[]
@@ -17,6 +17,7 @@ interface SecData {
   auto_block: boolean
   auto_block_threshold: number
   window_minutes: number
+  notify_failed_logins?: boolean
 }
 
 export function HostSecurity({ host }: { host: HostDetail }) {
@@ -39,8 +40,23 @@ export function HostSecurity({ host }: { host: HostDetail }) {
       toast(errorMessage(e), 'crit')
     }
   }
+  const setNotify = async (notify: boolean) => {
+    try {
+      await put(`/hosts/${host.id}/notify`, { metric: 'bruteforce', notify })
+      toast(notify ? 'Failed-login notifications enabled' : 'Failed-login notifications disabled')
+      qc.invalidateQueries({ queryKey: ['security', host.id] })
+      qc.invalidateQueries({ queryKey: ['host-thresholds', host.id] })
+    } catch (e) {
+      toast(errorMessage(e), 'crit')
+    }
+  }
   return (
     <div className="space-y-4">
+      <Card bodyClass="p-5">
+        <Toggle checked={x.notify_failed_logins !== false} onChange={setNotify} disabled={!can('host_settings') && !can('hosts')}
+          label="Send notifications for failed-login alerts"
+          hint="When off, failed-login alerts still appear in Heartbeat, but no emails or webhooks are sent for this host." />
+      </Card>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap gap-2 text-sm">
           <Badge tone={x.allow_ip_block ? 'ok' : 'muted'}>IP blocking {x.allow_ip_block ? 'allowed' : 'disabled'}</Badge>
@@ -73,7 +89,7 @@ export function HostSecurity({ host }: { host: HostDetail }) {
         )}
       </Card>
       <Card title="Firewall blocks" bodyClass="p-0" actions={can('jobs') && x.allow_ip_block && <Button size="sm" icon={<Ban className="size-3.5" />} onClick={() => setBlockIp('')}>Block an IP</Button>}>
-        {!x.allow_ip_block && <div className="p-3"><Note>IP blocking is off for this host. Enable it in Settings → Remote actions. Blocks use nftables (or iptables / Windows Firewall) and always expire.</Note></div>}
+        {!x.allow_ip_block && <div className="p-4"><Note>IP blocking is off for this host. Enable it under Settings, Remote actions. Blocks use nftables, iptables or Windows Firewall, and always expire.</Note></div>}
         {!x.blocks.length ? <Empty title="No blocks" /> : (
           <Table>
             <thead><tr><Th>IP</Th><Th>Status</Th><Th>Expires</Th><Th className="hidden md:table-cell">Reason</Th><Th className="hidden lg:table-cell">By</Th><Th /></tr></thead>

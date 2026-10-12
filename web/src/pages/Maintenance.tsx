@@ -106,7 +106,7 @@ function MaintEditor({ initial, hosts, groups, onClose }: { initial: Partial<Mai
           ]} />
         </Field>
         {(m.scope === 'host' || m.scope === 'group') && (
-          <div className="max-h-48 overflow-y-auto rounded-md border border-line p-2">
+          <div className="max-h-48 overflow-y-auto rounded-xl border border-line/70 p-3">
             <div className="grid gap-1 sm:grid-cols-2">
               {(m.scope === 'host' ? hosts : groups).map((x) => <Checkbox key={x.id} checked={ids.has(x.id)} onChange={() => toggleId(x.id)} label={x.name} />)}
             </div>

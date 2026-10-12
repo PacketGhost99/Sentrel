@@ -169,7 +169,7 @@ function ChannelEditor({ initial, onClose }: { initial: Partial<Channel>; onClos
             <Toggle checked={c.enabled !== false} onChange={(v) => setC({ ...c, enabled: v })} label="Enabled" />
           </div>
         </div>
-        <details className="rounded-md border border-line p-3">
+        <details className="rounded-xl border border-line/70 p-4">
           <summary className="cursor-pointer text-sm font-medium">Routing filters (optional)</summary>
           <div className="mt-3 space-y-3">
             <p className="text-xs text-muted">With no filters the channel receives every alert in its tenant. Filters combine with AND.</p>

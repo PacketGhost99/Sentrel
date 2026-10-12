@@ -85,7 +85,7 @@ curl -fsSL https://monitor.example.com/install/agent.sh | sudo sh -s -- --server
 msiexec /i heartbeat-agent-<version>-x64.msi SERVER=https://monitor.example.com TOKEN=ABCD-1234-EFGH /qn
 ```
 
-> The MSI is produced by `scripts/build.sh` only when `wixl` (msitools) and `deploy/agent.wxs` are present. The `.wxs` source is not in the repository at the time of writing, so check your release assets before relying on this.
+> `scripts/build.sh` produces the MSI from `deploy/agent.wxs` when `wixl` (msitools) is installed; builds without it have no MSI.
 
 Other options (SSH/WinRM push install, manual `heartbeat-agent register`) are in [docs/agents.md](docs/agents.md).
 
@@ -115,7 +115,7 @@ Other options (SSH/WinRM push install, manual `heartbeat-agent register`) are in
 | Document | Contents |
 |---|---|
 | [docs/install.md](docs/install.md) | Server install, upgrade, uninstall, data directory, systemd, Docker, ports |
-| [docs/tls-and-proxies.md](docs/tls-and-proxies.md) | TLS modes, Caddy and Cloudflare Tunnel, `trust_proxy`, recovery |
+| [docs/tls-and-proxies.md](docs/tls-and-proxies.md) | TLS modes, reverse proxies (Caddy), `trust_proxy`, recovery |
 | [docs/agents.md](docs/agents.md) | Agent install, data collected, privilege model, self-update, troubleshooting |
 | [docs/security.md](docs/security.md) | Threat model and controls |
 | [docs/alerting.md](docs/alerting.md) | Thresholds, checks, flapping, maintenance, notification channels |

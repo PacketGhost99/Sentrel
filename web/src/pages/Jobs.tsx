@@ -11,7 +11,7 @@ import { Badge, Button, Card, Empty, ErrorBox, KV, Loading, PageHeader, Select, 
 import { UpgradeDialog } from './host/Packages'
 
 const jobLabel: Record<string, string> = {
-  upgrade: 'Package upgrade', refresh_inventory: 'Refresh inventory', block_ip: 'Block IP', unblock_ip: 'Unblock IP', self_update: 'Agent update', script: 'Script', collect_now: 'Collect now',
+  upgrade: 'Package upgrade', refresh_inventory: 'Refresh inventory', block_ip: 'Block IP', unblock_ip: 'Unblock IP', self_update: 'Agent update', script: 'Script', collect_now: 'Collect now', disk_usage: 'Disk usage analysis', disk_cleanup: 'Disk cleanup',
 }
 
 export function jobSummary(j: Job): string {
@@ -27,6 +27,10 @@ export function jobSummary(j: Job): string {
       return p.version ? `to ${p.version}` : ''
     case 'script':
       return p.interpreter || 'sh'
+    case 'disk_usage':
+      return p.path || ''
+    case 'disk_cleanup':
+      return p.tasks ? `tasks: ${p.tasks}` : ''
   }
   return ''
 }
@@ -34,7 +38,7 @@ export function jobSummary(j: Job): string {
 export function Jobs() {
   return (
     <div>
-      <PageHeader title="Jobs" subtitle="Remote actions sent to agents: upgrades, firewall blocks, scripts and agent updates. Every job is signed by the server and verified by the agent." />
+      <PageHeader title="Jobs" subtitle="Remote actions sent to agents: upgrades, disk cleanup, firewall blocks, scripts and agent updates. Every job is signed by the server and verified by the agent." />
       <JobsTable />
     </div>
   )
@@ -47,7 +51,7 @@ export function JobsTable({ hostId }: { hostId?: number }) {
   const jobs = useQuery({ queryKey: ['jobs', hostId, tenant, type, status], queryFn: () => get<Job[]>('/jobs', { host_id: hostId, tenant_id: hostId ? undefined : tenant ?? undefined, type, status, limit: 300 }), refetchInterval: 10_000 })
   return (
     <Card bodyClass="p-0">
-      <div className="flex flex-wrap gap-2 border-b border-line p-3">
+      <div className="flex flex-wrap gap-2 border-b border-line/70 p-4">
         <div className="w-44"><Select value={type} onChange={(e) => setType(e.target.value)}><option value="">All types</option>{Object.entries(jobLabel).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</Select></div>
         <div className="w-40"><Select value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="">Any status</option>{['scheduled', 'queued', 'sent', 'running', 'succeeded', 'failed', 'cancelled', 'expired', 'rejected'].map((s) => <option key={s}>{s}</option>)}
@@ -58,7 +62,7 @@ export function JobsTable({ hostId }: { hostId?: number }) {
           <thead><tr><Th>Job</Th>{!hostId && <Th className="hidden md:table-cell">Host</Th>}<Th>Status</Th><Th className="hidden lg:table-cell">Requested by</Th><Th>Created</Th><Th className="hidden md:table-cell">Duration</Th></tr></thead>
           <tbody>
             {jobs.data.map((j) => (
-              <tr key={j.id} className="hover:bg-panel-2/60">
+              <tr key={j.id}>
                 <Td><Link to={`/jobs/${j.id}`} className="font-medium hover:underline">{jobLabel[j.type] || j.type}</Link>{j.dry_run && <Badge className="ml-1">dry run</Badge>}<div className="max-w-xs truncate text-xs text-muted">{jobSummary(j)}</div></Td>
                 {!hostId && <Td className="hidden text-xs md:table-cell"><Link to={`/hosts/${j.host_id}`} className="hover:underline">{j.host_name}</Link></Td>}
                 <Td><Badge tone={statusTone(j.status)}>{j.status}</Badge>{j.schedule !== 'now' && j.status === 'scheduled' && <div className="text-[11px] text-muted">{j.schedule === 'maintenance' ? 'next maintenance window' : dateTime(j.run_after)}</div>}</Td>
@@ -117,7 +121,7 @@ export function JobDetail() {
             </Card>
           )}
           <Card title="Output" actions={!done && <span className="flex items-center gap-2 text-xs text-muted"><Spinner className="size-3.5" />{j.status === 'scheduled' ? 'waiting for schedule' : j.status === 'queued' ? 'waiting for agent' : 'live'}</span>}>
-            <pre ref={out} className="mono max-h-[60vh] min-h-48 overflow-auto whitespace-pre-wrap break-all rounded-md bg-[#0b0f17] p-3 text-xs text-[#d6deeb]">{j.output || (done ? '(no output)' : '…')}</pre>
+            <pre ref={out} className="mono max-h-[60vh] min-h-48 overflow-auto whitespace-pre-wrap break-all rounded-xl bg-[#0b0f17] p-4 text-xs text-[#d6deeb]">{j.output || (done ? '(no output)' : '…')}</pre>
           </Card>
         </div>
         <Card title="Details">
@@ -136,7 +140,7 @@ export function JobDetail() {
             ['Expires', dateTime(j.expires_at)],
             ...Object.entries(j.params || {}).filter(([k]) => k !== 'script').map(([k, v]) => [k, <span key={k} className="mono break-all text-xs">{v}</span>] as [string, React.ReactNode]),
           ]} />
-          {j.params?.script && <pre className="mono mt-3 max-h-60 overflow-auto rounded-md bg-panel-2 p-2 text-xs">{j.params.script}</pre>}
+          {j.params?.script && <pre className="mono mt-3 max-h-60 overflow-auto rounded-xl bg-panel-2 p-3 text-xs">{j.params.script}</pre>}
         </Card>
       </div>
       {real && host.data && <UpgradeDialog host={host.data} packages={j.params?.packages ? j.params.packages.split(',') : []} onClose={() => { setReal(false); nav('/jobs') }} />}

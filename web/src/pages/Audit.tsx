@@ -29,13 +29,13 @@ export function Audit() {
     <div>
       <PageHeader title="Audit log" subtitle="Who changed what: logins, settings, upgrades, blocks, acknowledgements and every job." />
       <Card bodyClass="p-0">
-        <div className="border-b border-line p-3"><Input placeholder="Search actions, users, targets, details…" value={q} onChange={(e) => setQ(e.target.value)} className="max-w-md" /></div>
+        <div className="border-b border-line/70 p-4"><Input placeholder="Search actions, users, targets, details…" value={q} onChange={(e) => setQ(e.target.value)} className="max-w-md" /></div>
         {a.isLoading ? <Loading /> : !rows.length ? <Empty title="No entries" icon={<FileClock className="size-8" />} /> : (
           <Table>
             <thead><tr><Th>Time</Th><Th>Actor</Th><Th>Action</Th><Th className="hidden md:table-cell">Target</Th><Th className="hidden lg:table-cell">IP</Th></tr></thead>
             <tbody>{rows.map((r) => (
               <Fragment key={r.id}>
-                <tr className="cursor-pointer hover:bg-panel-2/60" onClick={() => setOpen(open === r.id ? null : r.id)}>
+                <tr className="cursor-pointer" onClick={() => setOpen(open === r.id ? null : r.id)}>
                   <Td className="whitespace-nowrap text-xs">{dateTime(r.created_at)}</Td>
                   <Td className="text-xs">{r.actor}</Td>
                   <Td><Badge tone={tone(r.action)}>{r.action}</Badge></Td>

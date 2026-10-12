@@ -51,7 +51,8 @@ type JobRequest struct {
 
 var (
 	pkgNameRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9.+_:~-]{0,127}$`)
-	jobTypes  = map[string]bool{"upgrade": true, "refresh_inventory": true, "block_ip": true, "unblock_ip": true, "self_update": true, "script": true, "collect_now": true}
+	jobTypes  = map[string]bool{"upgrade": true, "refresh_inventory": true, "block_ip": true, "unblock_ip": true, "self_update": true, "script": true, "collect_now": true,
+		"disk_usage": true, "disk_cleanup": true}
 )
 
 // ErrConfirmation is returned when a destructive job lacks confirmation.
@@ -124,6 +125,28 @@ func (m *JobManager) Create(ctx context.Context, p *Principal, req JobRequest) (
 	case "self_update":
 		if !req.Confirm {
 			return nil, ErrConfirmation
+		}
+	case "disk_usage":
+		if err := normalizeDiskUsageParams(hostInfo(h).Os, req.Params); err != nil {
+			return nil, err
+		}
+		if timeout == 0 {
+			timeout = 300
+		}
+	case "disk_cleanup":
+		if !h.AllowCleanup {
+			return nil, forbidden("disk cleanup is not enabled for this host (host settings → allow cleanup)")
+		}
+		tasks, err := validateCleanupTasks(hostInfo(h).Os, req.Params["tasks"])
+		if err != nil {
+			return nil, err
+		}
+		req.Params["tasks"] = strings.Join(tasks, ",")
+		if !req.DryRun && !req.Confirm {
+			return nil, ErrConfirmation
+		}
+		if timeout == 0 {
+			timeout = 1800
 		}
 	}
 	if timeout <= 0 {
@@ -342,6 +365,8 @@ func (m *JobManager) result(ctx context.Context, hostID int64, r *pb.JobResult) 
 		if status == "succeeded" {
 			_, _ = a.db.ExecContext(ctx, `UPDATE ip_blocks SET status='removed' WHERE host_id=? AND ip=? AND status IN ('active','pending')`, hostID, params["ip"])
 		}
+	case "disk_usage":
+		a.storeDiskResult(ctx, &j, params, status, r.Error, r.ResultJson)
 	}
 	a.audit(ctx, auditEntry{TenantID: j.TenantID, Actor: "agent:" + itoa(hostID), Action: "job.finished", TargetType: "job", TargetID: j.ID,
 		Details: map[string]any{"type": j.Type, "status": status, "exit_code": r.ExitCode, "error": r.Error, "dry_run": j.DryRun}})

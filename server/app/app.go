@@ -228,8 +228,8 @@ func (a *App) seed(ctx context.Context) error {
 	if n == 0 {
 		now := db.Now()
 		for _, d := range defaultThresholds() {
-			if _, err := a.db.ExecContext(ctx, `INSERT INTO threshold_rules (tenant_id, scope, scope_id, metric, label_match, warn, crit, for_count, enabled, created_at, updated_at)
-				VALUES (0,'global',0,?,'',?,?,?,?,?,?)`, d.Metric, d.Warn, d.Crit, d.ForCount, d.Enabled, now, now); err != nil {
+			if _, err := a.db.ExecContext(ctx, `INSERT INTO threshold_rules (tenant_id, scope, scope_id, metric, label_match, warn, crit, for_count, enabled, notify, created_at, updated_at)
+				VALUES (0,'global',0,?,'',?,?,?,?,1,?,?)`, d.Metric, d.Warn, d.Crit, d.ForCount, d.Enabled, now, now); err != nil {
 				return err
 			}
 		}

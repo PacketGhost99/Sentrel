@@ -103,7 +103,7 @@ function TLS({ data, active, fp }: { data: any; active: string; fp: string }) {
         <div className="space-y-3">
           <Field label="Mode">
             <Select value={v.mode} onChange={(e) => set({ mode: e.target.value })}>
-              <option value="http">Plain HTTP (behind a tunnel or reverse proxy)</option>
+              <option value="http">Plain HTTP (behind a reverse proxy that terminates TLS)</option>
               <option value="selfsigned">Self-signed (internal CA)</option>
               <option value="acme">Let's Encrypt (automatic)</option>
             </Select>
@@ -117,16 +117,16 @@ function TLS({ data, active, fp }: { data: any; active: string; fp: string }) {
             <Field label="Contact email"><Input value={v.acme_email} onChange={(e) => set({ acme_email: e.target.value })} /></Field>
             <Field label="ACME directory (optional)" hint="Leave blank for Let's Encrypt production; use the staging URL to test"><Input value={v.acme_directory} onChange={(e) => set({ acme_directory: e.target.value })} /></Field>
           </>}
-          <Toggle checked={!!v.trust_proxy} onChange={(x) => set({ trust_proxy: x })} label="Trust reverse proxy headers" hint="X-Forwarded-For/Proto and CF-Connecting-IP. Only enable when the server is not directly reachable." />
+          <Toggle checked={!!v.trust_proxy} onChange={(x) => set({ trust_proxy: x })} label="Trust reverse proxy headers" hint="Use X-Forwarded-For and X-Forwarded-Proto for client IPs and HTTPS detection. Only enable when the server is not directly reachable." />
           <Note tone="warn">Switching mode restarts the listener. If a mode fails to start, the server falls back to plain HTTP so you are never locked out; start with <code className="mono">--force-http</code> to recover manually.</Note>
         </div>
         <SaveBar busy={busy} err={err} onSave={() => save()} />
       </Card>
-      <Card title="Behind Caddy or a Cloudflare tunnel">
+      <Card title="Reverse proxy">
         <div className="space-y-3 text-sm">
-          <p>Keep this server on plain HTTP and let the proxy terminate TLS. One Caddy block covers the UI, API and agent gRPC:</p>
+          <p>In plain HTTP mode a reverse proxy terminates TLS. This Caddy example covers the UI, API and agent gRPC:</p>
           <CodeBlock code={`monitor.example.com {\n  reverse_proxy h2c://127.0.0.1:8080\n}`} />
-          <p>Cloudflare Tunnel: point the hostname at <code className="mono">http://localhost:8080</code> and enable HTTP/2 to origin (gRPC). Agents authenticate with signed requests, so mTLS is not needed through the proxy.</p>
+          <p>Any proxy works if it forwards HTTP/2 (gRPC) to the listen address. Agents authenticate with signed requests, so mTLS is not required through the proxy.</p>
           <KV items={[['Internal CA fingerprint', <span key="f" className="mono break-all text-xs">{fp}</span>]]} />
         </div>
       </Card>
@@ -313,7 +313,7 @@ function Agents({ data }: { data: any }) {
 function Alerting({ data }: { data: any }) {
   const { v, set, save, busy, err } = useSection('alerting', data)
   return (
-    <Card title="Alerting" className="max-w-3xl" subtitle="How long a host may be silent before it is down is the “Host offline after” threshold.">
+    <Card title="Alerting" className="max-w-3xl" subtitle="Hosts are marked down after the “Host offline after” threshold.">
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Group wait (seconds)" hint="Combine events arriving within this window into one message"><Input type="number" value={v.group_wait_seconds} onChange={(e) => set({ group_wait_seconds: num(e.target.value) })} /></Field>
         <Field label="Default repeat for new channels (min)"><Input type="number" value={v.default_repeat_minutes} onChange={(e) => set({ default_repeat_minutes: num(e.target.value) })} /></Field>
@@ -356,7 +356,7 @@ function SnmpProfiles() {
       <p className="mb-3 text-sm text-muted">Custom directory: <code className="mono">{p.data?.custom_dir}</code></p>
       <div className="space-y-3">
         {(p.data?.profiles || []).map((x: any) => (
-          <details key={x.name} className="rounded-md border border-line p-3">
+          <details key={x.name} className="rounded-xl border border-line/70 p-4">
             <summary className="cursor-pointer"><b>{x.name}</b> <Badge>{x.source}</Badge> <span className="text-sm text-muted">{x.description}</span></summary>
             <div className="mt-2 text-xs">
               {x.include?.length > 0 && <p className="text-muted">includes: {x.include.join(', ')}</p>}
@@ -454,8 +454,8 @@ export function BrandingPage() {
           </div>
         </Card>
         <Card title="Preview">
-          <div className="rounded-lg border border-line bg-bg p-6">
-            <div className="mx-auto max-w-xs rounded-lg border border-line bg-panel p-5 text-center">
+          <div className="rounded-2xl border border-line bg-bg p-6">
+            <div className="mx-auto max-w-xs rounded-2xl border border-line bg-panel p-5 text-center">
               {v.logo_data_url ? <img src={v.logo_data_url} alt="" className="mx-auto h-10 max-w-[180px] object-contain" /> : <div className="mx-auto size-10 rounded-lg" style={{ background: v.accent_color || 'var(--accent)' }} />}
               <div className="mt-2 font-semibold">{v.product_name || 'Heartbeat'}</div>
               {v.login_text && <p className="mt-2 text-xs text-muted">{v.login_text}</p>}

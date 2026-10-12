@@ -136,6 +136,10 @@ func containsInt(l []int64, v int64) bool {
 // enqueue routes an alert event to every matching channel.
 func (n *Notifier) enqueue(al Alert, event string) {
 	ctx := context.Background()
+	if al.Muted {
+		n.app.alerts.event(ctx, &al, "silenced", "notifications disabled for this rule", "")
+		return
+	}
 	h := n.hostInfo(ctx, al.HostID)
 	if h != nil {
 		al.HostName = h.Name
@@ -350,7 +354,7 @@ func (n *Notifier) reminders(ctx context.Context) {
 	now := db.Now()
 	chs := n.channelList(ctx)
 	for _, al := range n.app.alerts.Active() {
-		if al.Status != "firing" || al.AckedBy != "" || al.Flapping || n.app.alerts.suppressed(&al) {
+		if al.Status != "firing" || al.AckedBy != "" || al.Flapping || al.Muted || n.app.alerts.suppressed(&al) {
 			continue
 		}
 		h := n.hostInfo(ctx, al.HostID)

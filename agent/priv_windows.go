@@ -91,6 +91,10 @@ func privExec(ctx context.Context, w io.Writer, verb string, rest []string) erro
 		b, _ := protojson.Marshal(&pb.Fail2Ban{})
 		_, err := w.Write(b)
 		return err
+	case "disk-usage":
+		return privDiskUsage(ctx, w, rest)
+	case "disk-cleanup":
+		return privDiskCleanup(ctx, w, rest)
 	case "install-update":
 		if len(rest) != 4 {
 			return errors.New("usage: install-update PATH SHA256 VERSION SIGNATURE")

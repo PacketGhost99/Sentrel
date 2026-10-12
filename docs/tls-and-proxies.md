@@ -58,14 +58,6 @@ Enable it only when the server is reachable exclusively through the proxy. If cl
 
 A proxy that terminates TLS hides the agent's client certificate from the server. Agents then authenticate with the signed hello (their certificate plus an ECDSA signature over the agent id and a timestamp, with replay protection). Server-terminated TLS (`selfsigned`, `acme`) additionally uses mTLS.
 
-### Cloudflare Tunnel
-
-Cloudflare Tunnel (`cloudflared`) can publish the server, with these points to check against Cloudflare's current documentation:
-
-- gRPC must be enabled for the zone, and the tunnel must reach the origin over HTTP/2 (the `http2Origin` origin setting for an `http://` service).
-- Keep Heartbeat in `http` mode on a local port and point the tunnel at it; set the server URL to the public `https://` hostname and enable `trust_proxy` (Cloudflare sends `CF-Connecting-IP`).
-- Restrict the origin port to localhost so only the tunnel can reach it.
-- If your plan or configuration cannot carry long-lived gRPC streams, agents will reconnect repeatedly. `heartbeat-agent status` shows whether the server is reachable and credentials accepted.
 
 ## Recovery from a bad TLS setting
 

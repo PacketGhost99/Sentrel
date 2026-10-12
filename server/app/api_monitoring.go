@@ -363,6 +363,7 @@ type thresholdReq struct {
 	Crit       *float64 `json:"crit"`
 	ForCount   int      `json:"for_count"`
 	Enabled    *bool    `json:"enabled"`
+	Notify     *bool    `json:"notify"`
 }
 
 func (a *App) apiUpsertThreshold(c *Ctx) (any, error) {
@@ -413,11 +414,12 @@ func (a *App) apiUpsertThreshold(c *Ctx) (any, error) {
 		return nil, badRequest("scope must be global, group or host")
 	}
 	enabled := req.Enabled == nil || *req.Enabled
+	notify := req.Notify == nil || *req.Notify
 	now := db.Now()
-	_, err := a.db.ExecContext(c.ctx(), `INSERT INTO threshold_rules (tenant_id, scope, scope_id, metric, label_match, warn, crit, for_count, enabled, created_at, updated_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(tenant_id, scope, scope_id, metric, label_match) DO UPDATE SET warn=excluded.warn, crit=excluded.crit,
-		for_count=excluded.for_count, enabled=excluded.enabled, updated_at=excluded.updated_at`,
-		tenant, req.Scope, req.ScopeID, req.Metric, strings.TrimSpace(req.LabelMatch), req.Warn, req.Crit, req.ForCount, enabled, now, now)
+	_, err := a.db.ExecContext(c.ctx(), `INSERT INTO threshold_rules (tenant_id, scope, scope_id, metric, label_match, warn, crit, for_count, enabled, notify, created_at, updated_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(tenant_id, scope, scope_id, metric, label_match) DO UPDATE SET warn=excluded.warn, crit=excluded.crit,
+		for_count=excluded.for_count, enabled=excluded.enabled, notify=excluded.notify, updated_at=excluded.updated_at`,
+		tenant, req.Scope, req.ScopeID, req.Metric, strings.TrimSpace(req.LabelMatch), req.Warn, req.Crit, req.ForCount, enabled, notify, now, now)
 	if err != nil {
 		return nil, err
 	}

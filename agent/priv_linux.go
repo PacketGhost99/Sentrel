@@ -115,6 +115,10 @@ func PrivMain(args []string) error {
 		b, _ := protojson.Marshal(f)
 		_, err := w.Write(b)
 		return err
+	case "disk-usage":
+		return privDiskUsage(ctx, w, rest)
+	case "disk-cleanup":
+		return privDiskCleanup(ctx, w, rest)
 	case "install-update":
 		if len(rest) != 4 {
 			return errors.New("usage: install-update PATH SHA256 VERSION SIGNATURE")

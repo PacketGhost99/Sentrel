@@ -159,7 +159,11 @@ func (a *App) apiListFindings(c *Ctx) (any, error) {
 	args = append(args, limit)
 	out := []VulnFinding{}
 	err := a.db.SelectContext(c.ctx(), &out, q, args...)
-	return out, err
+	if err != nil {
+		return nil, err
+	}
+	a.decorateFindings(c, out)
+	return out, nil
 }
 
 func (a *App) apiVulnSummary(c *Ctx) (any, error) {

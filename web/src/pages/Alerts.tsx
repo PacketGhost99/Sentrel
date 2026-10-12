@@ -7,7 +7,8 @@ import { useAuth } from '@/lib/auth'
 import { ago, dateTime, duration } from '@/lib/format'
 import type { Alert, AlertEvent } from '@/lib/types'
 import { useTenantFilter } from '@/components/Layout'
-import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, Input, KV, Loading, Modal, PageHeader, Segmented, SeverityBadge, StatusDot, Table, Td, Th, Textarea, useToast } from '@/components/ui'
+import { DISK_ALERT_METRICS, StorageForAlert } from './host/DiskUsage'
+import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, Input, KV, Loading, Modal, MutedBadge, PageHeader, Segmented, SeverityBadge, StatusDot, Table, Td, Th, Textarea, useToast } from '@/components/ui'
 
 export function Alerts() {
   return (
@@ -33,7 +34,7 @@ export function AlertsTable({ hostId }: { hostId?: number }) {
   const ackable = rows.filter((a) => sel.has(a.id) && a.status === 'firing' && !a.acked_by)
   return (
     <Card bodyClass="p-0">
-      <div className="flex flex-wrap items-center gap-2 border-b border-line p-3">
+      <div className="flex flex-wrap items-center gap-2 border-b border-line/70 p-4">
         <Segmented value={status} onChange={(v) => { setStatus(v); setSel(new Set()) }} options={[{ id: 'active', label: 'Active' }, { id: 'resolved', label: 'Resolved' }, { id: 'all', label: 'All fired' }]} />
         <Segmented value={sev} onChange={setSev} options={[{ id: '', label: 'Any' }, { id: 'critical', label: 'Critical' }, { id: 'warning', label: 'Warning' }]} />
         <Input placeholder="Filter" value={q} onChange={(e) => setQ(e.target.value)} className="w-full sm:w-56" />
@@ -53,7 +54,7 @@ export function AlertsTable({ hostId }: { hostId?: number }) {
               const start = a.fired_at || a.started_at
               const end = a.resolved_at || Date.now() / 1000
               return (
-                <tr key={a.id} className="hover:bg-panel-2/60">
+                <tr key={a.id}>
                   {status === 'active' && can('ack') && <Td><Checkbox checked={sel.has(a.id)} onChange={(v) => { const s = new Set(sel); if (v) s.add(a.id); else s.delete(a.id); setSel(s) }} /></Td>}
                   <Td><div className="flex items-center gap-2"><StatusDot status={a.status === 'resolved' ? 'up' : a.severity === 'critical' ? 'down' : 'warning'} pulse={a.status === 'firing' && !a.acked_by} /><SeverityBadge severity={a.severity} /></div></Td>
                   <Td><Link to={`/alerts/${a.id}`} className="font-medium hover:underline">{a.title}</Link><div className="max-w-xl truncate text-xs text-muted">{a.message}</div></Td>
@@ -64,6 +65,7 @@ export function AlertsTable({ hostId }: { hostId?: number }) {
                       {a.acked_by && <Badge tone="info" title={a.ack_comment}>acked</Badge>}
                       {a.flapping && <Badge tone="warn">flapping</Badge>}
                       {a.in_maintenance && <Badge tone="maint">maintenance</Badge>}
+                      {a.muted && <MutedBadge />}
                     </div>
                   </Td>
                   <Td className="text-xs text-muted" title={dateTime(start)}>{ago(start)}</Td>
@@ -90,7 +92,7 @@ function AckDialog({ ids, onClose, onDone }: { ids: number[]; onClose: () => voi
         try { const r = await post<{ acked: number }>('/alerts/ack', { ids, comment }); onDone(r.acked); onClose() } catch (e) { setErr(e) } finally { setBusy(false) }
       }}>Acknowledge</Button></>}>
       <Field label="Comment (optional)" hint="Shown to the team; acknowledged alerts stop repeating notifications but still resolve normally.">
-        <Textarea autoFocus value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Investigating — disk cleanup in progress" />
+        <Textarea autoFocus value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Investigating: disk cleanup in progress" />
       </Field>
       <ErrorBox error={err} className="mt-2" />
     </Modal>
@@ -126,7 +128,7 @@ export function AlertDetail() {
       <div className="grid gap-4 xl:grid-cols-3">
         <Card title="Details">
           <KV items={[
-            ['Status', <span key="s" className="flex flex-wrap gap-1"><Badge tone={a.status === 'firing' ? 'crit' : a.status === 'pending' ? 'warn' : 'ok'}>{a.status}</Badge>{a.flapping && <Badge tone="warn">flapping</Badge>}{a.in_maintenance && <Badge tone="maint">in maintenance</Badge>}</span>],
+            ['Status', <span key="s" className="flex flex-wrap gap-1"><Badge tone={a.status === 'firing' ? 'crit' : a.status === 'pending' ? 'warn' : 'ok'}>{a.status}</Badge>{a.flapping && <Badge tone="warn">flapping</Badge>}{a.in_maintenance && <Badge tone="maint">in maintenance</Badge>}{a.muted && <MutedBadge />}</span>],
             ['Severity', <SeverityBadge key="v" severity={a.severity} />],
             ['Source', a.source + (a.metric ? ` · ${a.metric}` : '') + (a.labels ? ` · ${a.labels}` : '')],
             ['Host', a.host_id ? <Link key="h" to={`/hosts/${a.host_id}`} className="text-accent hover:underline">{a.host_name}</Link> : '–'],
@@ -136,14 +138,14 @@ export function AlertDetail() {
             ['Fired', dateTime(a.fired_at)],
             ['Resolved', a.resolved_at ? dateTime(a.resolved_at) : '–'],
             ['Acknowledged', a.acked_by ? `${a.acked_by}, ${ago(a.acked_at)}${a.ack_comment ? ` — “${a.ack_comment}”` : ''}` : 'no'],
-            ['Notifications', `${a.notify_count} sent${a.last_notified_at ? `, last ${ago(a.last_notified_at)}` : ''}`],
+            ['Notifications', a.muted ? <span key="n" className="inline-flex items-center gap-1.5"><BellOff className="size-3.5 text-muted" />Disabled for this rule (alert is shown here only)</span> : `${a.notify_count} sent${a.last_notified_at ? `, last ${ago(a.last_notified_at)}` : ''}`],
           ]} />
         </Card>
         <Card title="Timeline" className="xl:col-span-2" bodyClass="p-0">
           {events.length === 0 ? <Empty title="No events" /> : (
-            <ol className="divide-y divide-line">
+            <ol className="divide-y divide-line/60">
               {events.map((e) => (
-                <li key={e.id} className="flex items-start gap-3 px-4 py-2">
+                <li key={e.id} className="flex items-start gap-3 px-5 py-3">
                   <Badge tone={eventTone[e.event] || 'muted'} className="mt-0.5 w-24 justify-center">{e.event.replace('_', ' ')}</Badge>
                   <div className="min-w-0 flex-1 text-sm">{e.message}{e.actor && <span className="text-muted"> — {e.actor}</span>}</div>
                   <span className="shrink-0 text-xs text-muted" title={dateTime(e.created_at)}>{ago(e.created_at)}</span>
@@ -153,6 +155,7 @@ export function AlertDetail() {
           )}
         </Card>
       </div>
+      {a.host_id && a.labels && DISK_ALERT_METRICS.includes(a.metric) && <StorageForAlert hostId={a.host_id} mount={a.labels} />}
       {ack && <AckDialog ids={[a.id]} onClose={() => { setAck(false); qc.invalidateQueries({ queryKey: ['alert', id] }) }} onDone={() => toast('Alert acknowledged')} />}
     </div>
   )

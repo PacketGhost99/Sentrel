@@ -19,7 +19,7 @@ export function HostSettings({ host }: { host: HostDetail }) {
   const [f, setF] = useState({
     name: host.name, address: host.address, group_id: host.group_id ?? 0, tags: host.tags || [], notes: host.notes,
     interval_seconds: host.interval_seconds ?? '', inventory_interval: host.inventory_interval ?? '', retention_days: host.retention_days ?? '',
-    allow_upgrades: host.allow_upgrades, allow_ip_block: host.allow_ip_block, allow_scripts: host.allow_scripts, auto_block: host.auto_block,
+    allow_upgrades: host.allow_upgrades, allow_cleanup: !!host.allow_cleanup, allow_ip_block: host.allow_ip_block, allow_scripts: host.allow_scripts, auto_block: host.auto_block,
     tenant_id: host.tenant_id,
   })
   const [opts, setOpts] = useState<AgentOptions>(host.agent_options || {})
@@ -35,7 +35,7 @@ export function HostSettings({ host }: { host: HostDetail }) {
     try {
       const body: Record<string, unknown> = {
         name: f.name, address: f.address, group_id: Number(f.group_id), tags: f.tags, notes: f.notes,
-        allow_upgrades: f.allow_upgrades, allow_ip_block: f.allow_ip_block, auto_block: f.auto_block,
+        allow_upgrades: f.allow_upgrades, allow_cleanup: f.allow_cleanup, allow_ip_block: f.allow_ip_block, auto_block: f.auto_block,
       }
       if (can('scripts')) body.allow_scripts = f.allow_scripts
       if (f.interval_seconds === '' || f.interval_seconds === null) body.clear_interval = true
@@ -79,7 +79,7 @@ export function HostSettings({ host }: { host: HostDetail }) {
               </Select>
             </Field>
           )}
-          <Field label="Tags" className="sm:col-span-2" hint="e.g. env:prod, role:db — press Enter after each"><TagInput value={f.tags} onChange={(v) => set('tags', v)} /></Field>
+          <Field label="Tags" className="sm:col-span-2" hint="For example env:prod or role:db. Press Enter after each tag."><TagInput value={f.tags} onChange={(v) => set('tags', v)} /></Field>
           <Field label="Notes" className="sm:col-span-2"><Textarea value={f.notes} onChange={(e) => set('notes', e.target.value)} /></Field>
         </div>
       </Card>
@@ -108,9 +108,10 @@ export function HostSettings({ host }: { host: HostDetail }) {
       )}
 
       {host.kind === 'agent' && (
-        <Card title="Remote actions" subtitle="Opt-in per host. Every job is signed, confirmed and audited.">
+        <Card title="Remote actions" subtitle="Turned on per host. Every job is signed, confirmed and audited.">
           <div className="space-y-3">
             <Toggle checked={f.allow_upgrades} onChange={(v) => set('allow_upgrades', v)} label="Allow remote package upgrades" hint="Upgrades still need explicit confirmation or a maintenance-window schedule" />
+            <Toggle checked={f.allow_cleanup} onChange={(v) => set('allow_cleanup', v)} label="Allow disk cleanup" hint="Lets administrators remove caches, old logs and temporary files from the Storage breakdown on the Overview tab" />
             <Toggle checked={f.allow_ip_block} onChange={(v) => set('allow_ip_block', v)} label="Allow firewall IP blocking" hint="nftables/iptables on Linux, Windows Firewall on Windows; blocks always expire" />
             <Toggle checked={f.auto_block} onChange={(v) => set('auto_block', v)} disabled={!f.allow_ip_block} label="Automatically block brute-force sources" hint="Uses the threshold and duration from Settings → Agents" />
             <Toggle checked={f.allow_scripts} onChange={(v) => set('allow_scripts', v)} disabled={!can('scripts')} label="Allow administrators to run scripts" hint="Scripts run as the unprivileged agent user on Linux (SYSTEM on Windows)" />

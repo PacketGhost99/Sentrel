@@ -152,8 +152,31 @@ api PUT "/hosts/$HID" '{"allow_ip_block":false}' >/dev/null
 DJ=$(api POST /jobs "{\"host_id\":$HID,\"type\":\"upgrade\",\"dry_run\":true}" | jq -r .id)
 wait_for "upgrade dry run succeeded" 300 job_done "$DJ" succeeded
 expect "dry run captured package manager output" '.output | test("Reading package lists|upgraded|DRY RUN")' "$(api GET "/jobs/$DJ")"
+PREV_UPG=$(api GET "/hosts/$HID" | jq -r '.allow_upgrades // .host.allow_upgrades')
+api PUT "/hosts/$HID" '{"allow_upgrades":false}' >/dev/null
 R=$(api POST /jobs "{\"host_id\":$HID,\"type\":\"upgrade\",\"confirm\":true}")
 expect "real upgrade refused without host opt-in" '.code == "forbidden"' "$R"
+api PUT "/hosts/$HID" "{\"allow_upgrades\":$PREV_UPG}" >/dev/null
+
+step "notification muting, beats, disk analysis and cleanup"
+R=$(api PUT "/hosts/$HID/notify" '{"metric":"bruteforce","notify":false}')
+expect "failed-login notifications can be muted" '.notify == false' "$R"
+expect "security view reports muted" '.notify_failed_logins == false' "$(api GET "/hosts/$HID/security")"
+api PUT "/hosts/$HID/notify" '{"metric":"bruteforce","notify":true}' >/dev/null
+expect "host beats cover 30 days" ".\"$HID\" | length == 30" "$(api GET '/hosts/beats?days=30')"
+expect "check beats endpoint answers" 'type == "object"' "$(api GET '/checks/beats?limit=10')"
+DU=$(api POST "/hosts/$HID/disk-usage" '{"mount":"/"}' | jq -r .job_id)
+wait_for "disk analysis finished" 300 job_done "$DU" succeeded
+expect "disk report lists directories" '.status == "done" and (.entries | length) > 0 and .used_bytes > 0' "$(api GET "/hosts/$HID/disk-usage?mount=/")"
+R=$(api POST /jobs "{\"host_id\":$HID,\"type\":\"disk_cleanup\",\"params\":{\"tasks\":\"journal,tmp\"},\"dry_run\":true}")
+expect "cleanup refused without host opt-in" '.code == "forbidden"' "$R"
+R=$(api POST /jobs "{\"host_id\":$HID,\"type\":\"disk_cleanup\",\"params\":{\"tasks\":\"journal;rm\"},\"dry_run\":true}")
+expect "cleanup rejects unknown tasks" '.code != null' "$R"
+api PUT "/hosts/$HID" '{"allow_cleanup":true}' >/dev/null
+CJ=$(api POST /jobs "{\"host_id\":$HID,\"type\":\"disk_cleanup\",\"params\":{\"tasks\":\"pkg_cache,journal,tmp,logs\"},\"dry_run\":true}" | jq -r .id)
+wait_for "cleanup dry run succeeded" 300 job_done "$CJ" succeeded
+expect "cleanup dry run reports reclaimable bytes" '.output | test("freed_bytes=[0-9]+")' "$(api GET "/jobs/$CJ")"
+api PUT "/hosts/$HID" '{"allow_cleanup":false}' >/dev/null
 
 step "status page, metrics endpoint, backup, audit"
 SP=$(api POST /status-pages "{\"slug\":\"e2e-status\",\"title\":\"E2E\",\"public\":true,\"items\":[{\"type\":\"check\",\"id\":$C_HTTP,\"label\":\"API\"}]}")

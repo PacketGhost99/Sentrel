@@ -169,6 +169,7 @@ type Host struct {
 	AllowUpgrades     bool    `db:"allow_upgrades" json:"allow_upgrades"`
 	AllowIPBlock      bool    `db:"allow_ip_block" json:"allow_ip_block"`
 	AllowScripts      bool    `db:"allow_scripts" json:"allow_scripts"`
+	AllowCleanup      bool    `db:"allow_cleanup" json:"allow_cleanup"`
 	AutoBlock         bool    `db:"auto_block" json:"auto_block"`
 	SNMPConfig        JSON    `db:"snmp_config" json:"-"`
 	SNMPInfo          JSON    `db:"snmp_info" json:"snmp_info"`
@@ -202,7 +203,7 @@ type HostSummary struct {
 const hostCols = `h.id, h.tenant_id, h.kind, h.name, h.address, h.group_id, h.tags, h.notes, h.agent_id, h.cert_serial,
  h.cert_expires_at, h.revoked, h.agent_version, h.host_info, h.status, h.last_seen_at, h.connected, h.reboot_required,
  h.interval_seconds, h.inventory_interval, h.retention_days, h.agent_options, h.allow_upgrades, h.allow_ip_block,
- h.allow_scripts, h.auto_block, h.snmp_config, h.snmp_info, h.storage_bytes, h.storage_computed_at, h.created_at, h.updated_at`
+ h.allow_scripts, h.allow_cleanup, h.auto_block, h.snmp_config, h.snmp_info, h.storage_bytes, h.storage_computed_at, h.created_at, h.updated_at`
 
 // AgentOptions are per-host overrides of AgentDefaults (nil = inherit).
 type AgentOptions struct {
@@ -252,6 +253,7 @@ type ThresholdRule struct {
 	Crit       *float64 `db:"crit" json:"crit"`
 	ForCount   int      `db:"for_count" json:"for_count"`
 	Enabled    bool     `db:"enabled" json:"enabled"`
+	Notify     bool     `db:"notify" json:"notify"`
 	CreatedAt  int64    `db:"created_at" json:"created_at"`
 	UpdatedAt  int64    `db:"updated_at" json:"updated_at"`
 }
@@ -283,6 +285,7 @@ type Alert struct {
 	Transitions    IntList  `db:"transitions" json:"-"`
 	LastNotifiedAt int64    `db:"last_notified_at" json:"last_notified_at"`
 	NotifyCount    int      `db:"notify_count" json:"notify_count"`
+	Muted          bool     `db:"muted" json:"muted"`
 	HostName       string   `db:"-" json:"host_name,omitempty"`
 	InMaintenance  bool     `db:"-" json:"in_maintenance"`
 	stage          int
@@ -418,6 +421,11 @@ type VulnFinding struct {
 	LastSeenAt   int64   `db:"last_seen_at" json:"last_seen_at"`
 	FixedAt      int64   `db:"fixed_at" json:"fixed_at"`
 	HostName     string  `db:"host_name" json:"host_name,omitempty"`
+
+	// Filled in by the API from the host's package inventory.
+	AvailableVersion string `db:"-" json:"available_version"`
+	Upgradable       bool   `db:"-" json:"upgradable"`
+	OS               string `db:"-" json:"os"`
 }
 
 type VulnScan struct {

@@ -67,6 +67,7 @@ func (a *App) cleanup(ctx context.Context) {
 			a.log.Warn("cleanup", "err", err)
 		}
 	}
+	a.pruneDiskReports(ctx)
 }
 
 // nightly enforces per-host retention and computes per-host storage.

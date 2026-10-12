@@ -1,16 +1,45 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarClock, DatabaseZap, ExternalLink, Plus, ScanSearch, ShieldCheck, Trash2 } from 'lucide-react'
+import { ArrowUpCircle, CalendarClock, DatabaseZap, ExternalLink, Plus, ScanSearch, ShieldCheck, Trash2 } from 'lucide-react'
 import { del, errorMessage, get, post, put } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { ago, bytes, dateTime } from '@/lib/format'
-import type { Finding, HostGroup, VulnScan } from '@/lib/types'
+import type { Finding, HostDetail, HostGroup, VulnScan } from '@/lib/types'
 import { useTenantFilter } from '@/components/Layout'
+import { UpgradeDialog } from './host/Packages'
 import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, Input, KV, Loading, Modal, Note, PageHeader, Segmented, Select, Stat, Table, Tabs, Td, Th, useToast } from '@/components/ui'
 
 export function sevTone(s: string): 'crit' | 'warn' | 'info' | 'muted' {
   return s === 'Critical' ? 'crit' : s === 'High' ? 'warn' : s === 'Medium' ? 'info' : 'muted'
+}
+
+/** Package names of a finding (grouped findings list several, separated by commas). */
+function findingPackages(f: Finding): string[] {
+  return f.package.split(',').map((x) => x.trim()).filter(Boolean)
+}
+
+/** Loads the host, then opens the upgrade dialog pre-filled with the given packages. */
+function UpgradeLauncher({ hostId, packages, onClose }: { hostId: number; packages: string[]; onClose: () => void }) {
+  const host = useQuery({ queryKey: ['host', String(hostId)], queryFn: () => get<HostDetail>(`/hosts/${hostId}`) })
+  if (host.error) return <Modal open onClose={onClose} title="Upgrade packages" size="sm"><ErrorBox error={host.error} /></Modal>
+  if (!host.data) return <Modal open onClose={onClose} title="Upgrade packages" size="sm"><Loading /></Modal>
+  return <UpgradeDialog host={host.data} packages={packages} onClose={onClose} />
+}
+
+/** What the user can do about a finding's fix, shown in the "Fixed in" column. */
+function FixCell({ x, onUpgrade, canUpgrade }: { x: Finding; onUpgrade: () => void; canUpgrade: boolean }) {
+  if (!x.fixed_version) return <span className="text-muted">{x.fix_state || 'no fix'}</span>
+  if (x.os === 'windows') return <span><span className="text-ok-ink">{x.fixed_version}</span><div className="text-[11px] text-muted">Use Packages, Windows Update</div></span>
+  if (x.upgradable) {
+    return (
+      <span>
+        <span className="text-ok-ink">{x.fixed_version}</span>
+        {canUpgrade && <div><button onClick={(e) => { e.stopPropagation(); onUpgrade() }} className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-ok/12 px-2 py-0.5 text-[11px] font-medium text-ok-ink hover:bg-ok/20"><ArrowUpCircle className="size-3" />Upgrade to {x.available_version}</button></div>}
+      </span>
+    )
+  }
+  return <span><span className="text-ok-ink">{x.fixed_version}</span><div className="text-[11px] text-muted">Fix {x.fixed_version} not yet in repositories</div></span>
 }
 
 export function Vulnerabilities() {
@@ -24,13 +53,13 @@ export function Vulnerabilities() {
   const totals = (sum.data?.hosts || []).reduce((a: any, h: any) => ({ c: a.c + h.critical, h: a.h + h.high, m: a.m + h.medium, f: a.f + h.fixable, k: a.k + h.kev }), { c: 0, h: 0, m: 0, f: 0, k: 0 })
   return (
     <div>
-      <PageHeader title="Vulnerabilities" subtitle="Installed packages matched against the Grype vulnerability database on this server. No network scanning; agents only send package lists."
+      <PageHeader title="Vulnerabilities" subtitle="Installed packages matched against the Grype vulnerability database. Agents only send package lists; nothing is scanned over the network."
         actions={<>
           {can('jobs') && <Button icon={<ScanSearch className="size-4" />} onClick={async () => { try { const r = await post<any>('/vulnerabilities/scan-all'); toast(`${r.queued} scans queued`) } catch (e) { toast(errorMessage(e), 'crit') } }}>Scan all</Button>}
           {can('settings') && <Button icon={<DatabaseZap className="size-4" />} disabled={db?.updating} onClick={async () => { try { await post('/vulnerabilities/db/sync'); toast('Database update started'); qc.invalidateQueries({ queryKey: ['vulns'] }) } catch (e) { toast(errorMessage(e), 'crit') } }}>Update DB</Button>}
         </>} />
-      {sum.data && !sum.data.enabled && <Note tone="warn" className="mb-4">Vulnerability scanning is disabled in Settings → Vulnerabilities.</Note>}
-      {db && !db.available && <Note tone="warn" className="mb-4">{db.updating ? 'Downloading the vulnerability database (about 3 GB uncompressed; first download takes several minutes)…' : `Vulnerability database not available yet${db.last_error ? `: ${db.last_error}` : ''}.`}</Note>}
+      {sum.data && !sum.data.enabled && <Note tone="warn" className="mb-4">Vulnerability scanning is turned off. Enable it under Settings, Vulnerabilities.</Note>}
+      {db && !db.available && <Note tone="warn" className="mb-4">{db.updating ? 'Downloading the vulnerability database (about 3 GB uncompressed; first download takes several minutes)…' : `The vulnerability database is not available yet${db.last_error ? `: ${db.last_error}` : ''}.`}</Note>}
       <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-5">
         <Stat label="Critical" value={totals.c} tone={totals.c ? 'crit' : 'muted'} />
         <Stat label="High" value={totals.h} tone={totals.h ? 'warn' : 'muted'} />
@@ -79,19 +108,26 @@ export function FindingsTable({ hostId }: { hostId?: number }) {
   const [kev, setKev] = useState(false)
   const [q, setQ] = useState('')
   const [open, setOpen] = useState<Finding | null>(null)
+  const [upgrade, setUpgrade] = useState<{ hostId: number; packages: string[] } | null>(null)
+  const fixable_ = useQuery({ queryKey: ['vulns', 'fixable', hostId], queryFn: () => get<Finding[]>('/vulnerabilities', { host_id: hostId, status: 'open', fixable: 1, limit: 2000 }), enabled: !!hostId })
   const f = useQuery({ queryKey: ['vulns', 'findings', hostId, tenant, sev, status, fixable, kev, q], queryFn: () => get<Finding[]>('/vulnerabilities', { host_id: hostId, tenant_id: tenant ?? undefined, severity: sev, status, fixable: fixable ? 1 : '', kev: kev ? 1 : '', q, limit: 2000 }) })
   const scans = useQuery({ queryKey: ['vulns', 'scans', hostId], queryFn: () => get<VulnScan[]>('/vulnerabilities/scans', { host_id: hostId }), enabled: !!hostId })
   const last = scans.data?.[0]
+  const fixablePkgs = Array.from(new Set((fixable_.data || []).filter((x) => x.upgradable).flatMap(findingPackages)))
+  const winFindings = (fixable_.data || []).some((x) => x.os === 'windows')
+  const canUpgrade = can('jobs')
   return (
     <div className="space-y-3">
       {hostId && (
         <div className="flex flex-wrap items-center gap-3">
           {last ? <span className="text-sm text-muted">Last scan {ago(last.started_at)}: <Badge tone={last.status === 'completed' ? 'ok' : last.status === 'failed' ? 'crit' : 'muted'}>{last.status}</Badge> {last.packages} packages, {last.findings} findings {last.error && <span className="text-crit">— {last.error}</span>}</span> : <span className="text-sm text-muted">Not scanned yet.</span>}
+          {canUpgrade && fixablePkgs.length > 0 && <Button size="sm" variant="primary" icon={<ArrowUpCircle className="size-3.5" />} onClick={() => setUpgrade({ hostId, packages: fixablePkgs })}>Upgrade all fixable ({fixablePkgs.length} {fixablePkgs.length === 1 ? 'package' : 'packages'})</Button>}
           {can('jobs') && <Button size="sm" icon={<ScanSearch className="size-3.5" />} onClick={async () => { try { const r = await post<any>(`/hosts/${hostId}/scan`); toast(r.queued ? 'Scan queued' : r.message, r.queued ? 'ok' : 'info') } catch (e) { toast(errorMessage(e), 'crit') } }}>Scan now</Button>}
         </div>
       )}
+      {winFindings && <Note>This is a Windows host. Fixes are delivered through Windows Update: open the Packages tab and choose Windows Update to install them.</Note>}
       <Card bodyClass="p-0">
-        <div className="flex flex-wrap items-center gap-2 border-b border-line p-3">
+        <div className="flex flex-wrap items-center gap-2 border-b border-line/70 p-4">
           <Segmented value={sev} onChange={setSev} options={[{ id: 'Critical', label: 'Critical' }, { id: 'Critical,High', label: 'High+' }, { id: 'Critical,High,Medium', label: 'Medium+' }, { id: '', label: 'All' }]} />
           <Segmented value={status} onChange={setStatus} options={[{ id: 'open', label: 'Open' }, { id: 'ignored', label: 'Ignored' }, { id: 'fixed', label: 'Fixed' }]} />
           <Checkbox checked={fixable} onChange={setFixable} label="Fix available" />
@@ -100,16 +136,17 @@ export function FindingsTable({ hostId }: { hostId?: number }) {
         </div>
         {f.isLoading ? <Loading /> : !f.data?.length ? <Empty title="No findings" icon={<ShieldCheck className="size-8 text-ok" />} /> : (
           <Table>
-            <thead><tr><Th>Vulnerability</Th><Th>Severity</Th><Th className="hidden sm:table-cell">CVSS</Th><Th>Package</Th><Th className="hidden md:table-cell">Installed</Th><Th className="hidden md:table-cell">Fixed in</Th>{!hostId && <Th className="hidden lg:table-cell">Host</Th>}<Th className="hidden xl:table-cell">First seen</Th></tr></thead>
+            <thead><tr><Th>Vulnerability</Th><Th>Severity</Th><Th className="hidden sm:table-cell">CVSS</Th><Th>Package</Th><Th className="hidden md:table-cell">Installed</Th><Th className="hidden md:table-cell">Fixed in</Th><Th className="hidden lg:table-cell">Available</Th>{!hostId && <Th className="hidden lg:table-cell">Host</Th>}<Th className="hidden xl:table-cell">First seen</Th></tr></thead>
             <tbody>
               {f.data.map((x) => (
-                <tr key={x.id} className="cursor-pointer hover:bg-panel-2/60" onClick={() => setOpen(x)}>
+                <tr key={x.id} className="cursor-pointer" onClick={() => setOpen(x)}>
                   <Td className="mono text-xs">{x.vuln_id} {x.kev && <Badge tone="crit">KEV</Badge>}</Td>
                   <Td><Badge tone={sevTone(x.severity)}>{x.severity}</Badge></Td>
                   <Td className="hidden tabular-nums sm:table-cell">{x.cvss ? x.cvss.toFixed(1) : '–'}</Td>
                   <Td className="mono text-xs" title={x.package}>{x.package.split(', ')[0]}{x.package.includes(', ') && <Badge className="ml-1">+{x.package.split(', ').length - 1}</Badge>}</Td>
                   <Td className="mono hidden text-xs md:table-cell">{x.version}</Td>
-                  <Td className="mono hidden text-xs md:table-cell">{x.fixed_version ? <span className="text-ok">{x.fixed_version}</span> : <span className="text-muted">{x.fix_state || 'no fix'}</span>}</Td>
+                  <Td className="mono hidden text-xs md:table-cell"><FixCell x={x} canUpgrade={canUpgrade} onUpgrade={() => setUpgrade({ hostId: x.host_id, packages: findingPackages(x) })} /></Td>
+                  <Td className="mono hidden text-xs lg:table-cell">{x.available_version || <span className="text-muted">–</span>}</Td>
                   {!hostId && <Td className="hidden text-xs lg:table-cell">{x.host_name}</Td>}
                   <Td className="hidden text-xs text-muted xl:table-cell">{ago(x.first_seen_at)}</Td>
                 </tr>
@@ -119,12 +156,13 @@ export function FindingsTable({ hostId }: { hostId?: number }) {
         )}
         {f.data && f.data.length >= 2000 && <p className="p-3 text-xs text-muted">Showing the first 2000 findings; narrow the filters to see more.</p>}
       </Card>
-      {open && <FindingModal f={open} onClose={() => { setOpen(null); f.refetch() }} />}
+      {open && <FindingModal f={open} onClose={() => { setOpen(null); f.refetch() }} onUpgrade={canUpgrade ? (pk) => { setOpen(null); setUpgrade({ hostId: open.host_id, packages: pk }) } : undefined} />}
+      {upgrade && <UpgradeLauncher hostId={upgrade.hostId} packages={upgrade.packages} onClose={() => setUpgrade(null)} />}
     </div>
   )
 }
 
-function FindingModal({ f, onClose }: { f: Finding; onClose: () => void }) {
+function FindingModal({ f, onClose, onUpgrade }: { f: Finding; onClose: () => void; onUpgrade?: (packages: string[]) => void }) {
   const { can } = useAuth()
   const toast = useToast()
   const [reason, setReason] = useState('')
@@ -140,12 +178,16 @@ function FindingModal({ f, onClose }: { f: Finding; onClose: () => void }) {
         <KV items={[
           ['Packages', <span key="p" className="mono break-all">{f.package} ({f.version})</span>],
           ['Fixed in', f.fixed_version || f.fix_state || 'no fix available'],
+          ['Available in repositories', f.available_version || '–'],
           ['CVSS', f.cvss ? `${f.cvss.toFixed(1)}  ${f.cvss_vector}` : '–'],
           ['EPSS', f.epss ? `${(f.epss * 100).toFixed(2)}% probability of exploitation in 30 days` : '–'],
           ['Host', f.host_name || `#${f.host_id}`],
           ['First seen', dateTime(f.first_seen_at)],
           ['Last seen', dateTime(f.last_seen_at)],
         ]} />
+        {f.os === 'windows' && f.fixed_version && <Note>Use Packages, Windows Update on this host to install the fix.</Note>}
+        {f.os !== 'windows' && f.fixed_version && !f.upgradable && <Note tone="warn">Fix {f.fixed_version} is not yet in the repositories{f.available_version ? ` (latest available: ${f.available_version})` : ''}. It will be offered once the distribution publishes it.</Note>}
+        {f.upgradable && onUpgrade && <Button variant="primary" icon={<ArrowUpCircle className="size-4" />} onClick={() => onUpgrade(findingPackages(f))}>Upgrade to {f.available_version}</Button>}
         {f.description && <p className="whitespace-pre-line text-sm">{f.description}</p>}
         {!!f.urls?.length && <ul className="space-y-1 text-sm">{f.urls.map((u) => <li key={u}><a href={u} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 break-all text-accent hover:underline">{u}<ExternalLink className="size-3" /></a></li>)}</ul>}
       </div>
@@ -187,7 +229,7 @@ function Schedules() {
   const s = useQuery({ queryKey: ['vulns', 'schedules'], queryFn: () => get<any[]>('/vuln-schedules') })
   const groups = useQuery({ queryKey: ['groups'], queryFn: () => get<HostGroup[]>('/groups') })
   return (
-    <Card bodyClass="p-0" title="Scheduled scans" subtitle="Hosts are also rescanned automatically whenever their package inventory changes (configurable in settings)."
+    <Card bodyClass="p-0" title="Scheduled scans" subtitle="Hosts are also rescanned automatically whenever their package inventory changes."
       actions={can('jobs') && <Button size="sm" variant="primary" icon={<Plus className="size-3.5" />} onClick={() => setAdding(true)}>Add schedule</Button>}>
       {!s.data?.length ? <Empty title="No schedules" icon={<CalendarClock className="size-8" />} /> : (
         <Table>

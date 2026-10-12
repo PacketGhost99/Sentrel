@@ -56,7 +56,7 @@ export function AddHost() {
       <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {options.map((o) => (
           <button key={o.id} onClick={() => setMethod(o.id)}
-            className={cx('flex items-start gap-3 rounded-lg border p-4 text-left [&_svg]:size-5', method === o.id ? 'border-accent bg-accent/8' : 'border-line bg-panel hover:border-muted')}>
+            className={cx('flex items-start gap-3 rounded-xl border p-4 text-left [&_svg]:size-5', method === o.id ? 'border-accent bg-accent/8' : 'border-line bg-panel hover:border-muted')}>
             <span className={method === o.id ? 'text-accent' : 'text-muted'}>{o.icon}</span>
             <span><span className="block font-medium">{o.title}</span><span className="mt-0.5 block text-xs text-muted">{o.desc}</span></span>
           </button>
@@ -124,7 +124,7 @@ function AgentInstall({ p, setP }: { p: Placement; setP: (p: Placement) => void 
             {os === 'windows' && <p className="text-xs text-muted">Installs to Program Files and registers the <b>HeartbeatAgent</b> service (LocalSystem, auto-restart).</p>}
             {os === 'manual' && <p className="text-xs text-muted">Download the binary from <code className="mono">{tok.server_url}/download/agent/&lt;os&gt;/&lt;arch&gt;</code>, register with the command above, then run <code className="mono">heartbeat-agent run</code> (or <code className="mono">service install</code> on Windows).</p>}
             {tok.ca_fingerprint && <Note>Self-signed mode: the command pins this server's CA <code className="mono break-all">{tok.ca_fingerprint}</code>, so agents only trust this server.</Note>}
-            <div className="rounded-md border border-line p-3">
+            <div className="rounded-xl border border-line/70 p-4">
               {newHosts.data?.length ? (
                 <div className="space-y-1">
                   {newHosts.data.map((h) => (
@@ -222,7 +222,7 @@ function PushInstall({ p, setP }: { p: Placement; setP: (p: Placement) => void }
         actions={push.data && <Badge tone={push.data.status === 'succeeded' ? 'ok' : push.data.status === 'failed' ? 'crit' : 'warn'}>{push.data.status}</Badge>}>
         {!pushId ? <p className="text-sm text-muted">The live install log appears here.</p> : (
           <>
-            <pre className="mono max-h-96 overflow-auto whitespace-pre-wrap rounded-md bg-panel-2 p-3 text-xs">{push.data?.log || 'starting…'}</pre>
+            <pre className="mono max-h-96 overflow-auto whitespace-pre-wrap rounded-xl bg-panel-2 p-3 text-xs">{push.data?.log || 'starting…'}</pre>
             {push.data?.host_id && <Link to={`/hosts/${push.data.host_id}`} className="mt-3 inline-block text-sm text-accent hover:underline">Open the new host →</Link>}
           </>
         )}
@@ -268,7 +268,7 @@ function AddSnmp({ p, setP }: { p: Placement; setP: (p: Placement) => void }) {
             <Note tone="ok">Reached <b>{test.system?.name || address}</b> in {test.duration_ms?.toFixed(0)} ms using profile <b>{test.profile}</b>.</Note>
             <p className="text-muted">{test.system?.descr}</p>
             <p>{test.interfaces} interfaces · {test.neighbors} LLDP neighbours</p>
-            <pre className="mono max-h-64 overflow-auto rounded-md bg-panel-2 p-2 text-xs">{Object.entries(test.metrics || {}).map(([k, v]) => `${k} = ${(v as number).toFixed(2)}`).join('\n') || 'no profile metrics'}</pre>
+            <pre className="mono max-h-64 overflow-auto rounded-xl bg-panel-2 p-3 text-xs">{Object.entries(test.metrics || {}).map(([k, v]) => `${k} = ${(v as number).toFixed(2)}`).join('\n') || 'no profile metrics'}</pre>
             {test.errors?.length > 0 && <Note tone="warn">{test.errors.join('; ')}</Note>}
           </div>
         )}

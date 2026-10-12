@@ -184,6 +184,10 @@ func (a *Agent) runJob(ctx context.Context, sj *pb.SignedJob) {
 	case "unblock_ip":
 		err = a.privOut(jctx, timeout, w, "unblock-ip", spec.Params["ip"])
 		kick(a.blocksNow)
+	case "disk_usage":
+		resJSON, err = a.jobDiskUsage(jctx, timeout, spec.Params, w)
+	case "disk_cleanup":
+		err = a.jobDiskCleanup(jctx, timeout, spec.DryRun, spec.Params, w)
 	case "script":
 		err = runScript(jctx, spec.Params["interpreter"], spec.Params["script"], w)
 	case "self_update":

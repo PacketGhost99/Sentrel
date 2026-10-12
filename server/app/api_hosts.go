@@ -227,6 +227,7 @@ type hostUpdate struct {
 	AllowUpgrades     *bool         `json:"allow_upgrades"`
 	AllowIPBlock      *bool         `json:"allow_ip_block"`
 	AllowScripts      *bool         `json:"allow_scripts"`
+	AllowCleanup      *bool         `json:"allow_cleanup"`
 	AutoBlock         *bool         `json:"auto_block"`
 	TenantID          *int64        `json:"tenant_id"`
 	ClearInterval     bool          `json:"clear_interval"`
@@ -327,6 +328,10 @@ func (a *App) apiUpdateHost(c *Ctx) (any, error) {
 		}
 		set("allow_scripts", *req.AllowScripts)
 		changes["allow_scripts"] = *req.AllowScripts
+	}
+	if req.AllowCleanup != nil {
+		set("allow_cleanup", *req.AllowCleanup)
+		changes["allow_cleanup"] = *req.AllowCleanup
 	}
 	if len(sets) > 0 {
 		set("updated_at", db.Now())
@@ -647,7 +652,7 @@ func (a *App) apiHostSecurity(c *Ctx) (any, error) {
 	}
 	d := a.settings.Agent()
 	return map[string]any{"failed_logins": rows, "total": total, "blocks": blocks, "fail2ban": f2b, "hours": hours,
-		"allow_ip_block": h.AllowIPBlock, "auto_block": h.AutoBlock, "auto_block_threshold": d.AutoBlockThreshold, "window_minutes": d.BruteforceWindowMin}, nil
+		"allow_ip_block": h.AllowIPBlock, "auto_block": h.AutoBlock, "notify_failed_logins": a.hostNotifies(h, "bruteforce"), "auto_block_threshold": d.AutoBlockThreshold, "window_minutes": d.BruteforceWindowMin}, nil
 }
 
 type blockReq struct {

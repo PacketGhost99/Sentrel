@@ -40,15 +40,20 @@ func (a *App) registerRoutes(r *apiRouter) {
 
 	// Hosts.
 	r.add(routeDef{Method: GET, Path: "/hosts", Summary: "List hosts", Tag: "hosts", Perm: PermRead, Resp: []Host{}, Query: []string{"q", "status", "kind", "group_id", "tag", "tenant_id"}}, a.apiListHosts)
+	r.add(routeDef{Method: GET, Path: "/hosts/beats", Summary: "Daily uptime bars for every host", Tag: "hosts", Perm: PermRead, Query: []string{"days", "tenant_id"}}, a.apiHostBeats)
 	r.add(routeDef{Method: GET, Path: "/hosts/{id}", Summary: "Host detail", Tag: "hosts", Perm: PermRead, Resp: HostDetail{}}, a.apiGetHost)
 	r.add(routeDef{Method: PUT, Path: "/hosts/{id}", Summary: "Update host settings", Tag: "hosts", Perm: PermHostSettings, Req: hostUpdate{}}, a.apiUpdateHost)
 	r.add(routeDef{Method: DELETE, Path: "/hosts/{id}", Summary: "Delete host and its data", Tag: "hosts", Perm: PermHosts}, a.apiDeleteHost)
 	r.add(routeDef{Method: POST, Path: "/hosts/{id}/revoke", Summary: "Revoke the agent certificate", Tag: "hosts", Perm: PermHosts}, a.apiRevokeHost)
 	r.add(routeDef{Method: GET, Path: "/hosts/{id}/metrics", Summary: "Standard metric series for graphs", Tag: "hosts", Perm: PermRead, Query: []string{"panel", "start", "end", "step"}}, a.apiHostMetrics)
 	r.add(routeDef{Method: GET, Path: "/hosts/{id}/packages", Summary: "Installed / upgradable packages", Tag: "hosts", Perm: PermRead, Resp: []Package{}, Query: []string{"upgradable", "q"}}, a.apiHostPackages)
+	r.add(routeDef{Method: PUT, Path: "/hosts/{id}/notify", Summary: "Mute or unmute notifications for one metric on a host", Tag: "hosts", Perm: PermHostSettings, Req: hostNotifyReq{}}, a.apiHostNotify)
 	r.add(routeDef{Method: GET, Path: "/hosts/{id}/security", Summary: "Failed logins, IP blocks and fail2ban", Tag: "hosts", Perm: PermRead}, a.apiHostSecurity)
 	r.add(routeDef{Method: POST, Path: "/hosts/{id}/block", Summary: "Block an IP on the host firewall", Tag: "hosts", Perm: PermJobs, Req: blockReq{}}, a.apiBlockIP)
 	r.add(routeDef{Method: POST, Path: "/hosts/{id}/unblock", Summary: "Remove an IP block", Tag: "hosts", Perm: PermJobs, Req: blockReq{}}, a.apiUnblockIP)
+	r.add(routeDef{Method: GET, Path: "/hosts/{id}/disk-usage", Summary: "Latest disk usage analysis for a mount", Tag: "hosts", Perm: PermRead, Resp: DiskUsageReport{}, Query: []string{"mount"}}, a.apiGetDiskUsage)
+	r.add(routeDef{Method: POST, Path: "/hosts/{id}/disk-usage", Summary: "Queue a disk usage analysis", Tag: "hosts", Perm: PermJobs, Req: diskUsageReq{}}, a.apiPostDiskUsage)
+	r.add(routeDef{Method: GET, Path: "/hosts/{id}/disk-cleanup/tasks", Summary: "Disk cleanup tasks available on the host", Tag: "hosts", Perm: PermRead, Resp: []CleanupTask{}}, a.apiDiskCleanupTasks)
 	r.add(routeDef{Method: GET, Path: "/hosts/{id}/thresholds", Summary: "Merged threshold view for a host", Tag: "thresholds", Perm: PermRead, Resp: []MergedRule{}}, a.apiHostThresholds)
 	r.add(routeDef{Method: GET, Path: "/hosts/{id}/lldp", Summary: "LLDP neighbours (SNMP devices)", Tag: "hosts", Perm: PermRead, Resp: []LLDPNeighbor{}}, a.apiHostLLDP)
 	r.add(routeDef{Method: GET, Path: "/hosts/{id}/uptime", Summary: "Daily uptime history", Tag: "hosts", Perm: PermRead, Query: []string{"days"}}, a.apiHostUptime)
@@ -82,6 +87,7 @@ func (a *App) registerRoutes(r *apiRouter) {
 	// Checks.
 	r.add(routeDef{Method: GET, Path: "/checks", Summary: "List checks", Tag: "checks", Perm: PermRead, Resp: []Check{}, Query: []string{"host_id", "type", "status"}}, a.apiListChecks)
 	r.add(routeDef{Method: POST, Path: "/checks", Summary: "Create a check", Tag: "checks", Perm: PermMonitoring, Req: checkReq{}, Resp: Check{}}, a.apiCreateCheck)
+	r.add(routeDef{Method: GET, Path: "/checks/beats", Summary: "Recent results for every check", Tag: "checks", Perm: PermRead, Query: []string{"limit", "tenant_id"}}, a.apiCheckBeats)
 	r.add(routeDef{Method: GET, Path: "/checks/{id}", Summary: "Get a check", Tag: "checks", Perm: PermRead, Resp: Check{}}, a.apiGetCheck)
 	r.add(routeDef{Method: PUT, Path: "/checks/{id}", Summary: "Update a check", Tag: "checks", Perm: PermMonitoring, Req: checkReq{}}, a.apiUpdateCheck)
 	r.add(routeDef{Method: DELETE, Path: "/checks/{id}", Summary: "Delete a check", Tag: "checks", Perm: PermMonitoring}, a.apiDeleteCheck)

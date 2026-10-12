@@ -78,6 +78,12 @@ Each fire and resolve of an alert is a transition. When an alert records `flap_t
 - **Repeats**: each channel has `repeat_minutes` (new channels default to `default_repeat_minutes`, 240). Unacknowledged, non-flapping, non-silenced firing alerts are re-sent at that interval; 0 disables repeats. An alert that fired during a maintenance window and was never notified is sent once the window ends.
 - **Filters** per channel: tenant (a channel in a tenant only sees that tenant's alerts), minimum severity (default warning), send-resolved, host IDs, group IDs, tags.
 
+## Muting notifications
+
+Every threshold rule has a `notify` flag (default on). When it is off, alerts raised by that rule still fire, appear in the alert list and timeline and are marked `muted`, but nothing is sent to notification channels for them: not on firing, escalation, flapping, resolution or reminders. Each skipped notification is recorded in the alert timeline as `silenced` with the detail "notifications disabled for this rule". Rules set the flag like any other field, so it follows the same inheritance (host, group, tenant, provider).
+
+To mute one metric on a single host without editing the rule chain, use the toggle on the host page or `PUT /api/v1/hosts/{id}/notify` with `{"metric":"bruteforce","notify":false}`. This writes a host-level rule that copies the effective warning, critical, `for_count` and enabled values and changes only `notify`. `GET /api/v1/hosts/{id}/security` reports the effective setting for failed-login alerts as `notify_failed_logins`.
+
 ## Acknowledgements
 
 Acknowledging a firing alert (with an optional comment) stops its repeat reminders and marks it handled in the UI; the alert still resolves automatically. Un-acknowledge, bulk acknowledge and force-resolve are available. Ack state clears if the alert fires again.

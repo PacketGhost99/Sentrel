@@ -95,6 +95,8 @@ curl -s -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' -X P
 curl -s -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' -X POST $HB/api/v1/enrollment-tokens -d '{"ttl_minutes":60,"tags":["web"]}'
 ```
 
+Overview bars: `GET /api/v1/hosts/beats?days=30` returns daily uptime per host (`{"<host_id>":[{"day":"2026-10-01","uptime":99.5}]}`, `uptime` is `null` without data, up to 90 days) and `GET /api/v1/checks/beats?limit=40` returns the latest results per check (`{"<check_id>":[{"t":1760000000,"ok":true,"latency_ms":12.3}]}`, oldest first, up to 100). Both accept `tenant_id` as provider users.
+
 Job parameters: `upgrade` takes `params.packages` (comma separated) and `params.security_only`; `block_ip` and `unblock_ip` take `params.ip` (and `params.minutes` for blocks; the dedicated `POST /hosts/{id}/block` is simpler); `script` takes `params.script` and `params.interpreter` (`sh`, `bash`, `python3`, `powershell`, `cmd`). Jobs return `queued`, `scheduled`, `sent`, `running`, `succeeded`, `failed`, `cancelled`, `expired` or `rejected`; poll `GET /jobs/{id}`.
 
 ## Live events

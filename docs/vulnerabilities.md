@@ -36,6 +36,12 @@ Scans run one at a time from a queue with a 10 minute limit each. The scan histo
 
 After each scan the server evaluates one alert per host. It counts distinct open CVEs at or above `alert_severity` (`Critical` default, `High`, `Medium`, or `none` to disable) and, when `only_fixable` is on (default), only those that have a fixed version. The alert is critical when any Critical finding is counted, otherwise warning, and clears when the count reaches zero. Notification channels, maintenance windows and acknowledgement behave as for any alert ([alerting.md](alerting.md)).
 
+## Fixing findings with upgrades
+
+Findings returned by `GET /api/v1/vulnerabilities` carry three extra fields: `available_version` (the pending package update for the same host and package, or empty), `upgradable` and `os` (`linux` or `windows`). `upgradable` is true for Linux agent hosts when an update is pending whose version is at or above the fixed version; versions are compared with the rules of the package format (deb, rpm or apk), and when the format is unknown any pending update counts. The UI uses this to offer an upgrade of just the affected packages, which creates a normal `upgrade` job (`params.packages`) and therefore needs `allow_upgrades` on the host and a confirmation.
+
+After an upgrade finishes the agent resends its package inventory; when the inventory changed and `scan_after_inventory` is on, the host is rescanned and fixed findings move to `fixed`.
+
 ## Ignoring findings
 
 Mark a finding `ignored` (UI, or `PUT /api/v1/vulnerabilities/{id}` with `{"status":"ignored"}`; `monitoring` permission) to drop it from counts and alerts. Reopen with `{"status":"open"}`. Ignored findings stay ignored across rescans.

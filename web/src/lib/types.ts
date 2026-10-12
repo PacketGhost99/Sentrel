@@ -102,6 +102,7 @@ export interface Host {
   retention_days: number | null
   agent_options: AgentOptions | null
   allow_upgrades: boolean
+  allow_cleanup?: boolean
   allow_ip_block: boolean
   allow_scripts: boolean
   auto_block: boolean
@@ -264,6 +265,7 @@ export interface Alert {
   acked_at: number
   ack_comment: string
   flapping: boolean
+  muted?: boolean
   last_notified_at: number
   notify_count: number
   host_name?: string
@@ -304,6 +306,7 @@ export interface ThresholdRule {
   crit: number | null
   for_count: number
   enabled: boolean
+  notify?: boolean
 }
 
 export interface EffectiveRule {
@@ -402,6 +405,9 @@ export interface Finding {
   package: string
   version: string
   fixed_version: string
+  available_version?: string
+  upgradable?: boolean
+  os?: 'linux' | 'windows' | string
   fix_state: string
   severity: string
   cvss: number
@@ -483,4 +489,46 @@ export interface Series {
   metric: string
   labels: Record<string, string>
   points: [number, number][] | null
+}
+
+/** One day of a host's uptime history (GET /hosts/beats). */
+export interface HostBeat {
+  day: string
+  uptime: number | null
+}
+
+/** One check result (GET /checks/beats). */
+export interface CheckBeat {
+  t: number
+  ok: boolean
+  latency_ms: number | null
+}
+
+export interface DiskUsageEntry {
+  path: string
+  bytes: number
+  depth: number
+}
+
+export interface DiskUsageFile {
+  path: string
+  bytes: number
+}
+
+export interface DiskUsageReport {
+  mount: string
+  status: 'none' | 'running' | 'done' | 'failed'
+  job_id: string
+  created_at: number
+  total_bytes: number
+  used_bytes: number
+  entries: DiskUsageEntry[] | null
+  largest_files: DiskUsageFile[] | null
+  error: string
+}
+
+export interface CleanupTask {
+  id: string
+  name: string
+  description: string
 }

@@ -69,16 +69,12 @@ func (a *App) registerRoutes(r *apiRouter) {
 	r.add(routeDef{Method: GET, Path: "/snmp/profiles", Summary: "List SNMP device profiles", Tag: "hosts", Perm: PermRead}, a.apiSNMPProfiles)
 	r.add(routeDef{Method: POST, Path: "/snmp/profiles/reload", Summary: "Reload custom SNMP profiles from disk", Tag: "hosts", Perm: PermSettings}, a.apiSNMPReload)
 
-	// Enrolment and push install.
+	// Enrolment.
 	r.add(routeDef{Method: POST, Path: "/enrollment-tokens", Summary: "Create a one-time enrolment token", Tag: "enrolment", Perm: PermHosts, Req: tokenReq{}, Resp: tokenResp{}}, a.apiCreateToken)
 	r.add(routeDef{Method: GET, Path: "/enrollment-tokens", Summary: "List unused enrolment tokens", Tag: "enrolment", Perm: PermHosts, Resp: []EnrollmentToken{}}, a.apiListTokens)
 	r.add(routeDef{Method: DELETE, Path: "/enrollment-tokens/{id}", Summary: "Delete an enrolment token", Tag: "enrolment", Perm: PermHosts}, a.apiDeleteToken)
-	r.add(routeDef{Method: POST, Path: "/push/ssh/fingerprint", Summary: "Fetch an SSH host key fingerprint (no authentication)", Tag: "enrolment", Perm: PermHosts, Req: pushFingerprintReq{}}, a.apiPushSSHFingerprint)
-	r.add(routeDef{Method: POST, Path: "/push/ssh", Summary: "Push-install the agent over SSH", Tag: "enrolment", Perm: PermHosts, Req: pushSSHReq{}, Resp: PushInstall{}}, a.apiPushSSH)
-	r.add(routeDef{Method: POST, Path: "/push/winrm", Summary: "Push-install the agent over WinRM", Tag: "enrolment", Perm: PermHosts, Req: pushWinRMReq{}, Resp: PushInstall{}}, a.apiPushWinRM)
-	r.add(routeDef{Method: GET, Path: "/push", Summary: "List push installs", Tag: "enrolment", Perm: PermHosts, Resp: []PushInstall{}}, a.apiListPush)
-	r.add(routeDef{Method: GET, Path: "/push/{id}", Summary: "Push install status and log", Tag: "enrolment", Perm: PermHosts, Resp: PushInstall{}}, a.apiGetPush)
 	r.add(routeDef{Method: GET, Path: "/agents/binaries", Summary: "Agent builds available for install and update", Tag: "enrolment", Perm: PermRead}, a.apiAgentBinaries)
+	r.add(routeDef{Method: GET, Path: "/agents/install-info", Summary: "How to install an agent from this server: URL, TLS pinning data and downloadable packages", Tag: "enrolment", Perm: PermHosts, Resp: installInfo{}}, a.apiInstallInfo)
 
 	// Groups.
 	r.add(routeDef{Method: GET, Path: "/groups", Summary: "List host groups", Tag: "groups", Perm: PermRead, Resp: []HostGroup{}}, a.apiListGroups)

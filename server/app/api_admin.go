@@ -311,7 +311,7 @@ func (a *App) apiDeleteTenant(c *Ctx) (any, error) {
 		return nil, err
 	}
 	// Rows without FK cascade.
-	for _, tbl := range []string{"alert_events", "notification_log", "security_events", "ip_blocks", "vuln_scans", "vuln_findings", "uptime_daily", "audit_log", "push_installs", "lldp_neighbors", "packages", "inventory_status", "fail2ban_status"} {
+	for _, tbl := range []string{"alert_events", "notification_log", "security_events", "ip_blocks", "vuln_scans", "vuln_findings", "uptime_daily", "audit_log", "lldp_neighbors", "packages", "inventory_status", "fail2ban_status"} {
 		_, _ = a.db.ExecContext(c.ctx(), `DELETE FROM `+tbl+` WHERE tenant_id=?`, id)
 	}
 	for _, hid := range hostIDs {

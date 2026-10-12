@@ -260,6 +260,7 @@ func (s *httpServer) buildHandler() http.Handler {
 	api.NotFound(func(w http.ResponseWriter, _ *http.Request) { writeError(w, errNotFound) })
 	r.Mount("/api/v1", api)
 
+	r.Get("/download/agent/pkg/{file}", a.handleAgentPackage)
 	r.Get("/download/agent/{os}/{arch}", a.handleAgentDownload)
 	r.Get("/install/agent.sh", a.handleInstallScript("sh"))
 	r.Get("/install/agent.ps1", a.handleInstallScript("ps1"))

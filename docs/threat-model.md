@@ -66,7 +66,7 @@ Can, against agents on the default `server` write policy:
 
 Cannot, against agents on `operator` or read-only policy:
 - Run any WRITE job. `operator` agents also require an Ed25519 signature from an operator key over the exact job bytes; the private key is never on the server, and the agent re-checks the signature itself. Read-only agents refuse WRITE jobs outright. The policy is stored in the root-owned `agent.yaml` and the pushed agent configuration has no field that can change it.
-- Push a malicious agent binary: self-update is a WRITE job and the binary signature is verified again by the root helper.
+- Deliver a malicious agent binary: self-update is a WRITE job and the binary signature is verified again by the root helper.
 
 ### 4. Compromised agent process (Linux, runs as `sentrel-agent`)
 

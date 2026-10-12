@@ -23,7 +23,6 @@ server/notify/          notification channels
 server/probe/           ping/tcp/http/cert/dns probes
 server/snmp/            SNMP client and profile engine; profiles/*.yaml are embedded built-ins
 server/vuln/            Grype integration
-server/pushinstall/     SSH and WinRM push installer
 server/authn/           password hashing, LDAP, RADIUS
 server/agentdist/       agent binaries embedded in the server (filled by scripts/build.sh)
 agent/                  the agent: collector, inventory, security, jobs, priv helper, transport (per-OS files)

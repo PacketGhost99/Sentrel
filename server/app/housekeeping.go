@@ -60,7 +60,6 @@ func (a *App) cleanup(ctx context.Context) {
 		{`DELETE FROM vuln_scans WHERE started_at < ?`, []any{now.Unix() - 180*day}},
 		{`DELETE FROM vuln_findings WHERE status='fixed' AND fixed_at < ?`, []any{now.Unix() - 180*day}},
 		{`DELETE FROM ip_blocks WHERE status IN ('removed','failed') AND created_at < ?`, []any{now.Unix() - 90*day}},
-		{`DELETE FROM push_installs WHERE created_at < ?`, []any{now.Unix() - 90*day}},
 		{`DELETE FROM uptime_daily WHERE day < ?`, []any{now.UTC().AddDate(-1, 0, 0).Format("2006-01-02")}},
 	}
 	for _, s := range stmts {

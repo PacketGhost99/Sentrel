@@ -4,10 +4,13 @@
 #   scripts/build.sh [--version X.Y.Z] [--skip-web] [--server-arch "amd64 arm64"] [--packages]
 #
 # Steps: web UI (Vite) -> agents (linux/amd64, linux/arm64, windows/amd64)
-# -> agents embedded into the server -> server binaries -> SHA256SUMS.
+# -> agent .deb/.rpm/.msi packages (nfpm, wixl; skipped when the tool is missing)
+# -> agents and agent packages embedded into the server (with a manifest)
+# -> server binaries -> SHA256SUMS.
 # An MSI is built with wixl (msitools) when available.
-# --packages also builds .deb and .rpm packages (agent and server, amd64 and
-# arm64) with nfpm, and builds the server for both architectures.
+# --packages also builds the server .deb and .rpm (amd64 and
+# arm64), fetching nfpm with `go run` if it is not installed, and builds the
+# server for both architectures. Server packages are never embedded.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -81,11 +84,81 @@ for target in linux/amd64 linux/arm64 windows/amd64; do
 done
 echo "$VERSION" > server/agentdist/bin/VERSION
 
+rm -f dist/"$AGENT_BIN"-*.msi
 if command -v wixl >/dev/null 2>&1; then
   echo "==> MSI"
   sed "s/@VERSION@/$(echo "$VERSION" | sed -E 's/^v//; s/[^0-9.].*$//; s/^$/0.0.0/')/" deploy/agent.wxs > dist/agent.wxs
   (cd dist && wixl -a x64 -o "$AGENT_BIN-$VERSION-x64.msi" agent.wxs && rm agent.wxs)
 fi
+
+# ---- Agent packages (.deb, .rpm, .msi) ---------------------------------------
+# Built before the server so they can be embedded and offered for download on
+# the Agents page. Missing tools just mean fewer packages in the manifest.
+PKGDIR=server/agentdist/bin/pkg
+rm -rf "$PKGDIR" server/agentdist/bin/packages.json
+rm -f dist/"$AGENT_PKG"[_-]*.deb dist/"$AGENT_PKG"[_-]*.rpm
+mkdir -p "$PKGDIR"
+
+NFPM_CMD=""
+if command -v nfpm >/dev/null 2>&1 && [ -z "${NFPM_USE_GO_RUN:-}" ]; then
+  NFPM_CMD=nfpm
+elif [ "$PACKAGES" = 1 ] || [ -n "${NFPM_USE_GO_RUN:-}" ]; then
+  NFPM_CMD="go run github.com/goreleaser/nfpm/v2/cmd/nfpm@$NFPM_VERSION"
+fi
+
+STAGE="$PWD/dist/.pkgstage"
+if [ -n "$NFPM_CMD" ] || [ "$PACKAGES" = 1 ]; then
+  rm -rf "$STAGE"; mkdir -p "$STAGE/bin"
+  cp -r packaging/agent packaging/server "$STAGE/"
+  # Substitute the @NAME@ placeholders with the names defined above.
+  subst="$STAGE/subst.sed"; : > "$subst"
+  for v in PRODUCT_TITLE AGENT_BIN SERVER_BIN AGENT_PKG SERVER_PKG AGENT_USER SERVER_USER SERVER_UNIT \
+           FW_TABLE HOMEPAGE DOCS_URL MAINTAINER LICENSE AGENT_PATH SERVER_PATH AGENT_ETC AGENT_STATE \
+           AGENT_SHARE SERVER_DATA STAGE; do
+    val=$(printf '%s' "${!v}" | sed 's/[\&|]/\&/g')
+    printf "s|@%s@|%s|g
+" "$v" "$val" >> "$subst"
+  done
+  find "$STAGE/agent" "$STAGE/server" -type f -exec sed -i -f "$subst" {} +
+fi
+
+if [ -n "$NFPM_CMD" ]; then
+  echo "==> agent packages (nfpm)"
+  for arch in $PKG_ARCHES; do
+    cp "dist/$AGENT_BIN-linux-$arch" "$STAGE/bin/"
+    sed "s|@ARCH@|$arch|g" "$STAGE/agent/nfpm.yaml" > "$STAGE/agent/nfpm-$arch.yaml"
+    for fmt in deb rpm; do
+      ARCH=$arch VERSION="${VERSION#v}" $NFPM_CMD package --config "$STAGE/agent/nfpm-$arch.yaml" --packager $fmt --target dist/ >/dev/null
+    done
+  done
+else
+  echo "==> agent packages skipped: nfpm not found (install it, or pass --packages)"
+fi
+
+# Collect the packages into the embedded directory and describe them.
+for f in dist/"$AGENT_PKG"[_-]*.deb dist/"$AGENT_PKG"[_-]*.rpm dist/"$AGENT_BIN"-*.msi; do
+  if [ -f "$f" ]; then cp "$f" "$PKGDIR/"; fi
+done
+manifest="["; sep=""
+for f in "$PKGDIR"/*; do
+  [ -f "$f" ] || continue
+  name=$(basename "$f")
+  case "$name" in
+    *.deb) fmt=deb; os=linux ;;
+    *.rpm) fmt=rpm; os=linux ;;
+    *.msi) fmt=msi; os=windows ;;
+    *) continue ;;
+  esac
+  case "$name" in
+    *amd64*|*x86_64*|*x64*) parch=amd64 ;;
+    *arm64*|*aarch64*) parch=arm64 ;;
+    *) continue ;;
+  esac
+  manifest="$manifest$sep{\"file\":\"$name\",\"os\":\"$os\",\"arch\":\"$parch\",\"format\":\"$fmt\",\"size\":$(stat -c %s "$f"),\"sha256\":\"$(sha256sum "$f" | cut -d' ' -f1)\"}"
+  sep=","
+  echo "    $name ($(du -h "$f" | cut -f1))"
+done
+echo "$manifest]" > server/agentdist/bin/packages.json
 
 echo "==> server"
 for arch in $SERVER_ARCHES; do
@@ -96,36 +169,16 @@ done
 cp deploy/install-server.sh deploy/install-agent.sh deploy/install-agent.ps1 dist/
 
 if [ "$PACKAGES" = 1 ]; then
-  echo "==> packages (nfpm $NFPM_VERSION)"
-  STAGE="$PWD/dist/.pkgstage"
-  rm -rf "$STAGE"; mkdir -p "$STAGE/bin"
-  cp -r packaging/agent packaging/server "$STAGE/"
-  # Substitute the @NAME@ placeholders with the names defined above.
-  subst="$STAGE/subst.sed"; : > "$subst"
-  for v in PRODUCT_TITLE AGENT_BIN SERVER_BIN AGENT_PKG SERVER_PKG AGENT_USER SERVER_USER SERVER_UNIT \
-           FW_TABLE HOMEPAGE DOCS_URL MAINTAINER LICENSE AGENT_PATH SERVER_PATH AGENT_ETC AGENT_STATE \
-           AGENT_SHARE SERVER_DATA STAGE; do
-    val=$(printf '%s' "${!v}" | sed 's/[\\&|]/\\&/g')
-    printf "s|@%s@|%s|g
-" "$v" "$val" >> "$subst"
-  done
-
-  find "$STAGE/agent" "$STAGE/server" -type f -exec sed -i -f "$subst" {} +
+  echo "==> server packages (nfpm $NFPM_VERSION)"
   for arch in $PKG_ARCHES; do
-    cp "dist/$AGENT_BIN-linux-$arch" "dist/$SERVER_BIN-linux-$arch" "$STAGE/bin/"
-  done
-  NFPM="go run github.com/goreleaser/nfpm/v2/cmd/nfpm@$NFPM_VERSION"
-  if command -v nfpm >/dev/null 2>&1 && [ -z "${NFPM_USE_GO_RUN:-}" ]; then NFPM=nfpm; fi
-  for arch in $PKG_ARCHES; do
-    for comp in agent server; do
-      sed "s|@ARCH@|$arch|g" "$STAGE/$comp/nfpm.yaml" > "$STAGE/$comp/nfpm-$arch.yaml"
-      for fmt in deb rpm; do
-        ARCH=$arch VERSION="${VERSION#v}" $NFPM package --config "$STAGE/$comp/nfpm-$arch.yaml" --packager $fmt --target dist/
-      done
+    cp "dist/$SERVER_BIN-linux-$arch" "$STAGE/bin/"
+    sed "s|@ARCH@|$arch|g" "$STAGE/server/nfpm.yaml" > "$STAGE/server/nfpm-$arch.yaml"
+    for fmt in deb rpm; do
+      ARCH=$arch VERSION="${VERSION#v}" $NFPM_CMD package --config "$STAGE/server/nfpm-$arch.yaml" --packager $fmt --target dist/
     done
   done
-  rm -rf "$STAGE"
 fi
+rm -rf "$STAGE"
 
 (cd dist && sha256sum "$AGENT_BIN"* "$SERVER_BIN"* install-* > SHA256SUMS)
 echo "==> done: dist/"

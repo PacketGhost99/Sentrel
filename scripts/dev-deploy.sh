@@ -11,7 +11,8 @@ cd "$(dirname "$0")/.."
 VERSION="${1:-0.9.0-dev}"
 [ "${1:-}" = "--version" ] && VERSION="$2"
 scripts/sync.sh push
-scripts/sync.sh run "scripts/build.sh --version $VERSION >/tmp/hb-build.log 2>&1 || { tail -30 /tmp/hb-build.log; exit 1; }"
+# ~/bin holds a prebuilt nfpm so the agent .deb/.rpm are built and embedded.
+scripts/sync.sh run "PATH=\$PATH:\$HOME/bin scripts/build.sh --version $VERSION >/tmp/hb-build.log 2>&1 || { tail -30 /tmp/hb-build.log; exit 1; }"
 
 # One-time migration from the pre-rename install (heartbeat.service,
 # /var/lib/heartbeat, user heartbeat). A no-op once heartbeat.service is gone.

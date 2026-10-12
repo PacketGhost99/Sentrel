@@ -16,7 +16,7 @@ var kindTable = map[string]string{
 	"host": "hosts", "check": "checks", "alert": "alerts", "group": "host_groups",
 	"maintenance": "maintenance_windows", "channel": "notification_channels", "status_page": "status_pages",
 	"threshold": "threshold_rules", "job": "jobs", "vuln_finding": "vuln_findings", "vuln_schedule": "vuln_schedules",
-	"enrollment_token": "enrollment_tokens", "push": "push_installs", "user": "users", "tenant": "tenants",
+	"enrollment_token": "enrollment_tokens", "user": "users", "tenant": "tenants",
 	"api_key": "api_keys",
 }
 
@@ -27,7 +27,7 @@ var routeKinds = map[string]string{
 	"hosts": "host", "checks": "check", "alerts": "alert", "groups": "group", "maintenance": "maintenance",
 	"notification-channels": "channel", "status-pages": "status_page", "thresholds": "threshold", "jobs": "job",
 	"vulnerabilities": "vuln_finding", "vuln-schedules": "vuln_schedule", "enrollment-tokens": "enrollment_token",
-	"push": "push", "users": "user", "tenants": "tenant", "api-keys": "api_key",
+	"users": "user", "tenants": "tenant", "api-keys": "api_key",
 }
 
 // skip lists routes with {id} that this test does not call, keyed by
@@ -131,14 +131,6 @@ func seedTenantFixture(t *testing.T, e *testEnv, root *client, name, label strin
 	}
 	fid, _ := res.LastInsertId()
 	o["vuln_finding"] = itoa(fid)
-
-	res, err = e.a.db.ExecContext(ctx, `INSERT INTO push_installs (tenant_id, method, target, username, status, created_at)
-		VALUES (?,?,?,?,?,?)`, tid, "ssh", "192.0.2.10", "root", "succeeded", now)
-	if err != nil {
-		t.Fatal(err)
-	}
-	pid, _ := res.LastInsertId()
-	o["push"] = itoa(pid)
 
 	o["tenant"] = itoa(tid)
 

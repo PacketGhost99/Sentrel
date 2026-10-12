@@ -23,7 +23,7 @@ const (
 	PermRead                     // view hosts, alerts, metrics
 	PermAck                      // acknowledge / unack alerts
 	PermMonitoring               // checks, thresholds, maintenance, notifications, status pages, groups
-	PermHosts                    // enrol, delete, SNMP devices, push install
+	PermHosts                    // enrol, delete, SNMP devices
 	PermHostSettings             // per-host options and remote-action opt-ins
 	PermJobs                     // upgrades, IP blocks, vulnerability scans
 	PermScripts                  // arbitrary scripts on hosts

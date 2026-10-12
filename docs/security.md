@@ -82,7 +82,7 @@ State-changing jobs also need an explicit `confirm`, are recorded in the audit l
 | read | x | x | x | x | x |
 | ack (acknowledge alerts) | x | x | | x | |
 | monitoring (checks, thresholds, maintenance, channels, status pages, groups, vulnerability ignore) | x | x | | x | |
-| hosts (enrol, delete, SNMP/target hosts, push install) | x | x | | | |
+| hosts (enrol, delete, SNMP/target hosts, agent install) | x | x | | | |
 | host_settings (per-host options and opt-ins) | x | x | | x | |
 | jobs (upgrades, IP blocks, scans, agent update) | x | x | | x | |
 | scripts | x | | | | |
@@ -119,7 +119,6 @@ The audit log records sign-ins and failures, setup, user, tenant, key, host, che
 
 - **Stored in clear text in `sentrel.db`** (the database is not encrypted): SMTP, LDAP bind and RADIUS secrets, notification channel tokens and webhook credentials, SNMP communities and v3 passwords, HTTP-check basic-auth passwords, TOTP secrets. They are redacted from every API response, and sending a redacted or omitted value on update keeps the stored one.
 - **Stored hashed**: user passwords (Argon2id), session tokens, API keys, enrolment tokens.
-- **Not stored**: SSH/WinRM credentials used for push install (only target, user name and install log are kept).
 - **Key files**: `pki/ca.key`, `pki/job.key`, `pki/server.key` are mode `0600`; the data directory is `0750`.
 - **Backups contain all of the above.** Encrypt and restrict them (see [operations.md](operations.md)).
 
@@ -132,15 +131,9 @@ Server-side checks (HTTP, TCP, TLS certificate, DNS with a custom resolver, ping
 - Setting `allow_private_targets_for_tenants` (Settings, Security; provider only; default off) lifts the restriction for tenants who monitor internal systems.
 - SMTP goes to the server the administrator configured and is not restricted.
 
-## Push install host keys
-
-Push install over SSH never trusts a host key on first use. The Add host page first fetches the target's SHA256 host key fingerprint (`POST /push/ssh/fingerprint`, which completes only the key exchange and sends no credentials), shows it, and requires you to confirm it. `POST /push/ssh` returns 400 unless `host_key` (alias `host_key_fingerprint`) is supplied, and the connection is refused if the server presents another key. Compare the fingerprint out of band (for example `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` on the target).
-
-Push install over WinRM with plain HTTP (port 5985) or with certificate verification disabled exposes the administrator password to anyone on the network path. The API rejects such requests unless `allow_insecure` is `true`, and the UI shows a warning and asks for explicit acceptance. Use HTTPS with a trusted certificate where possible.
-
 ## Public surface
 
-Unauthenticated endpoints: `/healthz`, `/api/v1/public/info`, `/api/v1/public/status/{slug}` (public pages, or token-protected ones), the installer scripts under `/install/`, agent binaries under `/download/agent/`, and the login/setup endpoints. `/metrics` is **open by default**; turn on **Settings, Security, "Require an API key for /metrics"** (`metrics_auth`) to require an API key with `read` scope. Setup is protected by the one-time setup token until the first administrator exists.
+Unauthenticated endpoints: `/healthz`, `/api/v1/public/info`, `/api/v1/public/status/{slug}` (public pages, or token-protected ones), the installer scripts under `/install/`, agent binaries and packages under `/download/agent/` (packages only from a fixed manifest), and the login/setup endpoints. `/metrics` is **open by default**; turn on **Settings, Security, "Require an API key for /metrics"** (`metrics_auth`) to require an API key with `read` scope. Setup is protected by the one-time setup token until the first administrator exists.
 
 ## Hardening checklist
 

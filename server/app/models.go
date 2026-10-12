@@ -540,20 +540,6 @@ type IPBlock struct {
 	CreatedAt int64  `db:"created_at" json:"created_at"`
 }
 
-type PushInstall struct {
-	ID         int64  `db:"id" json:"id"`
-	TenantID   int64  `db:"tenant_id" json:"tenant_id"`
-	Method     string `db:"method" json:"method"`
-	Target     string `db:"target" json:"target"`
-	Username   string `db:"username" json:"username"`
-	Status     string `db:"status" json:"status"`
-	Log        string `db:"log" json:"log"`
-	HostID     *int64 `db:"host_id" json:"host_id"`
-	CreatedBy  string `db:"created_by" json:"created_by"`
-	CreatedAt  int64  `db:"created_at" json:"created_at"`
-	FinishedAt int64  `db:"finished_at" json:"finished_at"`
-}
-
 type LLDPNeighbor struct {
 	TenantID       int64  `db:"tenant_id" json:"-"`
 	HostID         int64  `db:"host_id" json:"host_id"`

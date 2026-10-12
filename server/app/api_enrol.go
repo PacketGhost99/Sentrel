@@ -3,15 +3,12 @@ package app
 import (
 	"context"
 	"fmt"
-	"io"
 	"strings"
-	"sync"
 	"time"
 
-	"sentrel/deploy"
 	"sentrel/server/agentdist"
+	"sentrel/internal/version"
 	"sentrel/server/db"
-	"sentrel/server/pushinstall"
 )
 
 type tokenReq struct {
@@ -28,6 +25,8 @@ type tokenResp struct {
 	ExpiresAt     int64             `json:"expires_at"`
 	ServerURL     string            `json:"server_url"`
 	CAFingerprint string            `json:"ca_fingerprint,omitempty"`
+	SPKISHA256    string            `json:"spki_sha256,omitempty"`
+	TLSMode       string            `json:"tls_mode"`
 	Commands      map[string]string `json:"commands"`
 }
 
@@ -50,29 +49,43 @@ func (a *App) createToken(ctx context.Context, p *Principal, tenant int64, group
 	return &et, tok, err
 }
 
-// installCommands builds copy-paste install commands for a token.
-func (a *App) installCommands(serverURL, token string) (map[string]string, string) {
+// psPinCallback is the PowerShell validation callback that accepts only a server
+// certificate whose SubjectPublicKeyInfo hashes to $p (base64 SHA-256). The
+// self-signed server certificate is ECDSA P-256, so the SPKI is the fixed
+// algorithm header followed by the raw public key point.
+const psPinCallback = `[Net.ServicePointManager]::ServerCertificateValidationCallback={param($s,$c,$ch,$e) [Convert]::ToBase64String([Security.Cryptography.SHA256]::Create().ComputeHash([byte[]](0x30,0x59,0x30,0x13,0x06,0x07,0x2a,0x86,0x48,0xce,0x3d,0x02,0x01,0x06,0x08,0x2a,0x86,0x48,0xce,0x3d,0x03,0x01,0x07,0x03,0x42,0x00)+$c.GetPublicKey())) -eq $p}`
+
+// installCommands builds copy-paste install commands for a token. In
+// self-signed mode the one-liners fetch the installer with the server
+// certificate pinned (curl --pinnedpubkey; a PowerShell validation callback)
+// and pass the same pin on so the installer's own downloads are pinned too.
+func (a *App) installCommands(serverURL, token string) (cmds map[string]string, caFingerprint, spki string) {
 	selfSigned := strings.HasPrefix(serverURL, "https://") && a.srv.Mode() == "selfsigned"
-	fp := ""
 	if selfSigned {
-		fp = a.ca.Fingerprint()
+		caFingerprint = a.ca.Fingerprint()
+		spki = a.ca.ServerSPKI()
 	}
-	k, shExtra, psExtra, psPre := "", "", "", ""
+	curl := "curl -fsSL"
+	shExtra, psExtra, psPre := "", "", ""
 	if selfSigned {
-		k = "k"
-		shExtra = fmt.Sprintf(" --ca-fingerprint %s --insecure-download", fp)
-		psExtra = fmt.Sprintf(" -CaFingerprint %s -InsecureDownload", fp)
-		psPre = "[Net.ServicePointManager]::ServerCertificateValidationCallback={$true}; "
+		shExtra = " --ca-fingerprint " + caFingerprint
+		psExtra = " -CaFingerprint " + caFingerprint
+		if spki != "" {
+			curl += fmt.Sprintf(` -k --pinnedpubkey "sha256//%s"`, spki)
+			shExtra += " --pin-sha256 " + spki
+			psExtra += " -PinSha256 " + spki
+			psPre = fmt.Sprintf("$p='%s'; %s; ", spki, psPinCallback)
+		}
 	}
-	cmds := map[string]string{
-		"linux":   fmt.Sprintf("curl -fsSL%s %s/install/agent.sh | sudo sh -s -- --server %s --token %s%s", k, serverURL, serverURL, token, shExtra),
+	cmds = map[string]string{
+		"linux":   fmt.Sprintf("%s %s/install/agent.sh | sudo sh -s -- --server %s --token %s%s", curl, serverURL, serverURL, token, shExtra),
 		"windows": fmt.Sprintf("%s[Net.ServicePointManager]::SecurityProtocol='Tls12'; & ([scriptblock]::Create((irm %s/install/agent.ps1))) -Server %s -Token %s%s", psPre, serverURL, serverURL, token, psExtra),
-		"manual":  fmt.Sprintf("sentrel-agent register %s %s", serverURL, token),
+		"manual":  fmt.Sprintf("sentrel-agent register --server %s --token %s", serverURL, token),
 	}
-	if fp != "" {
-		cmds["manual"] += " --ca-fingerprint " + fp
+	if caFingerprint != "" {
+		cmds["manual"] += " --ca-fingerprint " + caFingerprint
 	}
-	return cmds, fp
+	return cmds, caFingerprint, spki
 }
 
 func (a *App) apiCreateToken(c *Ctx) (any, error) {
@@ -94,9 +107,9 @@ func (a *App) apiCreateToken(c *Ctx) (any, error) {
 		return nil, err
 	}
 	url := a.publicURL(c.R)
-	cmds, fp := a.installCommands(url, tok)
+	cmds, fp, spki := a.installCommands(url, tok)
 	c.auditT(tenant, "enrollment_token.created", "token", itoa(et.ID), map[string]any{"ttl_minutes": int(ttl.Minutes()), "host_name": req.HostName})
-	return tokenResp{ID: et.ID, Token: tok, ExpiresAt: et.ExpiresAt, ServerURL: url, CAFingerprint: fp, Commands: cmds}, nil
+	return tokenResp{ID: et.ID, Token: tok, ExpiresAt: et.ExpiresAt, ServerURL: url, CAFingerprint: fp, SPKISHA256: spki, TLSMode: a.srv.Mode(), Commands: cmds}, nil
 }
 
 func (a *App) apiListTokens(c *Ctx) (any, error) {
@@ -119,220 +132,6 @@ func (a *App) apiDeleteToken(c *Ctx) (any, error) {
 	return nil, nil
 }
 
-// --- push install ---
-
-type pushCommon struct {
-	TenantID int64    `json:"tenant_id"`
-	GroupID  *int64   `json:"group_id"`
-	Tags     []string `json:"tags"`
-	Name     string   `json:"name"`
-}
-
-type pushSSHReq struct {
-	pushCommon
-	Host          string `json:"host"`
-	Port          int    `json:"port"`
-	Username      string `json:"username"`
-	Password      string `json:"password"`
-	PrivateKey    string `json:"private_key"`
-	KeyPassphrase string `json:"key_passphrase"`
-	SudoPassword  string `json:"sudo_password"`
-	HostKey       string `json:"host_key_fingerprint"`
-	HostKeyAlias  string `json:"host_key"` // accepted as an alias of host_key_fingerprint
-}
-
-type pushWinRMReq struct {
-	pushCommon
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	HTTPS    bool   `json:"https"`
-	Insecure bool   `json:"insecure"`
-	Username string `json:"username"`
-	Password string `json:"password"`
-	NTLM     bool   `json:"ntlm"`
-	// AllowInsecure must be true to use plain HTTP or skip certificate verification.
-	AllowInsecure bool `json:"allow_insecure"`
-}
-
-type pushService struct {
-	app *App
-	mu  sync.Mutex
-}
-
-func newPushService(a *App) *pushService { return &pushService{app: a} }
-
-func (s *pushService) start(c *Ctx, method, target, user string, pc pushCommon, run func(ctx context.Context, token, serverURL string, log pushinstall.Logger) error) (*PushInstall, error) {
-	a := s.app
-	tenant, err := c.tenantFor(pc.TenantID)
-	if err != nil {
-		return nil, err
-	}
-	if a.settings.General().ServerURL == "" {
-		return nil, badRequest("set the server URL in Settings → General first; remote hosts need it to reach this server")
-	}
-	et, tok, err := a.createToken(c.ctx(), c.P, tenant, pc.GroupID, pc.Tags, pc.Name, 30*time.Minute)
-	if err != nil {
-		return nil, err
-	}
-	now := db.Now()
-	res, err := a.db.ExecContext(c.ctx(), `INSERT INTO push_installs (tenant_id, method, target, username, status, created_by, created_at) VALUES (?,?,?,?,?,?,?)`,
-		tenant, method, target, user, "running", c.P.Name, now)
-	if err != nil {
-		return nil, err
-	}
-	id, _ := res.LastInsertId()
-	c.auditT(tenant, "push_install.started", "push_install", itoa(id), map[string]any{"method": method, "target": target, "username": user})
-	serverURL := strings.TrimRight(a.settings.General().ServerURL, "/")
-	go func() {
-		ctx, cancel := context.WithTimeout(a.ctx, 15*time.Minute)
-		defer cancel()
-		var mu sync.Mutex
-		var lines []string
-		logf := func(l string) {
-			mu.Lock()
-			lines = append(lines, time.Now().UTC().Format("15:04:05")+" "+l)
-			text := strings.Join(lines, "\n")
-			mu.Unlock()
-			_, _ = a.db.Exec(`UPDATE push_installs SET log=? WHERE id=?`, truncateStr(text, 256*1024), id)
-			a.events.publish(Event{Type: "push.updated", TenantID: tenant, ID: itoa(id)})
-		}
-		err := run(ctx, tok, serverURL, logf)
-		status := "succeeded"
-		var hostID *int64
-		if err != nil {
-			status = "failed"
-			logf("ERROR: " + err.Error())
-		} else {
-			// Wait for the agent to register with the token.
-			logf("waiting for the agent to register")
-			deadline := time.Now().Add(2 * time.Minute)
-			for time.Now().Before(deadline) {
-				var used EnrollmentToken
-				if a.db.Get(&used, `SELECT * FROM enrollment_tokens WHERE id=?`, et.ID) == nil && used.UsedByHost != nil {
-					hostID = used.UsedByHost
-					break
-				}
-				time.Sleep(2 * time.Second)
-			}
-			if hostID == nil {
-				status = "failed"
-				logf("installer finished but the agent did not register; check that the host can reach " + serverURL)
-			} else {
-				logf(fmt.Sprintf("agent registered as host #%d", *hostID))
-			}
-		}
-		_, _ = a.db.Exec(`UPDATE push_installs SET status=?, host_id=?, finished_at=? WHERE id=?`, status, hostID, db.Now(), id)
-		a.audit(context.Background(), auditEntry{TenantID: tenant, Actor: c.P.Name, Action: "push_install." + status, TargetType: "push_install", TargetID: itoa(id)})
-		a.events.publish(Event{Type: "push.updated", TenantID: tenant, ID: itoa(id)})
-	}()
-	var pi PushInstall
-	err = a.db.GetContext(c.ctx(), &pi, `SELECT * FROM push_installs WHERE id=?`, id)
-	return &pi, err
-}
-
-func (a *App) apiPushSSH(c *Ctx) (any, error) {
-	var req pushSSHReq
-	if err := c.Decode(&req); err != nil {
-		return nil, err
-	}
-	if req.Host == "" || req.Username == "" {
-		return nil, badRequest("host and username are required")
-	}
-	if req.HostKey == "" {
-		req.HostKey = req.HostKeyAlias
-	}
-	if strings.TrimSpace(req.HostKey) == "" {
-		return nil, badRequest("host_key is required: fetch the host key fingerprint with POST /push/ssh/fingerprint, confirm it, then send it as host_key")
-	}
-	return a.push.start(c, "ssh", req.Host, req.Username, req.pushCommon, func(ctx context.Context, token, serverURL string, log pushinstall.Logger) error {
-		args := []string{"--server", serverURL, "--token", token}
-		cmds, fp := a.installCommands(serverURL, token)
-		_ = cmds
-		if fp != "" {
-			args = append(args, "--ca-fingerprint", fp)
-		}
-		if req.Name != "" {
-			args = append(args, "--name", req.Name)
-		}
-		bin := func(goos, goarch string) (io.ReadCloser, int64, error) {
-			b, err := a.agentBinary(goos, goarch)
-			if err != nil {
-				return nil, 0, err
-			}
-			rc, err := b.Open()
-			return rc, b.Size, err
-		}
-		_, err := pushinstall.SSHInstall(ctx, pushinstall.SSHRequest{Host: req.Host, Port: req.Port, Username: req.Username, Password: req.Password,
-			PrivateKey: req.PrivateKey, KeyPassphrase: req.KeyPassphrase, SudoPassword: req.SudoPassword, HostKey: req.HostKey},
-			deploy.AgentShell, bin, args, log)
-		return err
-	})
-}
-
-type pushFingerprintReq struct {
-	Host string `json:"host"`
-	Port int    `json:"port"`
-}
-
-// apiPushSSHFingerprint returns the SSH host key fingerprint without authenticating.
-func (a *App) apiPushSSHFingerprint(c *Ctx) (any, error) {
-	var req pushFingerprintReq
-	if err := c.Decode(&req); err != nil {
-		return nil, err
-	}
-	req.Host = strings.TrimSpace(req.Host)
-	if req.Host == "" {
-		return nil, badRequest("host is required")
-	}
-	if req.Port < 0 || req.Port > 65535 {
-		return nil, badRequest("invalid port")
-	}
-	ctx, cancel := context.WithTimeout(c.ctx(), 25*time.Second)
-	defer cancel()
-	fp, kt, err := pushinstall.SSHFingerprint(ctx, req.Host, req.Port)
-	if err != nil {
-		return nil, badRequest("%v", err)
-	}
-	return map[string]any{"host": req.Host, "port": req.Port, "fingerprint": fp, "key_type": kt}, nil
-}
-
-func (a *App) apiPushWinRM(c *Ctx) (any, error) {
-	var req pushWinRMReq
-	if err := c.Decode(&req); err != nil {
-		return nil, err
-	}
-	if req.Host == "" || req.Username == "" || req.Password == "" {
-		return nil, badRequest("host, username and password are required")
-	}
-	if (!req.HTTPS || req.Insecure) && !req.AllowInsecure {
-		return nil, badRequest("WinRM over plain HTTP or with certificate checks disabled exposes the password to anyone on the network path; use https with a trusted certificate or set allow_insecure to true to accept the risk")
-	}
-	return a.push.start(c, "winrm", req.Host, req.Username, req.pushCommon, func(ctx context.Context, token, serverURL string, log pushinstall.Logger) error {
-		cmds, _ := a.installCommands(serverURL, token)
-		script := "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; " + cmds["windows"]
-		if req.Name != "" {
-			script += " -Name '" + strings.ReplaceAll(req.Name, "'", "''") + "'"
-		}
-		return pushinstall.WinRMInstall(ctx, pushinstall.WinRMRequest{Host: req.Host, Port: req.Port, HTTPS: req.HTTPS, Insecure: req.Insecure,
-			Username: req.Username, Password: req.Password, UseNTLM: req.NTLM}, script, log)
-	})
-}
-
-func (a *App) apiListPush(c *Ctx) (any, error) {
-	tw, args := c.tenantWhere("tenant_id")
-	out := []PushInstall{}
-	err := a.db.SelectContext(c.ctx(), &out, `SELECT id, tenant_id, method, target, username, status, '' AS log, host_id, created_by, created_at, finished_at
-		FROM push_installs WHERE `+tw+` ORDER BY id DESC LIMIT 100`, args...)
-	return out, err
-}
-
-func (a *App) apiGetPush(c *Ctx) (any, error) {
-	var pi PushInstall
-	if err := a.db.GetContext(c.ctx(), &pi, `SELECT * FROM push_installs WHERE id=?`, c.ID()); err != nil || !c.P.CanTenant(pi.TenantID) {
-		return nil, errNotFound
-	}
-	return pi, nil
-}
 
 func (a *App) apiAgentBinaries(c *Ctx) (any, error) {
 	out := agentdist.List(a.cfg.AgentBinDir)
@@ -445,4 +244,53 @@ func (a *App) apiListTags(c *Ctx) (any, error) {
 	}
 	sortBy(out, func(x tc) string { return strings.ToLower(x.Tag) })
 	return out, nil
+}
+
+// --- install hub ---
+
+type installPackage struct {
+	OS     string `json:"os"`
+	Arch   string `json:"arch"`
+	Format string `json:"format"`
+	File   string `json:"file"`
+	Size   int64  `json:"size"`
+	SHA256 string `json:"sha256"`
+	URL    string `json:"url"`
+}
+
+type installInfo struct {
+	Version       string           `json:"version"`
+	ServerURL     string           `json:"server_url"`
+	ServerURLSet  bool             `json:"server_url_set"`
+	TLSMode       string           `json:"tls_mode"`
+	CAFingerprint string           `json:"ca_fingerprint"`
+	SPKISHA256    string           `json:"spki_sha256"`
+	Packages      []installPackage `json:"packages"`
+}
+
+// apiInstallInfo describes how to install an agent from this server: the
+// public URL, how the TLS certificate can be verified, and the packages the
+// server can hand out.
+func (a *App) apiInstallInfo(c *Ctx) (any, error) {
+	url := a.publicURL(c.R)
+	mode := a.srv.Mode()
+	info := installInfo{
+		Version:      version.Version,
+		ServerURL:    url,
+		ServerURLSet: strings.TrimSpace(a.settings.General().ServerURL) != "",
+		TLSMode:      mode,
+		Packages:     []installPackage{},
+	}
+	if v := agentdist.Version(a.cfg.AgentBinDir); v != "unknown" {
+		info.Version = v
+	}
+	if mode == "selfsigned" {
+		info.CAFingerprint = a.ca.Fingerprint()
+		info.SPKISHA256 = a.ca.ServerSPKI()
+	}
+	for _, p := range agentdist.Packages(a.cfg.AgentBinDir) {
+		info.Packages = append(info.Packages, installPackage{OS: p.OS, Arch: p.Arch, Format: p.Format, File: p.File,
+			Size: p.Size, SHA256: p.SHA256, URL: url + "/download/agent/pkg/" + p.File})
+	}
+	return info, nil
 }

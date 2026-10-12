@@ -4,8 +4,10 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/base64"
 	"encoding/pem"
 	"testing"
 
@@ -77,5 +79,23 @@ func TestServerCertificateSANs(t *testing.T) {
 	c2, _ := ca.ServerCertificate([]string{"mon.example.com", "localhost", "10.0.0.5"})
 	if c2 != c {
 		t.Error("certificate regenerated for the same names")
+	}
+}
+
+func TestServerSPKI(t *testing.T) {
+	ca, err := Load(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ca.ServerSPKI() != "" {
+		t.Fatal("SPKI before a server certificate exists")
+	}
+	c, err := ca.ServerCertificate([]string{"localhost"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := sha256.Sum256(c.Leaf.RawSubjectPublicKeyInfo)
+	if got, want := ca.ServerSPKI(), base64.StdEncoding.EncodeToString(s[:]); got != want {
+		t.Fatalf("SPKI %s, want %s", got, want)
 	}
 }

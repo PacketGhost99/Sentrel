@@ -14,7 +14,8 @@
 .PARAMETER WriteJobs     Who may authorise jobs that change this host: server (default), operator or none.
 .PARAMETER ReadOnly      Shorthand for -WriteJobs none.
 .PARAMETER OperatorKey   Operator public key(s) (from "sentrel-sign keygen-operator") for -WriteJobs operator.
-.PARAMETER InsecureDownload Skip TLS validation for the binary download only.
+.PARAMETER PinSha256     Self-signed TLS mode: accept only a server certificate whose public key (SPKI) hashes to this base64 SHA-256.
+.PARAMETER InsecureDownload Deprecated, not generated any more: skip TLS validation for the binary download only.
 .PARAMETER Uninstall     Remove the agent.
 #>
 param(
@@ -26,6 +27,7 @@ param(
   [ValidateSet("", "server", "operator", "none")][string]$WriteJobs = "",
   [switch]$ReadOnly,
   [string[]]$OperatorKey = @(),
+  [string]$PinSha256 = "",
   [switch]$InsecureDownload,
   [switch]$Uninstall
 )
@@ -74,7 +76,32 @@ if ($BinaryPath) {
   $url = "$Server/download/agent/windows/amd64"
   Say "downloading agent from $url"
   $tmp = "$Exe.download"
-  if ($InsecureDownload) {
+  if ($PinSha256) {
+    # Verify the server certificate by the hash of its public key (SPKI),
+    # not by a CA. The callback is restored afterwards.
+    $pin = $PinSha256
+    $check = {
+      param($s, $c, $ch, $e)
+      $spki = [byte[]](0x30,0x59,0x30,0x13,0x06,0x07,0x2a,0x86,0x48,0xce,0x3d,0x02,0x01,0x06,0x08,0x2a,0x86,0x48,0xce,0x3d,0x03,0x01,0x07,0x03,0x42,0x00) + $c.GetPublicKey()
+      [Convert]::ToBase64String([Security.Cryptography.SHA256]::Create().ComputeHash($spki)) -eq $pin
+    }
+    if ($PSVersionTable.PSVersion.Major -ge 6) {
+      $handler = New-Object System.Net.Http.HttpClientHandler
+      $handler.ServerCertificateCustomValidationCallback = [System.Func[System.Net.Http.HttpRequestMessage, System.Security.Cryptography.X509Certificates.X509Certificate2, System.Security.Cryptography.X509Certificates.X509Chain, System.Net.Security.SslPolicyErrors, bool]]{
+        param($m, $c, $ch, $e) & $check $null $c $ch $e
+      }
+      $client = New-Object System.Net.Http.HttpClient($handler)
+      try {
+        $bytes = $client.GetByteArrayAsync($url).GetAwaiter().GetResult()
+        [IO.File]::WriteAllBytes($tmp, $bytes)
+      } finally { $client.Dispose() }
+    } else {
+      $prev = [Net.ServicePointManager]::ServerCertificateValidationCallback
+      [Net.ServicePointManager]::ServerCertificateValidationCallback = $check
+      try { (New-Object Net.WebClient).DownloadFile($url, $tmp) }
+      finally { [Net.ServicePointManager]::ServerCertificateValidationCallback = $prev }
+    }
+  } elseif ($InsecureDownload) {
     if ($PSVersionTable.PSVersion.Major -ge 6) {
       Invoke-WebRequest -Uri $url -OutFile $tmp -SkipCertificateCheck -UseBasicParsing
     } else {

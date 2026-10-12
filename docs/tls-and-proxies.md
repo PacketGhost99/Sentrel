@@ -23,7 +23,7 @@ Plain HTTP, with HTTP/2 cleartext (h2c) so gRPC works. Use it on a trusted netwo
 
 The internal CA signs a server certificate (ECDSA P-256, 397 days, regenerated when the names change or less than 30 days remain). Names included: `hostname`, `extra_names`, the listen host if it is specific, `localhost`, `127.0.0.1` and the machine's non-loopback IP addresses.
 
-- Agents do not trust this CA through the system store. The install commands shown in **Add host** therefore include `--ca-fingerprint sha256:...` (and `--insecure-download` for fetching the binary); the agent pins that fingerprint during registration, then trusts the CA it receives. The fingerprint is also under **Settings** (`ca_fingerprint`).
+- Agents do not trust this CA through the system store. The install commands on the **Agents** page therefore pin the server: the installer is fetched with `curl -k --pinnedpubkey "sha256//<spki>"` (a PowerShell certificate callback on Windows) and passed `--pin-sha256 <spki>`, so the binary download is pinned too, and `--ca-fingerprint sha256:...` pins the CA during registration, after which the agent trusts the CA it receives. `<spki>` is the base64 SHA-256 of the server certificate's public key (SubjectPublicKeyInfo); `GET /api/v1/agents/install-info` returns it as `spki_sha256`, and it changes when the server certificate is regenerated. Pinning needs `curl` (wget cannot pin a key); `--insecure-download` is deprecated and no longer generated. The CA fingerprint is also under **Settings** (`ca_fingerprint`).
 - Browsers will warn unless you import `pki/ca.crt` as a trusted root.
 - When the server terminates TLS itself, agents present their client certificate and are authenticated by mTLS.
 

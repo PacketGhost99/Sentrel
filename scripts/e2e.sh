@@ -191,6 +191,33 @@ rm -f /tmp/e2e-backup.tgz
 AUD=$(api GET "/audit?q=job.created&limit=5")
 expect "jobs are audited" 'length > 0' "$AUD"
 
+step "agent install hub (packages) and removed push install"
+II=$(api GET /agents/install-info)
+expect "install-info lists server url, tls mode and version" '.server_url != null and .tls_mode != null and (.version | length) > 0' "$II"
+expect "install-info spki only in selfsigned mode" '(.tls_mode == "selfsigned") == ((.spki_sha256 | length) > 0)' "$II"
+NPK=$(echo "$II" | jq '.packages | length')
+if [ "$NPK" -gt 0 ]; then
+  ok "install-info lists $NPK packages"
+  while IFS=$'\t' read -r PF PSZ PSHA PURL; do
+    PTMP=$(mktemp)
+    curl -s -o "$PTMP" -D "$PTMP.h" "$URL/download/agent/pkg/$PF"
+    GOT_SZ=$(stat -c %s "$PTMP"); GOT_SHA=$(sha256sum "$PTMP" | cut -d' ' -f1)
+    [ "$GOT_SZ" = "$PSZ" ] && [ "$GOT_SHA" = "$PSHA" ] && grep -qi '^content-disposition: attachment' "$PTMP.h" \
+      && ok "package $PF: size and sha256 match the manifest" || bad "package $PF: size $GOT_SZ/$PSZ sha256 $GOT_SHA/$PSHA"
+    rm -f "$PTMP" "$PTMP.h"
+  done < <(echo "$II" | jq -r '.packages[] | [.file, .size, .sha256, .url] | @tsv')
+  expect "install-info covers deb, rpm and msi" '([.packages[].format] | unique) as $f | ($f | index("deb")) != null and ($f | index("rpm")) != null and ($f | index("msi")) != null' "$II"
+else
+  ok "no packages embedded in this build (nfpm/wixl missing); skipped downloads"
+fi
+CODE=$(curl -s -o /dev/null -w '%{http_code}' "$URL/download/agent/pkg/not-in-the-manifest.deb")
+[ "$CODE" = 404 ] && ok "unknown package file is 404" || bad "unknown package file returned $CODE"
+for pp in "GET /push" "POST /push/ssh" "POST /push/winrm" "POST /push/ssh/fingerprint"; do
+  set -- $pp
+  CODE=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" -X "$1" -H "Content-Type: application/json" -H "X-CSRF-Token: $CSRF" "$URL/api/v1$2" -d '{}')
+  [ "$CODE" = 404 ] && ok "$1 $2 is gone (404)" || bad "$1 $2 returned $CODE"
+done
+
 step "cleanup"
 for c in $C_PING $C_TCP_UP $C_TCP_DOWN $C_HTTP $C_CERT $C_DNS $C_SVC $C_PORT $C_PROC $C_CONT $C_MISSING $C_FLIP; do api DELETE "/checks/$c" >/dev/null; done
 api DELETE "/notification-channels/$CH" >/dev/null

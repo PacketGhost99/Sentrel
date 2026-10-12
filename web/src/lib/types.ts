@@ -538,9 +538,36 @@ export interface CleanupTask {
   description: string
 }
 
-export interface PushFingerprint {
-  host: string
-  port: number
-  fingerprint: string // SHA256:...
-  key_type: string
+
+export interface InstallPackage {
+  os: 'linux' | 'windows'
+  arch: 'amd64' | 'arm64'
+  format: 'deb' | 'rpm' | 'msi' | 'binary'
+  file: string
+  size: number
+  sha256: string
+  url: string
+}
+
+/** GET /agents/install-info: how to install an agent from this server. */
+export interface InstallInfo {
+  version: string
+  server_url: string
+  server_url_set: boolean
+  tls_mode: 'http' | 'selfsigned' | 'acme'
+  ca_fingerprint: string
+  /** Base64 SHA-256 of the server certificate's SPKI (self-signed mode only). */
+  spki_sha256: string
+  packages: InstallPackage[]
+}
+
+export interface EnrolmentToken {
+  id: number
+  token: string
+  expires_at: number
+  server_url: string
+  ca_fingerprint?: string
+  spki_sha256?: string
+  tls_mode: string
+  commands: Record<string, string>
 }

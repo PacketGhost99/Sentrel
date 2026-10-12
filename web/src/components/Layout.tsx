@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Activity, Bell, Boxes, Building2, CalendarClock, ChevronDown, ClipboardList, Cog, FileClock, Gauge, KeyRound, LayoutDashboard, LogOut,
-  Menu, Moon, PlayCircle, Radar, Search, Server, ShieldAlert, SlidersHorizontal, Sun, User as UserIcon, Users, Wrench, X, Globe, BookOpen,
+  HardDriveDownload, Menu, Moon, PlayCircle, Radar, Search, Server, ShieldAlert, SlidersHorizontal, Sun, User as UserIcon, Users, Wrench, X, Globe, BookOpen,
 } from 'lucide-react'
 import { useAuth, getThemePref, setThemePref, type ThemePref } from '@/lib/auth'
 import { get } from '@/lib/api'
@@ -59,6 +59,7 @@ export function Layout() {
     {
       title: 'Monitoring', items: [
         { to: '/hosts', label: 'Hosts', icon: <Server />, perm: 'read' },
+        { to: '/agents', label: 'Agents', icon: <HardDriveDownload />, perm: 'hosts' },
         { to: '/checks', label: 'Checks', icon: <Activity />, perm: 'read' },
         { to: '/alerts', label: 'Alerts', icon: <Bell />, perm: 'read', badge: firing },
         { to: '/maintenance', label: 'Maintenance', icon: <CalendarClock />, perm: 'read' },
@@ -237,7 +238,7 @@ function UserMenu({ name, onLogout }: { name: string; onLogout: () => void }) {
 }
 
 const pages = [
-  ['Dashboard', '/'], ['Hosts', '/hosts'], ['Add host', '/hosts/new'], ['Checks', '/checks'], ['Alerts', '/alerts'], ['Maintenance windows', '/maintenance'],
+  ['Dashboard', '/'], ['Hosts', '/hosts'], ['Add host', '/hosts/new'], ['Agents', '/agents'], ['Checks', '/checks'], ['Alerts', '/alerts'], ['Maintenance windows', '/maintenance'],
   ['Thresholds', '/thresholds'], ['Vulnerabilities', '/vulnerabilities'], ['Jobs', '/jobs'], ['Groups & tags', '/groups'], ['Notifications', '/notifications'],
   ['Status pages', '/status-pages'], ['Users', '/admin/users'], ['Tenants', '/admin/tenants'], ['API keys', '/admin/api-keys'], ['Audit log', '/admin/audit'],
   ['Settings', '/admin/settings'], ['Branding', '/admin/branding'], ['Profile & security', '/profile'], ['API reference', '/api-docs'],

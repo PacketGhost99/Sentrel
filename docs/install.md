@@ -1,6 +1,6 @@
 # Installing the server
 
-Sentrel runs on Linux. The release artifacts (built by `scripts/build.sh`) are `sentrel-server-linux-<arch>`, the `.deb`/`.rpm` packages, `install-server.sh`, `install-agent.sh`, `install-agent.ps1` and `SHA256SUMS`. The server binary embeds the web UI and the agent builds (Linux amd64/arm64, Windows amd64), so a single file is all you deploy.
+Sentrel runs on Linux. The release artifacts (built by `scripts/build.sh`) are `sentrel-server-linux-<arch>`, the `.deb`/`.rpm` packages, `install-server.sh`, `install-agent.sh`, `install-agent.ps1` and `SHA256SUMS`. The server binary embeds the web UI, the agent builds (Linux amd64/arm64, Windows amd64) and, when `nfpm` and `wixl` were available at build time, the agent `.deb`, `.rpm` and `.msi` packages, so a single file is all you deploy. The agent packages are offered for download on the **Agents** page; server packages are never embedded.
 
 ## Linux with systemd
 
@@ -57,7 +57,7 @@ sudo systemctl enable --now sentrel
 sudo cat /var/lib/sentrel/setup-token
 ```
 
-Agent package (`sentrel-agent`): installs `/usr/local/bin/sentrel-agent`, the `sentrel-agent` user (added to `adm` and `systemd-journal` when they exist), the sudoers rule that lets the agent run only `sentrel-agent priv *` as root, and the systemd unit. It does not register the host. Take a one-time token from "Add host" in the UI and run:
+Agent package (`sentrel-agent`): installs `/usr/local/bin/sentrel-agent`, the `sentrel-agent` user (added to `adm` and `systemd-journal` when they exist), the sudoers rule that lets the agent run only `sentrel-agent priv *` as root, and the systemd unit. It does not register the host. Take a one-time token from the **Agents** page in the UI (which also offers this package for download and generates the commands) and run:
 
 ```sh
 sudo sentrel-agent register --server https://SERVER --token ABCD-1234
@@ -66,7 +66,7 @@ sudo systemctl enable --now sentrel-agent
 
 Removing the package stops and disables the service. Config, state and the user are kept. Container monitoring needs the agent user in the `docker` group, which is root-equivalent: add it yourself (`sudo usermod -aG docker sentrel-agent`) if you want it.
 
-Build the packages yourself with `scripts/build.sh --packages` (needs Go; nfpm is fetched with `go run`). All product, binary and package names are variables at the top of that script.
+Build the packages yourself with `scripts/build.sh --packages` (needs Go; nfpm is fetched with `go run`). Without `--packages`, `scripts/build.sh` still builds and embeds the agent packages when `nfpm` (and `wixl` for the MSI) are on the PATH, and just lists fewer packages otherwise. All product, binary and package names are variables at the top of that script.
 
 ### APT and YUM repositories
 

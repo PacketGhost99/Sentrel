@@ -56,7 +56,6 @@ type App struct {
 	maint    *MaintenanceCache
 	latest   *latestCache
 	auth     *authService
-	push     *pushService
 	events   *eventBus
 
 	setupMu    sync.Mutex
@@ -104,7 +103,6 @@ func New(cfg Config) (*App, error) {
 	a.vuln = newVulnService(a)
 	a.snmp = newSNMPPoller(a)
 	a.auth = newAuthService(a)
-	a.push = newPushService(a)
 	if err := a.seed(a.ctx); err != nil {
 		return nil, fmt.Errorf("seed: %w", err)
 	}
@@ -134,7 +132,6 @@ func (a *App) Run(ctx context.Context) error {
 	a.maint.refresh(ctx)
 	// Nothing is connected at boot.
 	_, _ = a.db.ExecContext(ctx, `UPDATE hosts SET connected=0`)
-	_, _ = a.db.ExecContext(ctx, `UPDATE push_installs SET status='failed', log=log || char(10) || 'interrupted by a server restart', finished_at=? WHERE status='running'`, db.Now())
 	a.ensureSetupToken()
 
 	loops := []func(context.Context){

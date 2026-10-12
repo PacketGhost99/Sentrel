@@ -1,2 +1,4 @@
 sentrel-agent-*
 VERSION
+pkg/
+packages.json

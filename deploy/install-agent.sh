@@ -20,7 +20,11 @@
 #                           monitoring). Opt-in: docker group membership is
 #                           root-equivalent. Without it container monitoring
 #                           is unavailable.
-#   --insecure-download     skip TLS verification for the binary download
+#   --pin-sha256 B64        self-signed TLS mode: verify the server certificate by
+#                           the base64 SHA-256 of its public key (SPKI) instead of a
+#                           CA, for every download. Needs curl.
+#   --insecure-download     DEPRECATED, not generated any more: skip TLS verification
+#                           for the binary download
 #                           (the CA fingerprint is still pinned at registration)
 #   --uninstall             remove the agent
 set -eu
@@ -34,6 +38,7 @@ DOCKER=0
 WRITE_JOBS=""
 OPKEYS=""
 INSECURE=""
+PIN=""
 UNINSTALL=0
 
 while [ $# -gt 0 ]; do
@@ -47,6 +52,7 @@ while [ $# -gt 0 ]; do
     --read-only) WRITE_JOBS="none"; shift ;;
     --operator-key) OPKEYS="$OPKEYS $2"; shift 2 ;;
     --docker) DOCKER=1; shift ;;
+    --pin-sha256) PIN="$2"; shift 2 ;;
     --insecure-download) INSECURE=1; shift ;;
     --uninstall) UNINSTALL=1; shift ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
@@ -100,7 +106,10 @@ trap 'rm -rf "$TMP"' EXIT
 if [ -z "$BINARY" ]; then
   URL="$SERVER/download/agent/linux/$ARCH"
   say "downloading agent from $URL"
-  if command -v curl >/dev/null 2>&1; then
+  if [ -n "$PIN" ]; then
+    command -v curl >/dev/null 2>&1 || die "--pin-sha256 needs curl (wget cannot pin a public key)"
+    curl -fsSL -k --pinnedpubkey "sha256//$PIN" -o "$TMP/sentrel-agent" "$URL" || die "download failed (certificate pin mismatch or server unreachable)"
+  elif command -v curl >/dev/null 2>&1; then
     curl -fsSL ${INSECURE:+-k} -o "$TMP/sentrel-agent" "$URL" || die "download failed"
   elif command -v wget >/dev/null 2>&1; then
     wget -q ${INSECURE:+--no-check-certificate} -O "$TMP/sentrel-agent" "$URL" || die "download failed"

@@ -166,3 +166,29 @@ func (a *App) handlePromMetrics(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(bw, "%s{%s} %v %d\n", name, strings.Join(parts, ","), v, ts)
 	})
 }
+
+// handleAgentPackage serves one agent package (deb, rpm, msi) from the
+// embedded manifest. Like the binary download it is public: the files are not
+// secret and enrolment still needs a token.
+func (a *App) handleAgentPackage(w http.ResponseWriter, r *http.Request) {
+	p, f, err := agentdist.OpenPackage(a.cfg.AgentBinDir, chi.URLParam(r, "file"))
+	if err != nil {
+		http.Error(w, "not found", 404)
+		return
+	}
+	defer f.Close()
+	ct := "application/octet-stream"
+	switch p.Format {
+	case "deb":
+		ct = "application/vnd.debian.binary-package"
+	case "rpm":
+		ct = "application/x-rpm"
+	case "msi":
+		ct = "application/x-msi"
+	}
+	w.Header().Set("Content-Type", ct)
+	w.Header().Set("Content-Disposition", `attachment; filename="`+p.File+`"`)
+	w.Header().Set("Content-Length", strconv.FormatInt(p.Size, 10))
+	w.Header().Set("X-Sentrel-SHA256", p.SHA256)
+	io.Copy(w, f)
+}

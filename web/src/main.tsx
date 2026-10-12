@@ -13,6 +13,7 @@ import { Dashboard } from './pages/Dashboard'
 import { Hosts } from './pages/Hosts'
 import { HostDetail } from './pages/HostDetail'
 import { AddHost } from './pages/AddHost'
+import { Agents } from './pages/Agents'
 import { Checks, CheckDetail } from './pages/Checks'
 import { Alerts, AlertDetail } from './pages/Alerts'
 import { Maintenance } from './pages/Maintenance'
@@ -58,6 +59,7 @@ function App() {
         <Route index element={<Dashboard />} />
         <Route path="hosts" element={<Hosts />} />
         <Route path="hosts/new" element={<AddHost />} />
+        <Route path="agents" element={<Agents />} />
         <Route path="hosts/:id" element={<HostDetail />} />
         <Route path="checks" element={<Checks />} />
         <Route path="checks/:id" element={<CheckDetail />} />

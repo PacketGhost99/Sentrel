@@ -4,7 +4,37 @@ The agent (`sentrel-agent`) is a single static binary for Linux (amd64, arm64) a
 
 ## Installing
 
-Create an enrolment token under **Add host**. It is one-time, valid 15 minutes by default (up to 7 days), and can pre-assign a group, tags and a display name. The UI shows ready-to-paste commands. Registration generates an ECDSA P-256 key on the host, sends a CSR plus the token, and receives a client certificate, the CA certificate and the server's job-verification public key.
+Open **Agents** in the sidebar (also reachable from **Add host**). The page walks through four steps:
+
+1. **Enrolment**: create a one-time token (valid 1 hour, 24 hours or 7 days) with an optional display name, group and tags, a write policy (Standard, Operator-signed with your operator public key, or Read-only) and, on Linux, whether to monitor Docker containers (root-equivalent, off by default).
+2. **Platform**: Ubuntu/Debian, RHEL/Rocky/Alma/Fedora, other Linux, or Windows, and x86-64 or ARM64.
+3. **Install**: a one-liner to paste, or the package from this server with its size, SHA-256 and the exact follow-up commands.
+4. **Waiting for the agent**: the page polls the host list and shows "Connected: host" when the agent appears.
+
+A banner shows how the connection is verified (public certificate, pinned self-signed certificate, or a warning for plain HTTP), and warns when the server's public URL is unset or points at localhost. The top of the page counts agents by version and write policy and lists outdated hosts with an **Update** action (it uses the same update job as the host page, so operator-signed hosts wait for your signature and read-only hosts must be reinstalled).
+
+Registration generates an ECDSA P-256 key on the host, sends a CSR plus the token, and receives a client certificate, the CA certificate and the server's job-verification public key.
+
+### Packages
+
+If the server was built with `nfpm` and `wixl` (see [development.md](development.md)), it embeds the agent packages and serves them without authentication from `/download/agent/pkg/<file>` (only files listed in the build manifest; anything else is 404). `GET /api/v1/agents/install-info` lists them with size, SHA-256 and URL, together with the server URL, TLS mode and, in self-signed mode, the CA fingerprint and the server certificate's pin. Server packages are not embedded.
+
+```sh
+# Debian / Ubuntu                                   # RHEL family
+sudo apt install ./sentrel-agent_X_amd64.deb        sudo dnf install ./sentrel-agent-X.x86_64.rpm
+sudo sentrel-agent register --server https://monitor.example.com --token ABCD-1234-EFGH
+sudo systemctl enable --now sentrel-agent
+```
+
+```powershell
+msiexec /i sentrel-agent-X-x64.msi SERVER=https://monitor.example.com TOKEN=ABCD-1234-EFGH /qn
+```
+
+Add `--ca-fingerprint FP` (`CAFINGERPRINT=FP` for the MSI) in self-signed mode, `--write-jobs operator --operator-key KEY` or `--write-jobs none` for a write policy (`WRITEJOBS=` and `OPERATORKEY=` for the MSI). A package-based Docker setup needs `sudo usermod -aG docker sentrel-agent` before starting the service.
+
+### Self-signed certificates: pinning
+
+In `selfsigned` TLS mode the generated commands never disable certificate checks. The installer is fetched with `curl -fsSL -k --pinnedpubkey "sha256//<spki>"`, where `<spki>` is the base64 SHA-256 of the server certificate's public key, and the same pin is passed on as `--pin-sha256` (`-PinSha256` on Windows) so the binary download is pinned too. `--ca-fingerprint` then pins the CA at registration. The pin changes when the server certificate is regenerated (name change, or less than 30 days left); copy a fresh command from the Agents page. `wget` cannot pin a key, so `--pin-sha256` requires `curl`. The `--insecure-download` / `-InsecureDownload` options remain for old scripts but are no longer generated.
 
 ### Linux
 
@@ -21,7 +51,8 @@ curl -fsSL https://monitor.example.com/install/agent.sh | sudo sh -s -- --server
 | `--name NAME` | display name |
 | `--binary PATH` | use a local binary instead of downloading from `<server>/download/agent/linux/<arch>` |
 | `--docker` | opt in: add the agent user to the `docker` group so containers can be monitored (root-equivalent, off by default) |
-| `--insecure-download` | skip TLS verification for the binary download only |
+| `--pin-sha256 B64` | self-signed mode: verify the server certificate by the base64 SHA-256 of its public key for every download (needs curl) |
+| `--insecure-download` | deprecated, no longer generated: skip TLS verification for the binary download only |
 | `--uninstall` | remove the agent |
 
 The installer: creates the system user `sentrel-agent` and adds it to the `adm`, `systemd-journal` and (only with `--docker`) `docker` groups; installs `/usr/local/bin/sentrel-agent`; writes `/etc/sentrel-agent/agent.yaml`, `/etc/sentrel-agent/job.pub` (root-owned) and state in `/var/lib/sentrel-agent` (`0700`); validates and installs the sudoers rule `/etc/sudoers.d/sentrel-agent` (validated before registering, so a failure does not burn the token); installs the unit `sentrel-agent.service` (`MemoryMax=192M`, `CPUQuota=25%`, `Nice=10`, `Restart=always`).
@@ -34,14 +65,13 @@ From an elevated PowerShell:
 & ([scriptblock]::Create((irm https://monitor.example.com/install/agent.ps1))) -Server https://monitor.example.com -Token ABCD-1234-EFGH
 ```
 
-Parameters: `-Server`, `-Token`, `-CaFingerprint`, `-BinaryPath`, `-Name`, `-WriteJobs`, `-ReadOnly`, `-OperatorKey`, `-InsecureDownload`, `-Uninstall`. The script installs to `C:\Program Files\Sentrel Agent\sentrel-agent.exe`, keeps config and keys in `C:\ProgramData\Sentrel Agent` (restricted to SYSTEM and Administrators), registers the `SentrelAgent` service (automatic delayed start, restart on failure) and starts it.
+Parameters: `-Server`, `-Token`, `-CaFingerprint`, `-BinaryPath`, `-Name`, `-WriteJobs`, `-ReadOnly`, `-OperatorKey`, `-PinSha256`, `-InsecureDownload` (deprecated), `-Uninstall`. The script installs to `C:\Program Files\Sentrel Agent\sentrel-agent.exe`, keeps config and keys in `C:\ProgramData\Sentrel Agent` (restricted to SYSTEM and Administrators), registers the `SentrelAgent` service (automatic delayed start, restart on failure) and starts it.
 
-For fleet deployment an MSI can be built (`msiexec /i sentrel-agent-<version>-x64.msi SERVER=https://monitor.example.com TOKEN=ABCD-1234-EFGH /qn`). `scripts/build.sh` builds it from `deploy/agent.wxs` when `wixl` (msitools) is installed; otherwise the release has no MSI. Optional properties: `CAFINGERPRINT`, `NAME`, `WRITEJOBS=server|operator|none` and `OPERATORKEY=<key>[,<key>...]`.
+For fleet deployment an MSI is built (`msiexec /i sentrel-agent-<version>-x64.msi SERVER=https://monitor.example.com TOKEN=ABCD-1234-EFGH /qn`). `scripts/build.sh` builds it from `deploy/agent.wxs` when `wixl` (msitools) is installed; otherwise the release has no MSI. Optional properties: `CAFINGERPRINT`, `NAME`, `WRITEJOBS=server|operator|none` and `OPERATORKEY=<key>[,<key>...]`.
 
-### Push install, manual install
+### Manual install
 
-- **Push install** (Add host): the server connects over SSH (Linux, key or password, a required, confirmed host-key fingerprint, sudo password) or WinRM (Windows Server), uploads the agent and runs the installer. The credentials are used for that session only; the server stores the target, user name and log, not the secrets.
-- **Manual**: `sentrel-agent register SERVER_URL TOKEN [--ca-fingerprint FP] [--name NAME] [--write-jobs server|operator|none] [--operator-key B64]... [--read-only] [--config FILE] [--state-dir DIR]`, then `sentrel-agent service install` and `service start` on Windows, or run `sentrel-agent run` under your own supervisor.
+Run `sentrel-agent register SERVER_URL TOKEN [--ca-fingerprint FP] [--name NAME] [--write-jobs server|operator|none] [--operator-key B64]... [--read-only] [--config FILE] [--state-dir DIR]`, then `sentrel-agent service install` and `service start` on Windows, or run `sentrel-agent run` under your own supervisor.
 
 ## Collected data
 

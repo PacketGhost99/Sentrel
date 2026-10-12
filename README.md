@@ -45,7 +45,6 @@ Sentrel is for homelabs, small businesses and MSPs who want agent-based monitori
 
 **Operations**
 - Agents connect outbound only. Self-update with signature check, self-test and automatic rollback.
-- Push install over SSH or WinRM.
 - Backup and restore from the CLI or the UI.
 
 ## Quick start
@@ -147,7 +146,7 @@ Sentrel has no telemetry, no analytics, no update check and no phone-home. I che
 - **Vulnerability database download**: only if CVE scanning is enabled (off by default). The embedded Grype library fetches its listing and database from Anchore's public host unless you set a mirror URL in Settings. Updates are checked daily. With scanning off, the database is never downloaded or opened.
 - **Agent to your server**: the agent connects to the server URL you registered it with and downloads updates from that same server. Nothing else.
 - **Notification channels you configure**: webhook, Slack, Teams, Discord, Gotify, ntfy, Telegram (`api.telegram.org`), Pushover (`api.pushover.net`) and SMTP. The ntfy channel defaults to `https://ntfy.sh` if you leave its server field empty. Nothing is sent unless you create a channel.
-- **Checks and targets you configure**: ping, TCP, HTTP, TLS certificate and DNS checks, SNMP polling, and push installs over SSH or WinRM go where you point them.
+- **Checks and targets you configure**: ping, TCP, HTTP, TLS certificate and DNS checksand SNMP polling go where you point them.
 - **Identity providers you configure**: OIDC issuer, LDAP, RADIUS.
 - **Let's Encrypt**: only if you choose the `acme` TLS mode.
 - **Package managers on monitored hosts**: when an inventory refresh or upgrade runs, `apt`, `dnf` and the like (or Windows Update) contact their usual repositories. That is the operating system's own traffic, not Sentrel's.

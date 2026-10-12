@@ -13,6 +13,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/pem"
 	"errors"
@@ -346,4 +347,17 @@ func normaliseNames(names []string) []string {
 	rest := out[1:]
 	sort.Strings(rest)
 	return append([]string{first}, rest...)
+}
+
+// ServerSPKI returns the base64 SHA-256 of the current server certificate's
+// SubjectPublicKeyInfo, the value curl expects in --pinnedpubkey "sha256//...".
+// It is empty until a server certificate has been issued (self-signed mode).
+func (ca *CA) ServerSPKI() string {
+	ca.mu.Lock()
+	defer ca.mu.Unlock()
+	if ca.serverCert == nil || ca.serverCert.Leaf == nil {
+		return ""
+	}
+	s := sha256.Sum256(ca.serverCert.Leaf.RawSubjectPublicKeyInfo)
+	return base64.StdEncoding.EncodeToString(s[:])
 }

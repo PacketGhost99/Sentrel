@@ -1,136 +1,174 @@
 # Sentrel
 
-Sentrel is a self-hosted infrastructure monitor. One Go server binary (with the React UI, a time-series store, a vulnerability matcher and an internal certificate authority built in) plus one small Go agent for Linux and Windows. SNMP devices and agentless targets are monitored from the server.
+A self-hosted monitoring server, agent and web UI: host metrics, uptime checks, SNMP, package updates, CVE matching and status pages in one small service.
 
-- Single static binaries, no external database: state lives in SQLite and an embedded Prometheus TSDB under one data directory.
-- One TCP port serves the web UI, the REST API, the agent gRPC stream, installers and `/metrics`.
-- Agents connect outbound only. Remote actions (upgrades, IP blocks, scripts) are off by default, signed by the server and verified by the agent.
-- Apache-2.0 licensed.
+Sentrel is for homelabs, small businesses and MSPs who want agent-based monitoring without assembling a metrics database, an exporter zoo, an uptime tool, a patch tracker and a dashboard layer. One Go server binary (UI, time-series store, vulnerability matcher and an internal certificate authority are built in), one small agent for Linux and Windows, and state in a single data directory. Multi-tenant isolation is built in, so an MSP can give each customer a view of only their own hosts. It is pre-1.0 software; see [Status](#status).
+
+## Screenshots
+
+Screenshots are coming soon.
+
+<!-- Uncomment once docs/screenshots/ exists:
+
+![Dashboard](docs/screenshots/dashboard-light.png)
+![Hosts](docs/screenshots/hosts-light.png)
+![Host detail](docs/screenshots/host-light.png)
+![Checks](docs/screenshots/checks-light.png)
+![Vulnerabilities](docs/screenshots/vulnerabilities-light.png)
+![Dashboard, dark theme](docs/screenshots/dashboard-dark.png)
+-->
 
 ## Features
 
 **Monitoring**
-- Agent metrics for Linux and Windows: CPU (incl. iowait/steal), memory, swap, load per core, disks and inodes (with a "disk full in N hours" forecast), disk and network throughput, network errors, temperatures, processes, services, listening ports, Docker containers, uptime.
-- Server-side checks: `ping`, `tcp`, `http` (status, keyword/regex, latency limit, basic auth, optional certificate expiry), `cert` (expiry with 30/14/7 day escalation), `dns` (A/AAAA/CNAME/MX/TXT/NS with expected value).
+- Agent metrics for Linux and Windows: CPU (including iowait and steal), memory, swap, load, disks and inodes with a "disk full in N hours" forecast, disk and network throughput, network errors, temperatures, processes, services, listening ports, Docker containers, uptime.
+- Server-side checks: `ping`, `tcp`, `http` (status, keyword or regex, latency limit, basic auth, optional certificate expiry), `cert` (expiry with 30/14/7 day escalation) and `dns`.
 - Agent-evaluated checks: `service`, `process`, `port`, `container`.
-- SNMP v2c and v3 devices with YAML device profiles (generic, net-snmp, Cisco, Fortinet, HP/Aruba, MikroTik, Ubiquiti built in), interface counters, LLDP neighbours, custom profiles and extra OIDs.
-- Agentless "target" hosts that are monitored only by checks.
-- Public or token-protected status pages; daily uptime history.
+- SNMP v2c and v3 devices with YAML device profiles (generic, net-snmp, Cisco, Fortinet, HP/Aruba, MikroTik, Ubiquiti built in), interface counters and LLDP neighbours.
+- Agentless "target" hosts monitored only by checks.
+- Public or token-protected status pages with daily uptime history.
 - Prometheus-format `/metrics` and a tenant-scoped PromQL query API.
 
 **Alerting**
-- Thresholds with warning/critical levels and "N consecutive samples" confirmation, inherited global to tenant to group to host, with per-instance overrides (for example one mount point).
-- Flap detection, grouped notifications, repeat reminders, acknowledgements, maintenance windows (one-off or recurring, with optional job scheduling).
-- Channels: generic webhook (Go template body), Discord, Slack, Microsoft Teams, Telegram, ntfy, Gotify, Pushover, email (SMTP).
+- Warning and critical thresholds with "N consecutive samples" confirmation, inherited global, tenant, group, host, with per-instance overrides.
+- Flap detection, grouped notifications, repeat reminders, acknowledgements, per-rule muting, maintenance windows.
+- Channels: webhook (Go template body), Discord, Slack, Microsoft Teams, Telegram, ntfy, Gotify, Pushover, email (SMTP).
 
-**Security**
+**Patching and CVEs**
 - Package inventory per host (apt, dnf/yum, zypper, pacman, apk; installed applications and pending updates on Windows).
-- Vulnerability matching of Linux package inventories with the embedded Grype engine, with severity, CVSS, EPSS, KEV, fix availability, ignore/reopen, schedules and alerts. Works air-gapped with a mirrored database.
-- SSH (Linux) and failed-logon (Windows) brute-force detection, fail2ban status, manual and automatic IP blocking (nftables, iptables or Windows Firewall).
-
-**Operations**
-- Remote package upgrades (with dry run), IP blocks, optional scripts and agent self-update, all as signed jobs that must be enabled per host.
-- Agent self-update with signature verification, self-test and automatic rollback.
-- Push install of agents over SSH or WinRM.
-- Backup and restore from the CLI or the UI.
+- Remote package upgrades with dry run, off unless enabled per host.
+- Optional CVE matching of Linux package inventories with an embedded [Grype](https://github.com/anchore/grype) engine: severity, CVSS, EPSS, CISA KEV, fix availability, ignore/reopen, schedules, alerts. Off by default (the database is about 3 GB). No CVE matching for Windows.
+- SSH and failed-logon brute-force detection, fail2ban status, manual and automatic IP blocking.
+- Disk usage analysis and opt-in disk cleanup.
 
 **Access and tenancy**
-- Roles (admin, operator, viewer, tenant admin, tenant viewer), multi-tenant isolation with per-tenant branding.
-- Local users, LDAP and RADIUS sign-in, TOTP and passkeys (WebAuthn), optional 2FA enforcement, lockout, audit log.
-- REST API with API keys, OpenAPI document at `/api/v1/openapi.json`.
+- Roles (admin, operator, viewer, tenant admin, tenant viewer); tenants are isolated and can have their own branding.
+- Local users (Argon2id), LDAP, RADIUS, OpenID Connect and forward-auth headers; TOTP and passkeys; optional 2FA enforcement; lockout; audit log.
+- REST API with scoped API keys and an OpenAPI document.
+
+**Operations**
+- Agents connect outbound only. Self-update with signature check, self-test and automatic rollback.
+- Push install over SSH or WinRM.
+- Backup and restore from the CLI or the UI.
 
 ## Quick start
 
-### 1. Install the server
+Full details, upgrades and release verification (SHA256SUMS, cosign, SBOMs) are in [docs/install.md](docs/install.md).
 
-**Linux with systemd** (installs to `/usr/local/bin`, data in `/var/lib/sentrel`, runs as the `sentrel` user):
+**Docker**
+
+```sh
+docker run -d --name sentrel --cap-add NET_RAW -p 8080:8080 -v sentrel-data:/data \
+  ghcr.io/notspark1999/sentrel:latest
+docker logs sentrel 2>&1 | grep -i "setup token"
+```
+
+**Packages** (`.deb` and `.rpm`, amd64 and arm64, from the GitHub release page)
+
+```sh
+sudo apt install ./sentrel-server_<version>_amd64.deb      # or: sudo dnf install ./sentrel-server-<version>-1.x86_64.rpm
+sudo systemctl enable --now sentrel
+sudo cat /var/lib/sentrel/setup-token
+```
+
+**Install script** (Linux with systemd; installs the binary, a `sentrel` user and a hardened unit)
 
 ```sh
 sudo sh install-server.sh --binary ./sentrel-server-linux-amd64
-# or: sudo sh install-server.sh --url https://example.com/sentrel-server-linux-amd64 --sha256 <hex>
 ```
 
-The script prints the URL and the one-time setup token when it finishes.
+Open `http://<server>:8080/`, enter the setup token, create the administrator and pick a TLS mode ([docs/tls-and-proxies.md](docs/tls-and-proxies.md)). Then use **Add host** for a one-time token and the install command for Linux or Windows ([docs/agents.md](docs/agents.md)). The server runs on Linux only; agents run on Linux (amd64, arm64) and Windows (amd64).
 
-**Docker Compose** (builds the image from this repository):
+## Security model
 
-```sh
-docker compose -f deploy/docker-compose.yml up -d --build
-docker compose -f deploy/docker-compose.yml logs sentrel | grep -i "setup token"
-```
+Details are in [docs/security.md](docs/security.md) and [docs/threat-model.md](docs/threat-model.md).
 
-### 2. First-run setup
+- The Linux agent runs as an unprivileged user. Root work goes through `sentrel-agent priv <verb>` via one sudo rule; each verb validates its arguments against allowlists and uses no shell.
+- Agents connect outbound with client certificates from the server's internal CA. Every job is signed by the server, expires, and is checked by the agent (target, expiry, replay).
+- Agent write policy is set only on the host, never by the server: `server` (default), `operator` (changes also need an offline Ed25519 signature that the server does not hold) or read-only. A fully compromised server cannot run scripts, upgrade packages or push binaries to `operator` or read-only agents.
+- Destructive actions (upgrades, IP blocks, scripts, disk cleanup) are off per host until enabled, and need an explicit confirmation.
+- Server-side checks and notifications from tenant-owned objects go through an SSRF guard that checks the address after DNS resolution and blocks private, loopback, link-local and metadata addresses.
+- Known limits: with the default `server` policy the server is fully trusted by its agents, the database is not encrypted, integration secrets (SMTP, LDAP, RADIUS, webhook tokens) are stored in clear text in it, and backups contain the CA and job keys. These are spelled out in the threat model.
 
-Open `http://<server>:8080/`. Enter the setup token (printed in the server log and stored in `<data dir>/setup-token`; it is deleted once setup completes), then create the administrator, choose the public URL and a TLS mode. See [docs/install.md](docs/install.md) and [docs/tls-and-proxies.md](docs/tls-and-proxies.md).
+## Resource usage
 
-### 3. Add agents
+Measured on a 2 vCPU, 3.8 GB VPS running the server and one agent plus two others (3 hosts), see [docs/operations.md](docs/operations.md#resource-usage) for the method and caveats. Your numbers will vary with host count and retention.
 
-In the UI choose **Add host** to create a one-time enrolment token and copy the command it shows.
+| Item | Measured |
+|---|---|
+| Server idle memory | about 120 to 150 MB |
+| Server peak memory | about 575 MB, while scanning against the vulnerability database |
+| Server CPU at idle | under 0.1% of one core |
+| Agent memory | 13 to 15 MB (peak 22 MB) |
+| Agent CPU | about 0.2% of one core at the default 30 s interval |
+| Metric store | roughly 0.5 to 1 MB per host per day at default settings |
+| Vulnerability database | about 3.1 GB, only if scanning is enabled |
+| Binaries | server about 116 MB (UI and agent builds embedded), agent about 14 MB |
 
-**Linux** (systemd required; amd64 and arm64):
+These come from a three-host test, not a large deployment. We have no figures for fleets of hundreds of hosts.
 
-```sh
-curl -fsSL https://monitor.example.com/install/agent.sh | sudo sh -s -- --server https://monitor.example.com --token ABCD-1234-EFGH
-```
+## How it compares
 
-**Windows** (elevated PowerShell, amd64):
-
-```powershell
-& ([scriptblock]::Create((irm https://monitor.example.com/install/agent.ps1))) -Server https://monitor.example.com -Token ABCD-1234-EFGH
-```
-
-**Windows MSI** (silent, for deployment tools):
-
-```powershell
-msiexec /i sentrel-agent-<version>-x64.msi SERVER=https://monitor.example.com TOKEN=ABCD-1234-EFGH /qn
-```
-
-> `scripts/build.sh` produces the MSI from `deploy/agent.wxs` when `wixl` (msitools) is installed; builds without it have no MSI.
-
-Other options (SSH/WinRM push install, manual `sentrel-agent register`) are in [docs/agents.md](docs/agents.md).
-
-### 4. Add SNMP devices and targets
-
-**Add host** also offers SNMP devices (v2c or v3, polled by the server) and agentless targets (ping/TCP/HTTP checks only). See [docs/snmp.md](docs/snmp.md).
-
-## Architecture
-
-```
-  Browser ──HTTPS/HTTP──┐
-  API clients ──────────┤            ┌──────────────────────── sentrel-server ───────────────────────┐
-  Prometheus ───────────┤            │  REST API + UI + /metrics   gRPC AgentService (same port)       │
-                        ├── :8080 ───┤  alert engine · notifier · check runner · SNMP poller · jobs    │
-  sentrel-agent ──────┘  (outbound │  vulnerability matcher (Grype)   internal CA (mTLS, job keys)   │
-   gRPC over HTTP/2        from agent)│  SQLite (WAL)   Prometheus TSDB   data directory                │
-                                      └──────────────────────────────────────────────────────────────────┘
-```
-
-- **Server** (`cmd/sentrel-server`): everything in one process. Plain HTTP (with HTTP/2 cleartext), self-signed (internal CA) or Let's Encrypt TLS on one port; gRPC requests are routed by content type.
-- **Agent** (`cmd/sentrel-agent`): holds a long-lived gRPC stream to the server, sends metrics, state, inventory and security reports, and executes signed jobs. On Linux it runs as an unprivileged user and calls a root helper (`sentrel-agent priv ...`) through a narrow sudo rule.
-- **Trust**: the server creates an internal CA at first start. Agents enrol once with a one-time token, receive a client certificate, and the server signs jobs and agent binaries with an Ed25519 key whose public half is delivered at enrolment. Details in [docs/security.md](docs/security.md).
-- **Data**: `sentrel.db` (settings, hosts, alerts, audit, findings), `tsdb/` (metrics), `pki/` (CA and keys), `vulndb/` (Grype database, around 3 GB).
+An honest comparison with Uptime Kuma, Beszel, Netdata, Zabbix, Checkmk and Prometheus with Grafana, including when you should use one of them instead, is in [docs/comparison.md](docs/comparison.md).
 
 ## Documentation
 
 | Document | Contents |
 |---|---|
-| [docs/install.md](docs/install.md) | Server install, upgrade, uninstall, data directory, systemd, Docker, ports |
+| [docs/install.md](docs/install.md) | Server install, packages, container image, release verification, upgrade, ports |
 | [docs/tls-and-proxies.md](docs/tls-and-proxies.md) | TLS modes, reverse proxies (Caddy), `trust_proxy`, recovery |
-| [docs/agents.md](docs/agents.md) | Agent install, data collected, privilege model, self-update, troubleshooting |
-| [docs/security.md](docs/security.md) | Threat model and controls |
-| [docs/sso.md](docs/sso.md) | Single sign-on: OpenID Connect (Authentik, Authelia, Keycloak, Google, Entra) and forward-auth headers |
+| [docs/agents.md](docs/agents.md) | Agent install, data collected, privilege model, write policy, self-update, troubleshooting |
+| [docs/security.md](docs/security.md) | Security controls in detail |
+| [docs/threat-model.md](docs/threat-model.md) | Assets, trust boundaries, attackers, residual risks |
+| [docs/sso.md](docs/sso.md) | OpenID Connect (Authentik, Authelia, Keycloak, Google, Entra) and forward-auth headers |
 | [docs/alerting.md](docs/alerting.md) | Thresholds, checks, flapping, maintenance, notification channels |
 | [docs/snmp.md](docs/snmp.md) | SNMP devices and writing profiles |
-| [docs/vulnerabilities.md](docs/vulnerabilities.md) | Vulnerability matching, database, air-gapped mirror |
+| [docs/vulnerabilities.md](docs/vulnerabilities.md) | CVE matching, database, air-gapped mirror |
+| [docs/disk.md](docs/disk.md) | Disk usage analysis and opt-in cleanup |
 | [docs/api.md](docs/api.md) | REST API, API keys, Prometheus endpoint |
-| [docs/operations.md](docs/operations.md) | Backup, restore, password reset, retention, upgrades |
+| [docs/operations.md](docs/operations.md) | Backup, restore, password reset, retention, resource usage, upgrades |
+| [docs/comparison.md](docs/comparison.md) | Comparison with other monitoring tools |
 | [docs/development.md](docs/development.md) | Repository layout, build, tests, protobuf |
+| [CHANGELOG.md](CHANGELOG.md) | Release notes |
+| [SECURITY.md](SECURITY.md) | Reporting vulnerabilities |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution rules and DCO sign-off |
 
-## Renamed from Heartbeat
+## Status
 
-This project was previously named Heartbeat. Binaries, services, paths, the Go module, the protocol package, cookies, environment variables and metric prefixes were all renamed to Sentrel. Installs made before the rename must be migrated by hand (data directory, service and agent paths).
+Sentrel is pre-1.0. It is young and has not been run at large scale.
 
-## License
+- Only the latest release is supported; fixes land there.
+- Database migrations run automatically at server start and are never edited after release. There is no automated downgrade: take a backup (`sentrel-server backup`) before upgrading and restore it to roll back.
+- Upgrade the server first, then the agents (from the UI). Agents older than the server keep working while the protocol schema version matches.
+- Before 1.0, breaking changes (settings, API, packaging) can happen in any release. They will be listed in [CHANGELOG.md](CHANGELOG.md) with migration steps. There is no stability promise for the REST API yet.
+- Installs from before the rename to Sentrel (see below) need a manual migration.
+
+## Privacy
+
+Sentrel has no telemetry, no analytics, no update check and no phone-home. I checked the server, agent and UI sources for outbound connections. The complete list of places where Sentrel makes outbound connections:
+
+- **Vulnerability database download**: only if CVE scanning is enabled (off by default). The embedded Grype library fetches its listing and database from Anchore's public host unless you set a mirror URL in Settings. Updates are checked daily. With scanning off, the database is never downloaded or opened.
+- **Agent to your server**: the agent connects to the server URL you registered it with and downloads updates from that same server. Nothing else.
+- **Notification channels you configure**: webhook, Slack, Teams, Discord, Gotify, ntfy, Telegram (`api.telegram.org`), Pushover (`api.pushover.net`) and SMTP. The ntfy channel defaults to `https://ntfy.sh` if you leave its server field empty. Nothing is sent unless you create a channel.
+- **Checks and targets you configure**: ping, TCP, HTTP, TLS certificate and DNS checks, SNMP polling, and push installs over SSH or WinRM go where you point them.
+- **Identity providers you configure**: OIDC issuer, LDAP, RADIUS.
+- **Let's Encrypt**: only if you choose the `acme` TLS mode.
+- **Package managers on monitored hosts**: when an inventory refresh or upgrade runs, `apt`, `dnf` and the like (or Windows Update) contact their usual repositories. That is the operating system's own traffic, not Sentrel's.
+
+The web UI loads no external fonts, scripts or other assets (the Inter font is bundled). I did not find any other outbound calls. Because this is an assertion about code, you can check it yourself or watch the server's connections.
+
+## How this was built
+
+Sentrel was developed with substantial AI assistance (Claude), directed, reviewed and tested by the maintainer. It has a Go test suite (unit tests, route tests that probe every `{id}` route for cross-tenant access, and live-event tenancy tests), an end-to-end script that runs against a real server and real agents, and a security review whose findings were fixed before this release. The e2e script is run by hand rather than in CI. Reports are welcome; see [SECURITY.md](SECURITY.md) for vulnerabilities.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Contributions need a DCO sign-off (`git commit -s`).
+
+## Formerly Heartbeat
+
+This project was previously named Heartbeat and was renamed Sentrel because Elastic already ships an uptime monitor called Heartbeat. Binaries, services, paths, the Go module, the protocol package, cookies, environment variables and metric prefixes were all renamed. Installs made before the rename must be migrated by hand (data directory, service and agent paths).
+
+## Licence
 
 Apache License 2.0, see [LICENSE](LICENSE). Third-party components and their licences are listed in [NOTICE](NOTICE).

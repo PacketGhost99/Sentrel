@@ -87,7 +87,7 @@ echo "$VERSION" > server/agentdist/bin/VERSION
 rm -f dist/"$AGENT_BIN"-*.msi
 if command -v wixl >/dev/null 2>&1; then
   echo "==> MSI"
-  sed "s/@VERSION@/$(echo "$VERSION" | sed -E 's/^v//; s/[^0-9.].*$//; s/^$/0.0.0/')/" deploy/agent.wxs > dist/agent.wxs
+  sed "s/@VERSION@/$(echo "$VERSION" | sed -E 's/^v//; s/[^0-9.].*$//; s/^$/0.0.0/')/" deploy/windows/agent.wxs > dist/agent.wxs
   (cd dist && wixl -a x64 -o "$AGENT_BIN-$VERSION-x64.msi" agent.wxs && rm agent.wxs)
 fi
 
@@ -109,7 +109,7 @@ fi
 STAGE="$PWD/dist/.pkgstage"
 if [ -n "$NFPM_CMD" ] || [ "$PACKAGES" = 1 ]; then
   rm -rf "$STAGE"; mkdir -p "$STAGE/bin"
-  cp -r packaging/agent packaging/server "$STAGE/"
+  cp -r deploy/packages/agent deploy/packages/server "$STAGE/"
   # Substitute the @NAME@ placeholders with the names defined above.
   subst="$STAGE/subst.sed"; : > "$subst"
   for v in PRODUCT_TITLE AGENT_BIN SERVER_BIN AGENT_PKG SERVER_PKG AGENT_USER SERVER_USER SERVER_UNIT \
@@ -166,7 +166,7 @@ for arch in $SERVER_ARCHES; do
   GOOS=linux GOARCH=$arch go build -trimpath -ldflags "$LDFLAGS" -o "$out" ./cmd/$SERVER_BIN
   echo "    $out ($(du -h "$out" | cut -f1))"
 done
-cp deploy/install-server.sh deploy/install-agent.sh deploy/install-agent.ps1 dist/
+cp deploy/linux/install-server.sh deploy/linux/install-agent.sh deploy/windows/install-agent.ps1 dist/
 
 if [ "$PACKAGES" = 1 ]; then
   echo "==> server packages (nfpm $NFPM_VERSION)"

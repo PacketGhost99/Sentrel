@@ -31,7 +31,7 @@ internal/version/       build metadata set by -ldflags
 proto/sentrel/v1/     agent.proto
 gen/sentrelv1/        generated protobuf and gRPC code (committed)
 web/                    React 19 + Vite + Tailwind UI (TypeScript)
-deploy/                 install-server.sh, install-agent.sh, install-agent.ps1, Dockerfile, docker-compose.yml
+deploy/                 docker/ (Dockerfile, compose), linux/ and windows/ (install scripts, MSI), packages/ (nfpm configs, units)
 scripts/                build.sh, e2e.sh, sync.sh, dev-deploy.sh
 ```
 
@@ -45,7 +45,7 @@ scripts/build.sh [--version X.Y.Z] [--skip-web] [--server-arch "amd64 arm64"]
 
 Steps: build the UI (unless `--skip-web`), cross-compile agents for `linux/amd64`, `linux/arm64` and `windows/amd64` (`CGO_ENABLED=0`, `-trimpath`), copy them into `server/agentdist/bin/` so they are embedded, build the MSI if `wixl` exists, build `sentrel-server-linux-<arch>`, copy the installer scripts and write `dist/SHA256SUMS`. The version defaults to `git describe`. The agent builds are rebuilt before the server on purpose: the server serves and signs exactly the agent binaries it embeds. Output is in `dist/`.
 
-Docker: `docker build -f deploy/Dockerfile -t sentrel .` (build argument `VERSION`).
+Docker: `docker build -f deploy/docker/Dockerfile -t sentrel .` (build argument `VERSION`).
 
 ### Running a development server
 

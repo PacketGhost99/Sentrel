@@ -114,11 +114,11 @@ Replace `notspark1999/Sentrel` with the GitHub repository (case-sensitive in the
 ## Docker
 
 ```sh
-docker compose -f deploy/docker-compose.yml up -d --build
-docker compose -f deploy/docker-compose.yml logs sentrel | grep -i "setup token"
+docker compose -f deploy/docker/docker-compose.yml up -d --build
+docker compose -f deploy/docker/docker-compose.yml logs sentrel | grep -i "setup token"
 ```
 
-The image (`deploy/Dockerfile`) is a multi-stage build (Node for the UI, Go for the binaries, Debian slim at runtime). It runs as UID 10001, stores data in the `/data` volume, exposes 8080, and has a `healthcheck` using `sentrel-server healthcheck`. The compose file adds `NET_RAW` for ICMP checks and mounts the `sentrel-data` volume. For Let's Encrypt, publish ports 80 and 443 instead of 8080 and pass `--listen 0.0.0.0:443` in `command`.
+The image (`deploy/docker/Dockerfile`) is a multi-stage build (Node for the UI, Go for the binaries, Debian slim at runtime). It runs as UID 10001, stores data in the `/data` volume, exposes 8080, and has a `healthcheck` using `sentrel-server healthcheck`. The compose file adds `NET_RAW` for ICMP checks and mounts the `sentrel-data` volume. For Let's Encrypt, publish ports 80 and 443 instead of 8080 and pass `--listen 0.0.0.0:443` in `command`.
 
 To run the image directly:
 
@@ -186,4 +186,4 @@ sudo rm -rf /var/lib/sentrel             # only if you want to delete all data
 sudo userdel sentrel
 ```
 
-Docker: `docker compose -f deploy/docker-compose.yml down -v` (the `-v` deletes the data volume).
+Docker: `docker compose -f deploy/docker/docker-compose.yml down -v` (the `-v` deletes the data volume).

@@ -1,5 +1,5 @@
 # Sentrel server image. Build from the repository root:
-#   docker build -f deploy/Dockerfile -t sentrel .
+#   docker build -f deploy/docker/Dockerfile -t sentrel .
 FROM --platform=$BUILDPLATFORM node:22-bookworm-slim AS web
 WORKDIR /src/web
 COPY web/package.json web/package-lock.json ./

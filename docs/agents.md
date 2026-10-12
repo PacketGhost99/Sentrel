@@ -67,7 +67,7 @@ From an elevated PowerShell:
 
 Parameters: `-Server`, `-Token`, `-CaFingerprint`, `-BinaryPath`, `-Name`, `-WriteJobs`, `-ReadOnly`, `-OperatorKey`, `-PinSha256`, `-InsecureDownload` (deprecated), `-Uninstall`. The script installs to `C:\Program Files\Sentrel Agent\sentrel-agent.exe`, keeps config and keys in `C:\ProgramData\Sentrel Agent` (restricted to SYSTEM and Administrators), registers the `SentrelAgent` service (automatic delayed start, restart on failure) and starts it.
 
-For fleet deployment an MSI is built (`msiexec /i sentrel-agent-<version>-x64.msi SERVER=https://monitor.example.com TOKEN=ABCD-1234-EFGH /qn`). `scripts/build.sh` builds it from `deploy/agent.wxs` when `wixl` (msitools) is installed; otherwise the release has no MSI. Optional properties: `CAFINGERPRINT`, `NAME`, `WRITEJOBS=server|operator|none` and `OPERATORKEY=<key>[,<key>...]`.
+For fleet deployment an MSI is built (`msiexec /i sentrel-agent-<version>-x64.msi SERVER=https://monitor.example.com TOKEN=ABCD-1234-EFGH /qn`). `scripts/build.sh` builds it from `deploy/windows/agent.wxs` when `wixl` (msitools) is installed; otherwise the release has no MSI. Optional properties: `CAFINGERPRINT`, `NAME`, `WRITEJOBS=server|operator|none` and `OPERATORKEY=<key>[,<key>...]`.
 
 ### Manual install
 

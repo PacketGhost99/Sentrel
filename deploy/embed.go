@@ -3,11 +3,11 @@ package deploy
 
 import _ "embed"
 
-//go:embed install-agent.sh
+//go:embed linux/install-agent.sh
 var AgentShell []byte
 
-//go:embed install-agent.ps1
+//go:embed windows/install-agent.ps1
 var AgentPowerShell []byte
 
-//go:embed install-server.sh
+//go:embed linux/install-server.sh
 var ServerShell []byte

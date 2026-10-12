@@ -119,7 +119,7 @@ redistribute the database should review those terms.
 
 Container image
 ---------------
-The Docker image built from deploy/Dockerfile is based on debian:bookworm-slim
+The Docker image built from deploy/docker/Dockerfile is based on debian:bookworm-slim
 and contains Debian packages (ca-certificates, tzdata, libcap2-bin and their
 dependencies) under their own licences, including GPL-licensed components that
 are not linked into Sentrel. See /usr/share/doc/*/copyright in the image.

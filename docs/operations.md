@@ -88,7 +88,7 @@ Measured on a 2-vCPU, 3.8 GB Linux VPS running the server and its own agent, wit
 | `sentrel.db` | about 60 MB plus WAL with 48,000 vulnerability findings and 1,300 packages; a few MB without scanning |
 | Metric store (`tsdb/`) | about 2 MB for 3 hosts after 10 hours; budget roughly 0.5 to 1 MB per host per day at default collection settings |
 | Vulnerability database (`vulndb/`) | about 3.1 GB on disk, only when scanning is enabled |
-| Server binary | about 116 MB (UI and agent binaries embedded; built with `-trimpath -s -w`) |
+| Server binary | about 150 MB (UI, agent binaries and agent packages embedded; built with `-trimpath -s -w`) |
 | Agent binary | about 14 MB |
 
 Vulnerability scanning is off by default. While it is off, the server never downloads or opens the database. Enabling it (Settings, Vulnerabilities, or the setup wizard) downloads about 3 GB in the background. Disabling it releases the database; tick "Also delete the downloaded database" (`delete_db: true` in the request) to reclaim the disk space.

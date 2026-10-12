@@ -21,6 +21,7 @@ A self-hosted monitoring server, an agent and a React UI in one Go module (`sent
   - Shell in `components/Layout.tsx`. `components/BeatBar.tsx`.
   - API types in `lib/types.ts`. Pages in `pages/`, host tabs in `pages/host/`.
   - Theme tokens in `index.css` (light default, `.dark` class).
+- `deploy/`: `docker/` (Dockerfile, compose, Dockerfile.dockerignore), `linux/` and `windows/` (install scripts, `agent.wxs`; embedded by `deploy/embed.go`), `packages/` (nfpm configs, units, scripts).
 - `docs/*.md`: user docs. Keep them in step with features.
 
 ## Build and test

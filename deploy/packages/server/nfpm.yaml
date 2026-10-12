@@ -1,4 +1,4 @@
-# Rendered by scripts/build.sh --packages (see packaging/agent/nfpm.yaml).
+# Rendered by scripts/build.sh --packages (see deploy/packages/agent/nfpm.yaml).
 name: "@SERVER_PKG@"
 arch: "${ARCH}"
 platform: linux

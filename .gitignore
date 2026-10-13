@@ -3,3 +3,4 @@ dist/
 web/node_modules/
 web/dist/
 *.exe
+scripts/ui/shots-masks.json

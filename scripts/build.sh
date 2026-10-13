@@ -88,7 +88,7 @@ rm -f dist/"$AGENT_BIN"-*.msi
 if command -v wixl >/dev/null 2>&1; then
   echo "==> MSI"
   sed "s/@VERSION@/$(echo "$VERSION" | sed -E 's/^v//; s/[^0-9.].*$//; s/^$/0.0.0/')/" deploy/windows/agent.wxs > dist/agent.wxs
-  (cd dist && wixl -a x64 -o "$AGENT_BIN-$VERSION-x64.msi" agent.wxs && rm agent.wxs)
+  (cd dist && wixl -a x64 -o "$AGENT_BIN-${VERSION#v}-x64.msi" agent.wxs && rm agent.wxs)
 fi
 
 # ---- Agent packages (.deb, .rpm, .msi) ---------------------------------------

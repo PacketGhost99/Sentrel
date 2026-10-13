@@ -92,7 +92,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           PRE=""
-          case "$GITHUB_REF_NAME" in v0.*|*-*) PRE="--prerelease" ;; esac
+          case "$GITHUB_REF_NAME" in *-*) PRE="--prerelease" ;; esac
           gh release create "$GITHUB_REF_NAME" --title "Sentrel $GITHUB_REF_NAME" --generate-notes $PRE dist/*
 
   docker:

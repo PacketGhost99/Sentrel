@@ -27,7 +27,7 @@ export function Audit() {
   const rows = a.data?.pages.flat() || []
   return (
     <div>
-      <PageHeader title="Audit log" subtitle="Who changed what: logins, settings, upgrades, blocks, acknowledgements and every job." />
+      <PageHeader title="Audit log" info="Who changed what: logins, settings, upgrades, blocks, acknowledgements and every job." />
       <Card bodyClass="p-0">
         <div className="border-b border-line/70 p-4"><Input placeholder="Search actions, users, targets, details…" value={q} onChange={(e) => setQ(e.target.value)} className="max-w-md" /></div>
         {a.isLoading ? <Loading /> : !rows.length ? <Empty title="No entries" icon={<FileClock className="size-8" />} /> : (

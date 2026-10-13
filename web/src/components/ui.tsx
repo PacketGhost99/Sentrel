@@ -33,14 +33,14 @@ export function Button({ variant = 'secondary', size = 'md', loading, icon, clas
 
 // ---------- Layout bits ----------
 
-export function Card({ title, actions, children, className, bodyClass, subtitle }:
-  { title?: ReactNode; actions?: ReactNode; children?: ReactNode; className?: string; bodyClass?: string; subtitle?: ReactNode }) {
+export function Card({ title, actions, children, className, bodyClass, subtitle, info }:
+  { title?: ReactNode; actions?: ReactNode; children?: ReactNode; className?: string; bodyClass?: string; subtitle?: ReactNode; info?: ReactNode }) {
   return (
     <section className={cx('overflow-hidden rounded-2xl border bg-panel shadow-card', !className?.includes('border-') && 'border-line/70', className)}>
       {(title || actions) && (
         <header className="flex items-center justify-between gap-3 border-b border-line/70 px-5 py-3.5">
           <div className="min-w-0">
-            {title && <h3 className="truncate text-sm font-semibold tracking-tight">{title}</h3>}
+            {title && <h3 className="flex min-w-0 items-center gap-1.5 text-sm font-semibold tracking-tight"><span className="truncate">{title}</span>{info && <InfoTip>{info}</InfoTip>}</h3>}
             {subtitle && <p className="mt-0.5 truncate text-xs text-muted">{subtitle}</p>}
           </div>
           {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
@@ -51,12 +51,12 @@ export function Card({ title, actions, children, className, bodyClass, subtitle 
   )
 }
 
-export function PageHeader({ title, subtitle, actions, back }: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode; back?: ReactNode }) {
+export function PageHeader({ title, subtitle, actions, back, info }: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode; back?: ReactNode; info?: ReactNode }) {
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
       <div className="min-w-0">
         {back}
-        <h1 className="truncate text-2xl font-semibold tracking-tight">{title}</h1>
+        <h1 className="flex min-w-0 items-center gap-2 text-2xl font-semibold tracking-tight"><span className="truncate">{title}</span>{info && <InfoTip size="md">{info}</InfoTip>}</h1>
         {subtitle && <div className="mt-1 text-sm text-muted">{subtitle}</div>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
@@ -64,16 +64,128 @@ export function PageHeader({ title, subtitle, actions, back }: { title: ReactNod
   )
 }
 
-export function Stat({ label, value, sub, tone, onClick, icon }: { label: string; value: ReactNode; sub?: ReactNode; tone?: 'ok' | 'warn' | 'crit' | 'info' | 'muted' | 'maint'; onClick?: () => void; icon?: ReactNode }) {
+export function Stat({ label, value, sub, tone, onClick, icon, title, info }: { label: string; value: ReactNode; sub?: ReactNode; tone?: 'ok' | 'warn' | 'crit' | 'info' | 'muted' | 'maint'; onClick?: () => void; icon?: ReactNode; title?: string; info?: ReactNode }) {
   return (
-    <div onClick={onClick} className={cx('rounded-2xl border border-line/70 bg-panel p-4 shadow-card transition-[transform,box-shadow] duration-150', onClick && 'cursor-pointer hover:-translate-y-px hover:shadow-pop')}>
+    <div onClick={onClick} title={title} className={cx('flex h-full flex-col rounded-2xl border border-line/70 bg-panel p-4 shadow-card transition-[transform,box-shadow] duration-150', onClick && 'cursor-pointer hover:-translate-y-px hover:shadow-pop')}>
       <div className="flex items-center justify-between gap-2">
-        <div className="text-xs font-medium text-muted">{label}</div>
+        <div className="flex min-w-0 items-center gap-1 text-xs font-medium text-muted"><span className="truncate">{label}</span>{info && <InfoTip>{info}</InfoTip>}</div>
         {icon && <div className={cx('[&_svg]:size-4', tone === 'ok' && 'text-ok', tone === 'warn' && 'text-warn', tone === 'crit' && 'text-crit', tone === 'info' && 'text-info', tone === 'maint' && 'text-maint', (!tone || tone === 'muted') && 'text-muted')}>{icon}</div>}
       </div>
       <div className={cx('mt-1.5 text-3xl font-semibold tabular-nums tracking-tight',
         tone === 'ok' && 'text-ok-ink', tone === 'warn' && 'text-warn-ink', tone === 'crit' && 'text-crit-ink', tone === 'info' && 'text-info-ink', tone === 'maint' && 'text-maint-ink', tone === 'muted' && 'text-muted')}>{value}</div>
-      {sub && <div className="mt-0.5 text-xs text-muted">{sub}</div>}
+      {sub && <div className="mt-0.5 truncate text-xs text-muted" title={typeof sub === 'string' ? sub : undefined}>{sub}</div>}
+    </div>
+  )
+}
+
+/**
+ * A small (i) button that shows an explanation on hover, focus or click.
+ * Use it for background information that does not need to be on screen all
+ * the time. The popover is portalled so a card never clips it.
+ */
+export function InfoTip({ children, size = 'sm', className, label = 'More information' }: { children: ReactNode; size?: 'sm' | 'md'; className?: string; label?: string }) {
+  const [hover, setHover] = useState(false)
+  const [pinned, setPinned] = useState(false)
+  const [pos, setPos] = useState<{ left: number; top: number; above: boolean } | null>(null)
+  const btn = useRef<HTMLButtonElement>(null)
+  const show = hover || pinned
+  useEffect(() => {
+    if (!show || !btn.current) return
+    const place = () => {
+      if (!btn.current) return
+      const r = btn.current.getBoundingClientRect()
+      const w = 288
+      const left = Math.max(8, Math.min(window.innerWidth - w - 8, r.left + r.width / 2 - w / 2))
+      const above = r.bottom + 160 > window.innerHeight && r.top > 160
+      setPos({ left, top: above ? r.top - 6 : r.bottom + 6, above })
+    }
+    place()
+    window.addEventListener('scroll', place, true)
+    window.addEventListener('resize', place)
+    return () => {
+      window.removeEventListener('scroll', place, true)
+      window.removeEventListener('resize', place)
+    }
+  }, [show])
+  useEffect(() => {
+    if (!pinned) return
+    const close = (e: Event) => {
+      if (e.type === 'keydown' ? (e as KeyboardEvent).key === 'Escape' : !btn.current?.contains(e.target as Node)) setPinned(false)
+    }
+    document.addEventListener('mousedown', close)
+    document.addEventListener('keydown', close)
+    return () => {
+      document.removeEventListener('mousedown', close)
+      document.removeEventListener('keydown', close)
+    }
+  }, [pinned])
+  return (
+    <>
+      <button ref={btn} type="button" aria-label={label} aria-expanded={show}
+        onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} onFocus={() => setHover(true)} onBlur={() => setHover(false)}
+        onClick={(e) => { e.stopPropagation(); e.preventDefault(); setPinned((p) => !p) }}
+        className={cx('inline-flex shrink-0 items-center justify-center rounded-full font-normal text-muted/70 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent', className)}>
+        <Info className={size === 'md' ? 'size-4' : 'size-3.5'} />
+      </button>
+      {show && pos && createPortal(
+        <div role="tooltip" style={{ left: pos.left, top: pos.top, width: 288 }}
+          className={cx('tip-in pointer-events-none fixed z-[60] rounded-lg border border-line bg-panel px-3 py-2 text-left text-xs font-normal normal-case leading-relaxed tracking-normal text-fg shadow-pop', pos.above && '-translate-y-full')}>
+          {children}
+        </div>,
+        document.body,
+      )}
+    </>
+  )
+}
+
+/** Right-hand slide-over panel for secondary content such as settings. */
+export function Drawer({ open, onClose, title, subtitle, children, footer }: { open: boolean; onClose: () => void; title: ReactNode; subtitle?: ReactNode; children: ReactNode; footer?: ReactNode }) {
+  useEffect(() => {
+    if (!open) return
+    const h = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', h)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', h)
+      document.body.style.overflow = prev
+    }
+  }, [open, onClose])
+  if (!open) return null
+  return createPortal(
+    <div className="tip-in fixed inset-0 z-50 flex justify-end bg-slate-950/35 backdrop-blur-[2px]" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <aside role="dialog" aria-modal="true" className="drawer-in flex h-full w-full max-w-lg flex-col border-l border-line/70 bg-panel shadow-pop">
+        <div className="flex items-start justify-between gap-3 border-b border-line/70 px-5 py-4">
+          <div className="min-w-0">
+            <h2 className="text-base font-semibold tracking-tight">{title}</h2>
+            {subtitle && <p className="mt-0.5 text-xs text-muted">{subtitle}</p>}
+          </div>
+          <button onClick={onClose} className="rounded-lg p-1.5 text-muted hover:bg-panel-2 hover:text-fg" aria-label="Close"><X className="size-4" /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 py-2">{children}</div>
+        {footer && <div className="flex flex-wrap justify-end gap-2 border-t border-line/70 px-5 py-3.5">{footer}</div>}
+      </aside>
+    </div>,
+    document.body,
+  )
+}
+
+/** Heading that groups setting rows inside a Drawer or Card. */
+export function SettingsGroup({ title, info, children, className }: { title: ReactNode; info?: ReactNode; children: ReactNode; className?: string }) {
+  return (
+    <section className={cx('py-3', className)}>
+      <h3 className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">{title}{info && <InfoTip>{info}</InfoTip>}</h3>
+      <div className="divide-y divide-line/60">{children}</div>
+    </section>
+  )
+}
+
+/** One compact setting: label (with optional tooltip) on the left, control on the right. */
+export function SettingRow({ label, info, children, className }: { label: ReactNode; info?: ReactNode; children: ReactNode; className?: string }) {
+  return (
+    <div className={cx('flex min-h-12 flex-wrap items-center justify-between gap-x-4 gap-y-2 py-2', className)}>
+      <div className="flex min-w-0 items-center gap-1.5 text-sm">{label}{info && <InfoTip>{info}</InfoTip>}</div>
+      <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">{children}</div>
     </div>
   )
 }
@@ -88,7 +200,7 @@ export function Loading({ label = 'Loading…' }: { label?: string }) {
 
 export function Empty({ title, children, icon }: { title: string; children?: ReactNode; icon?: ReactNode }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 px-4 py-12 text-center">
+    <div className="flex flex-col items-center justify-center gap-2 px-4 py-8 text-center">
       {icon && <div className="text-muted">{icon}</div>}
       <div className="font-medium">{title}</div>
       {children && <div className="max-w-md text-sm text-muted">{children}</div>}
@@ -205,7 +317,7 @@ export function SeverityBadge({ severity }: { severity?: string }) {
   return <Badge tone={severity === 'critical' ? 'crit' : severity === 'warning' ? 'warn' : 'muted'}>{severity}</Badge>
 }
 
-export function Meter({ value, warn = 80, crit = 90, className }: { value?: number | null; warn?: number; crit?: number; className?: string }) {
+export function Meter({ value, warn = 80, crit = 90, className, showValue = true }: { value?: number | null; warn?: number; crit?: number; className?: string; showValue?: boolean }) {
   if (value === null || value === undefined) return <span className="text-muted">–</span>
   const color = value >= crit ? 'bg-crit-fill' : value >= warn ? 'bg-warn-fill' : 'bg-ok-fill'
   return (
@@ -213,17 +325,17 @@ export function Meter({ value, warn = 80, crit = 90, className }: { value?: numb
       <div className={cx('h-1.5 overflow-hidden rounded-full bg-panel-2', className ?? 'w-16')}>
         <div className={cx('h-full rounded-full transition-[width] duration-500', color)} style={{ width: `${Math.min(100, Math.max(0, value))}%` }} />
       </div>
-      <span className="w-12 text-right text-xs tabular-nums">{value.toFixed(1)}%</span>
+      {showValue && <span className="w-12 text-right text-xs tabular-nums">{value.toFixed(1)}%</span>}
     </div>
   )
 }
 
 // ---------- Form controls ----------
 
-export function Field({ label, hint, error, children, className, required }: { label?: ReactNode; hint?: ReactNode; error?: string; children: ReactNode; className?: string; required?: boolean }) {
+export function Field({ label, hint, error, children, className, required, info }: { label?: ReactNode; hint?: ReactNode; error?: string; children: ReactNode; className?: string; required?: boolean; info?: ReactNode }) {
   return (
     <label className={cx('block', className)}>
-      {label && <span className="mb-1.5 block text-xs font-medium text-muted">{label}{required && <span className="text-crit"> *</span>}</span>}
+      {label && <span className="mb-1.5 flex items-center gap-1 text-xs font-medium text-muted">{label}{required && <span className="text-crit"> *</span>}{info && <InfoTip>{info}</InfoTip>}</span>}
       {children}
       {hint && !error && <span className="mt-1 block text-xs text-muted">{hint}</span>}
       {error && <span className="mt-1 block text-xs text-crit-ink">{error}</span>}
@@ -233,8 +345,15 @@ export function Field({ label, hint, error, children, className, required }: { l
 
 const inputCls = 'w-full rounded-lg border border-line bg-panel px-3 py-1.5 text-sm text-fg shadow-sm placeholder:text-muted/70 hover:border-muted/40 focus:border-accent focus:outline-none focus:ring-3 focus:ring-accent/20 disabled:opacity-60'
 
+/** inputCls, minus its default width and height when the caller sets their own. */
+function fieldCls(className: string | undefined, height: string) {
+  const own = className?.split(/\s+/) ?? []
+  const base = own.some((c) => /^(sm:|md:|lg:)?w-/.test(c)) ? inputCls.replace(/(^| )w-full( |$)/, ' ') : inputCls
+  return cx(base, !own.some((c) => /^h-/.test(c)) && height, className)
+}
+
 export function Input({ className, ...rest }: InputHTMLAttributes<HTMLInputElement>) {
-  return <input {...rest} className={cx(inputCls, 'h-9', className)} />
+  return <input {...rest} className={fieldCls(className, 'h-9')} />
 }
 
 export function Textarea({ className, ...rest }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
@@ -244,13 +363,13 @@ export function Textarea({ className, ...rest }: TextareaHTMLAttributes<HTMLText
 export function Select({ className, children, ...rest }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <div className="relative">
-      <select {...rest} className={cx(inputCls, 'h-9 appearance-none pr-8', className)}>{children}</select>
-      <ChevronDown className="pointer-events-none absolute right-2.5 top-2.5 size-4 text-muted" />
+      <select {...rest} className={cx(fieldCls(className, 'h-9'), 'appearance-none pr-8')}>{children}</select>
+      <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 text-muted" />
     </div>
   )
 }
 
-export function Toggle({ checked, onChange, label, hint, disabled }: { checked: boolean; onChange: (v: boolean) => void; label?: ReactNode; hint?: ReactNode; disabled?: boolean }) {
+export function Toggle({ checked, onChange, label, hint, disabled, info }: { checked: boolean; onChange: (v: boolean) => void; label?: ReactNode; hint?: ReactNode; disabled?: boolean; info?: ReactNode }) {
   return (
     <label className={cx('flex items-start gap-3', disabled ? 'opacity-60' : 'cursor-pointer')}>
       <button type="button" role="switch" aria-checked={checked} disabled={disabled} onClick={() => onChange(!checked)}
@@ -259,7 +378,7 @@ export function Toggle({ checked, onChange, label, hint, disabled }: { checked: 
       </button>
       {(label || hint) && (
         <span className="min-w-0">
-          {label && <span className="block text-sm">{label}</span>}
+          {label && <span className="flex items-center gap-1.5 text-sm">{label}{info && <InfoTip>{info}</InfoTip>}</span>}
           {hint && <span className="block text-xs text-muted">{hint}</span>}
         </span>
       )}
@@ -436,7 +555,7 @@ export function Tabs<T extends string>({ tabs, value, onChange, className }: { t
           className={cx('-mb-px flex items-center gap-1.5 whitespace-nowrap rounded-t-lg border-b-2 px-3.5 py-2.5 text-sm',
             value === t.id ? 'border-accent font-semibold text-fg' : 'border-transparent text-muted hover:bg-panel-2/70 hover:text-fg')}>
           {t.label}
-          {t.count !== undefined && t.count > 0 && <span title={t.countTitle} className={cx('rounded-full px-1.5 text-[11px] font-medium', value === t.id ? 'bg-accent/12 text-accent' : 'bg-panel-2 text-muted')}>{t.count}</span>}
+          {t.count !== undefined && t.count > 0 && <span title={t.countTitle} className={cx('rounded-full px-1.5 text-[11px] font-medium', value === t.id ? 'bg-accent/12 text-accent' : 'bg-panel-2 text-muted')}>{t.count.toLocaleString()}</span>}
         </button>
       ))}
     </div>

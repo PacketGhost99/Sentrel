@@ -153,7 +153,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		a.startSecurityWatch(ctx)
 	}
 	var wg sync.WaitGroup
-	for _, f := range []func(context.Context){a.metricsLoop, a.inventoryLoop, a.securityLoop, a.portscanLoop, a.blocksLoop, a.housekeeping} {
+	for _, f := range []func(context.Context){a.metricsLoop, a.inventoryLoop, a.securityLoop, a.portscanLoop, a.blocksLoop, a.diskHealthLoop, a.housekeeping} {
 		wg.Add(1)
 		go func(f func(context.Context)) { defer wg.Done(); f(ctx) }(f)
 	}

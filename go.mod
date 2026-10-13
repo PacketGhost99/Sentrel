@@ -1,6 +1,6 @@
 module sentrel
 
-go 1.26.8
+go 1.26.9
 
 require (
 	github.com/Microsoft/go-winio v0.6.3

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, ArrowUpCircle, Check, CheckCircle2, ExternalLink, Loader2, RefreshCw, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, ArrowUpCircle, Check, CheckCircle2, ExternalLink, Loader2, RefreshCw } from 'lucide-react'
 import { get, post, put } from '@/lib/api'
 import { ago, dateTime } from '@/lib/format'
 import {
@@ -8,7 +8,7 @@ import {
   type InstallStatus, type UpdateInfo,
 } from '@/lib/updates'
 import { ReleaseNotes } from '@/components/ReleaseNotes'
-import { Badge, Button, Card, CodeBlock, ErrorBox, KV, Loading, Note, Toggle, cx, useConfirm, useToast } from '@/components/ui'
+import { Badge, Button, Card, CodeBlock, ErrorBox, KV, Loading, Note, SettingRow, Toggle, cx, useConfirm, useToast } from '@/components/ui'
 
 /** Settings -> Updates: version check, release notes and the one-click installer. */
 export function UpdatesTab() {
@@ -93,13 +93,13 @@ export function UpdatesTab() {
   const showHelp = u.update_available && u.method && u.method !== 'systemd'
 
   return (
-    <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
       <div className="min-w-0 space-y-4">
         {err != null && <ErrorBox error={err} />}
 
         <Card
           title={u.update_available ? `Sentrel ${u.latest} is available` : 'Sentrel is up to date'}
-          subtitle={u.update_available ? `You are running ${u.current}` : `Running ${u.current}${u.latest ? `; the latest release is ${u.latest}` : ''}`}
+          info="Every release lists its checksums in a file signed with the Sentrel release key. The server verifies that signature, then a separate root-owned updater verifies it again with the key built into the installed binary before it swaps anything. Downgrades are refused, and a version that does not start healthy is rolled back."
           actions={u.html_url ? <a href={u.html_url} target="_blank" rel="noopener noreferrer"><Button size="sm" variant="ghost" icon={<ExternalLink className="size-3.5" />}>Release on GitHub</Button></a> : undefined}>
           <div className="flex flex-wrap items-center gap-3">
             <div className={cx('grid size-11 shrink-0 place-items-center rounded-xl', u.update_available ? 'bg-ok/12 text-ok' : 'bg-panel-2 text-muted')}>
@@ -124,12 +124,11 @@ export function UpdatesTab() {
         {showProgress && st && <Progress st={st} reconnecting={reconnecting} watching={watching} />}
 
         {showHelp && (
-          <Card title={installHelp(u.method, u.latest || '').title} subtitle={`Install method: ${methodLabel(u.method)}`}>
+          <Card title={installHelp(u.method, u.latest || '').title} info={<>One-click updates need the systemd install from <code className="mono">install-server.sh</code>.{u.method === 'docker' && ' Containers are updated by replacing the image, not from inside.'}{u.method === 'package' && ' Packages are owned by your package manager, which keeps its own database consistent.'}</>}>
             <div className="space-y-3 text-sm">
               {installHelp(u.method, u.latest || '').steps.map((s, i) => (
                 <div key={i} className="space-y-1.5"><p>{s.text}</p>{s.code && <CodeBlock code={s.code} />}</div>
               ))}
-              <p className="text-xs text-muted">One-click updates need the systemd install from <code className="mono">install-server.sh</code>.{u.method === 'docker' && ' Containers are updated by replacing the image, not from inside.'}{u.method === 'package' && ' Packages are owned by your package manager, which keeps its own database consistent.'}</p>
             </div>
           </Card>
         )}
@@ -143,27 +142,22 @@ export function UpdatesTab() {
 
       <div className="min-w-0 space-y-4">
         <Card title="Update checks" actions={<Button size="sm" loading={busy === 'check'} disabled={!u.check_enabled} onClick={checkNow} icon={<RefreshCw className="size-3.5" />}>Check now</Button>}>
-          <div className="space-y-4">
-            {disabledByHost && <Note tone="warn">Update checks are disabled by the administrator of this host (<code className="mono">SENTREL_DISABLE_UPDATE_CHECK</code>).</Note>}
-            <Toggle checked={u.check_enabled} disabled={disabledByHost || busy === 'toggle'} onChange={(v) => saveToggles({ check_enabled: v })}
-              label="Check for new releases"
-              hint="Every 6 hours the server asks GitHub for the latest release. It sends a User-Agent of Sentrel/<version> and nothing else about this install." />
-            {u.install_forced_off && <Note tone="warn">One-click updates are disabled by the administrator of this host (<code className="mono">SENTREL_DISABLE_SELF_UPDATE</code>).</Note>}
-            <Toggle checked={!!u.install_enabled && !u.install_forced_off} disabled={!!u.install_forced_off || busy === 'toggle'} onChange={(v) => saveToggles({ install_enabled: v })}
-              label="Allow one-click updates"
-              hint="Lets an administrator install a signed release from this page (systemd installs only)." />
-            <KV items={[
-              ['Last check', u.last_check ? `${ago(u.last_check)} (${dateTime(u.last_check)})` : 'never'],
-              ['Last error', u.last_error ? <span key="e" className="text-crit-ink">{u.last_error}</span> : 'none'],
-              ['Install method', <Badge key="m" tone={u.method === 'systemd' ? 'ok' : 'muted'}>{methodLabel(u.method)}</Badge>],
-            ]} />
-          </div>
-        </Card>
-
-        <Card title="How updates are protected">
-          <div className="flex gap-3 text-sm text-muted">
-            <ShieldCheck className="mt-0.5 size-5 shrink-0 text-ok" />
-            <p>Every release lists its checksums in a file signed with the Sentrel release key. The server downloads and verifies that signature, then a separate root-owned updater verifies it again with the key built into the installed binary before it swaps anything. Downgrades are refused, and a version that does not start healthy is rolled back.</p>
+          <div className="-my-2 divide-y divide-line/60">
+            {disabledByHost && <div className="py-2"><Note tone="warn">Update checks are disabled by the administrator of this host (<code className="mono">SENTREL_DISABLE_UPDATE_CHECK</code>).</Note></div>}
+            <SettingRow label="Check for new releases" info="Every 6 hours the server asks GitHub for the latest release. It sends a User-Agent of Sentrel/<version> and nothing else about this install.">
+              <Toggle checked={u.check_enabled} disabled={disabledByHost || busy === 'toggle'} onChange={(v) => saveToggles({ check_enabled: v })} />
+            </SettingRow>
+            {u.install_forced_off && <div className="py-2"><Note tone="warn">One-click updates are disabled by the administrator of this host (<code className="mono">SENTREL_DISABLE_SELF_UPDATE</code>).</Note></div>}
+            <SettingRow label="Allow one-click updates" info="Lets an administrator install a signed release from this page (systemd installs only).">
+              <Toggle checked={!!u.install_enabled && !u.install_forced_off} disabled={!!u.install_forced_off || busy === 'toggle'} onChange={(v) => saveToggles({ install_enabled: v })} />
+            </SettingRow>
+            <div className="py-3">
+              <KV items={[
+                ['Last check', u.last_check ? ago(u.last_check) : 'never'],
+                ['Last error', u.last_error ? <span key="e" className="text-crit-ink">{u.last_error}</span> : 'none'],
+                ['Install method', <Badge key="m" tone={u.method === 'systemd' ? 'ok' : 'muted'}>{methodLabel(u.method)}</Badge>],
+              ]} />
+            </div>
           </div>
         </Card>
       </div>

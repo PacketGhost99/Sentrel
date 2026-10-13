@@ -37,7 +37,7 @@ export function SnmpForm({ value, onChange }: { value: SnmpConfig; onChange: (v:
           <option value="3">v3 (user-based security)</option>
         </Select>
       </Field>
-      <Field label="Device profile" hint="Auto-detect uses sysObjectID / sysDescr">
+      <Field label="Device profile" info="Auto-detect uses sysObjectID and sysDescr.">
         <Select value={value.profile} onChange={(e) => set({ profile: e.target.value })}>
           <option value="auto">Auto-detect</option>
           {profiles.data?.profiles.map((p) => <option key={p.name} value={p.name}>{p.name} — {p.description}</option>)}

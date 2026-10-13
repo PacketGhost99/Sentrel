@@ -200,6 +200,7 @@ type Host struct {
 	VulnHigh      int          `db:"-" json:"vuln_high"`
 	InMaintenance bool         `db:"-" json:"in_maintenance"`
 	Summary       *HostSummary `db:"-" json:"summary,omitempty"`
+	Parent        *DepParent   `db:"-" json:"parent,omitempty"`
 }
 
 // HostSummary holds the latest headline metrics for list views.
@@ -258,8 +259,16 @@ type Check struct {
 	LastCheckedAt       int64    `db:"last_checked_at" json:"last_checked_at"`
 	LastChangeAt        int64    `db:"last_change_at" json:"last_change_at"`
 	CreatedAt           int64    `db:"created_at" json:"created_at"`
-	HostName            string   `db:"-" json:"host_name,omitempty"`
-	Uptime24h           *float64 `db:"-" json:"uptime_24h,omitempty"`
+	// Push checks: the URL token (only shown to users who can edit checks),
+	// its lookup hash and the last beat received.
+	PushToken     string     `db:"push_token" json:"push_token,omitempty"`
+	PushTokenHash string     `db:"push_token_hash" json:"-"`
+	LastBeatAt    int64      `db:"last_beat_at" json:"last_beat_at"`
+	LastBeatUp    bool       `db:"last_beat_up" json:"-"`
+	LastBeatMsg   string     `db:"last_beat_msg" json:"-"`
+	HostName      string     `db:"-" json:"host_name,omitempty"`
+	Uptime24h     *float64   `db:"-" json:"uptime_24h,omitempty"`
+	Parent        *DepParent `db:"-" json:"parent,omitempty"`
 }
 
 type ThresholdRule struct {
@@ -308,6 +317,7 @@ type Alert struct {
 	Muted          bool     `db:"muted" json:"muted"`
 	HostName       string   `db:"-" json:"host_name,omitempty"`
 	InMaintenance  bool     `db:"-" json:"in_maintenance"`
+	SuppressedBy   string   `db:"-" json:"suppressed_by,omitempty"` // e.g. "parent web-1 is down"
 	stage          int
 }
 
@@ -485,6 +495,23 @@ type VulnSchedule struct {
 	Enabled   bool   `db:"enabled" json:"enabled"`
 	LastRunAt int64  `db:"last_run_at" json:"last_run_at"`
 	CreatedAt int64  `db:"created_at" json:"created_at"`
+}
+
+type UpdateSchedule struct {
+	ID           int64  `db:"id" json:"id"`
+	TenantID     int64  `db:"tenant_id" json:"tenant_id"`
+	Name         string `db:"name" json:"name"`
+	Scope        string `db:"scope" json:"scope"`
+	ScopeID      int64  `db:"scope_id" json:"scope_id"`
+	Frequency    string `db:"frequency" json:"frequency"`
+	Weekday      int    `db:"weekday" json:"weekday"`
+	MonthDay     int    `db:"month_day" json:"month_day"`
+	TimeOfDay    string `db:"time_of_day" json:"time_of_day"`
+	SecurityOnly bool   `db:"security_only" json:"security_only"`
+	Enabled      bool   `db:"enabled" json:"enabled"`
+	LastRunAt    int64  `db:"last_run_at" json:"last_run_at"`
+	LastResult   JSON   `db:"last_result" json:"last_result"`
+	CreatedAt    int64  `db:"created_at" json:"created_at"`
 }
 
 type StatusPage struct {

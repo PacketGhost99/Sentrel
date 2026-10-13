@@ -124,6 +124,8 @@ func PrivMain(args []string) error {
 		b, _ := protojson.Marshal(f)
 		_, err := w.Write(b)
 		return err
+	case "smart":
+		return privSmart(ctx, w, rest)
 	case "remove-kernel":
 		return privRemoveKernel(ctx, w, rest)
 	case "disk-usage":

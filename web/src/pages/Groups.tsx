@@ -19,7 +19,7 @@ export function Groups() {
   const tags = useQuery({ queryKey: ['tags', tenant], queryFn: () => get<{ tag: string; count: number }[]>('/tags', { tenant_id: tenant ?? undefined }) })
   return (
     <div>
-      <PageHeader title="Groups & tags" subtitle="Groups carry threshold overrides, maintenance windows and notification routes. Tags (e.g. env:prod, role:db) filter views and notifications."
+      <PageHeader title="Groups & tags" info="Groups carry threshold overrides, maintenance windows and notification routes. Tags (e.g. env:prod, role:db) filter views and notifications."
         actions={can('monitoring') && <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => setEdit({ tenant_id: tenant ?? 0 })}>New group</Button>} />
       <div className="grid gap-4 xl:grid-cols-3">
         <Card title="Groups" className="xl:col-span-2" bodyClass="p-0">

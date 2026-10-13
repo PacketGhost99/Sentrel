@@ -352,30 +352,40 @@ type vulnScheduleReq struct {
 	Enabled   *bool  `json:"enabled"`
 }
 
-func (a *App) validateVulnSchedule(c *Ctx, req *vulnScheduleReq) (int64, error) {
-	tenant, err := c.tenantFor(req.TenantID)
+// validateScheduleScope resolves the tenant and checks the scope of a schedule.
+// Non-provider callers are narrowed to their own tenant.
+func (a *App) validateScheduleScope(c *Ctx, tenantID int64, scope *string, scopeID *int64) (int64, error) {
+	tenant, err := c.tenantFor(tenantID)
 	if err != nil {
 		return 0, err
 	}
-	switch req.Scope {
+	switch *scope {
 	case "all":
 		if !c.P.IsProvider() {
-			req.Scope, req.ScopeID = "tenant", tenant
+			*scope, *scopeID = "tenant", tenant
 		}
 	case "tenant":
 		if !c.P.IsProvider() {
-			req.ScopeID = tenant
+			*scopeID = tenant
 		}
 	case "group":
-		if _, err := a.visibleGroup(c, req.ScopeID); err != nil {
+		if _, err := a.visibleGroup(c, *scopeID); err != nil {
 			return 0, badRequest("unknown group")
 		}
 	case "host":
-		if _, err := c.visibleHost(req.ScopeID); err != nil {
+		if _, err := c.visibleHost(*scopeID); err != nil {
 			return 0, badRequest("unknown host")
 		}
 	default:
 		return 0, badRequest("scope must be all, tenant, group or host")
+	}
+	return tenant, nil
+}
+
+func (a *App) validateVulnSchedule(c *Ctx, req *vulnScheduleReq) (int64, error) {
+	tenant, err := a.validateScheduleScope(c, req.TenantID, &req.Scope, &req.ScopeID)
+	if err != nil {
+		return 0, err
 	}
 	if req.Frequency != "daily" && req.Frequency != "weekly" {
 		return 0, badRequest("frequency must be daily or weekly")

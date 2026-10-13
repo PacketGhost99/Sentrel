@@ -13,7 +13,7 @@ import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, Input, KV, Loadi
 export function Alerts() {
   return (
     <div>
-      <PageHeader title="Alerts" subtitle="Firing and pending alerts, plus history. Acknowledge to stop repeat notifications." />
+      <PageHeader title="Alerts" info="Firing and pending alerts, plus history. Acknowledge to stop repeat notifications." />
       <AlertsTable />
     </div>
   )
@@ -65,6 +65,7 @@ export function AlertsTable({ hostId }: { hostId?: number }) {
                       {a.acked_by && <Badge tone="info" title={a.ack_comment}>acked</Badge>}
                       {a.flapping && <Badge tone="warn">flapping</Badge>}
                       {a.in_maintenance && <Badge tone="maint">maintenance</Badge>}
+                      {a.suppressed_by && <Badge title="Notifications are withheld while the parent is down">suppressed: {a.suppressed_by}</Badge>}
                       {a.muted && <MutedBadge />}
                     </div>
                   </Td>
@@ -91,7 +92,7 @@ function AckDialog({ ids, onClose, onDone }: { ids: number[]; onClose: () => voi
         setBusy(true)
         try { const r = await post<{ acked: number }>('/alerts/ack', { ids, comment }); onDone(r.acked); onClose() } catch (e) { setErr(e) } finally { setBusy(false) }
       }}>Acknowledge</Button></>}>
-      <Field label="Comment (optional)" hint="Shown to the team; acknowledged alerts stop repeating notifications but still resolve normally.">
+      <Field label="Comment (optional)" info="Shown to the team. Acknowledged alerts stop repeating notifications but still resolve normally.">
         <Textarea autoFocus value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Investigating: disk cleanup in progress" />
       </Field>
       <ErrorBox error={err} className="mt-2" />
@@ -126,9 +127,9 @@ export function AlertDetail() {
           <Button icon={<CircleCheck className="size-4" />} onClick={() => act('resolve', 'Alert resolved')}>Resolve</Button>
         </>} />
       <div className="grid gap-4 xl:grid-cols-3">
-        <Card title="Details">
+        <Card title="Details" className="h-full">
           <KV items={[
-            ['Status', <span key="s" className="flex flex-wrap gap-1"><Badge tone={a.status === 'firing' ? 'crit' : a.status === 'pending' ? 'warn' : 'ok'}>{a.status}</Badge>{a.flapping && <Badge tone="warn">flapping</Badge>}{a.in_maintenance && <Badge tone="maint">in maintenance</Badge>}{a.muted && <MutedBadge />}</span>],
+            ['Status', <span key="s" className="flex flex-wrap gap-1"><Badge tone={a.status === 'firing' ? 'crit' : a.status === 'pending' ? 'warn' : 'ok'}>{a.status}</Badge>{a.flapping && <Badge tone="warn">flapping</Badge>}{a.in_maintenance && <Badge tone="maint">in maintenance</Badge>}{a.suppressed_by && <Badge title="Notifications are withheld while the parent is down">suppressed: {a.suppressed_by}</Badge>}{a.muted && <MutedBadge />}</span>],
             ['Severity', <SeverityBadge key="v" severity={a.severity} />],
             ['Source', a.source + (a.metric ? ` · ${a.metric}` : '') + (a.labels ? ` · ${a.labels}` : '')],
             ['Host', a.host_id ? <Link key="h" to={`/hosts/${a.host_id}`} className="text-accent hover:underline">{a.host_name}</Link> : '–'],
@@ -141,7 +142,7 @@ export function AlertDetail() {
             ['Notifications', a.muted ? <span key="n" className="inline-flex items-center gap-1.5"><BellOff className="size-3.5 text-muted" />Disabled for this rule (alert is shown here only)</span> : `${a.notify_count} sent${a.last_notified_at ? `, last ${ago(a.last_notified_at)}` : ''}`],
           ]} />
         </Card>
-        <Card title="Timeline" className="xl:col-span-2" bodyClass="p-0">
+        <Card title="Timeline" className="h-full xl:col-span-2" bodyClass="p-0">
           {events.length === 0 ? <Empty title="No events" /> : (
             <ol className="divide-y divide-line/60">
               {events.map((e) => (

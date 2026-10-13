@@ -1,0 +1,61 @@
+name: codeql
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 4 * * 1"   # weekly, Monday 04:17 UTC
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: go
+            build-mode: manual
+          - language: javascript-typescript
+            build-mode: none
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        if: matrix.language == 'go'
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        if: matrix.language == 'go'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+      # The Go packages embed web/dist, so the UI must be built first;
+      # autobuild would fail on the missing embed directory.
+      - name: Build web UI (Go embed)
+        if: matrix.language == 'go'
+        working-directory: web
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+      - name: Build Go
+        if: matrix.language == 'go'
+        run: go build ./...
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{ matrix.language }}"

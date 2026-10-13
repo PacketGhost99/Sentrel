@@ -67,6 +67,19 @@ go test ./...                              # unit and in-process integration tes
 
 `server/app/integration_test.go` starts the whole server in-process against a temporary data directory and drives the REST API.
 
+### Security checks
+
+CI runs CodeQL (`.github/workflows/codeql.yml`) and a `security` job (`.github/workflows/security.yml`). To run the same checks locally, build the UI first so the Go embed resolves:
+
+```sh
+(cd web && npm ci && npm run build)
+go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+go run github.com/securego/gosec/v2/cmd/gosec@v2.29.0 -conf .gosec.json -severity medium -confidence medium -exclude-dir=web ./...
+(cd web && npm audit --omit=dev --audit-level=high)
+```
+
+`govulncheck` is slow on a laptop in its default symbol mode; add `-scan package` for a quick (less precise) pass. gosec exclusions live in `.gosec.json` with a reason for each. Prefer a rule- or path-scoped exclusion there over a blanket one, or a `#nosec G### -- reason` comment on the line.
+
 ### SNMP live test
 
 `server/snmp/live_test.go` polls a real device and is skipped unless `SENTREL_SNMP_ADDR` is set:

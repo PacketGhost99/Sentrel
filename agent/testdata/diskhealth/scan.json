@@ -1,0 +1,10 @@
+{
+  "json_format_version": [1, 0],
+  "devices": [
+    {"name": "/dev/sda", "type": "sat"},
+    {"name": "/dev/sda; rm -rf /", "type": "sat"},
+    {"name": "/dev/../etc/passwd", "type": "scsi"},
+    {"name": "/dev/nvme0n1", "type": "nvme"},
+    {"name": "/dev/sdb", "type": "$(id)"}
+  ]
+}

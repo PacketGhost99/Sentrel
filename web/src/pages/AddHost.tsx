@@ -20,7 +20,7 @@ export function PlacementFields({ p, onChange, showName = true }: { p: Placement
   const groups = useQuery({ queryKey: ['groups', p.tenant_id], queryFn: () => get<HostGroup[]>('/groups', { tenant_id: provider ? p.tenant_id : undefined }) })
   return (
     <div className="grid gap-3 sm:grid-cols-2">
-      {showName && <Field label="Display name" hint="Optional; defaults to the hostname"><Input value={p.name} onChange={(e) => onChange({ ...p, name: e.target.value })} /></Field>}
+      {showName && <Field label="Display name" hint="Optional"><Input value={p.name} onChange={(e) => onChange({ ...p, name: e.target.value })} /></Field>}
       {provider && (tenants.data?.length ?? 0) > 1 && (
         <Field label="Tenant">
           <Select value={p.tenant_id} onChange={(e) => onChange({ ...p, tenant_id: Number(e.target.value), group_id: 0 })}>
@@ -44,8 +44,8 @@ export function AddHost() {
   const { tenant } = useTenantFilter()
   const [p, setP] = useState<Placement>({ tenant_id: tenant ?? 0, group_id: 0, tags: [], name: '' })
   const options: { id: Method; icon: React.ReactNode; title: string; desc: string }[] = [
-    { id: 'snmp', icon: <Router />, title: 'SNMP device', desc: 'Switches, routers, firewalls, NAS, printers. v2c or v3, polled by the server.' },
-    { id: 'target', icon: <Target />, title: 'Agentless target', desc: 'Anything reachable: ping, TCP, HTTP, certificate and DNS checks only.' },
+    { id: 'snmp', icon: <Router />, title: 'SNMP device', desc: 'Switches, routers, firewalls, NAS. SNMP v2c or v3.' },
+    { id: 'target', icon: <Target />, title: 'Agentless target', desc: 'Ping, TCP, HTTP, certificate and DNS checks only.' },
   ]
   return (
     <div>
@@ -54,7 +54,7 @@ export function AddHost() {
         <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-accent/15 text-accent"><Server className="size-6" /></span>
         <span className="min-w-0 flex-1">
           <span className="block font-semibold">Install the Sentrel agent</span>
-          <span className="mt-0.5 block text-sm text-muted">Linux and Windows. A one-line command or a .deb, .rpm or .msi package from this server, with full metrics, inventory, CVEs and remote actions.</span>
+          <span className="mt-0.5 block text-sm text-muted">Linux and Windows. One-line command or .deb, .rpm, .msi package, with full metrics and remote actions.</span>
         </span>
         <span className="hidden items-center gap-1 text-sm font-medium text-accent sm:inline-flex">Open the Agents page<ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" /></span>
       </Link>
@@ -83,7 +83,7 @@ function AddSnmp({ p, setP }: { p: Placement; setP: (p: Placement) => void }) {
   const nav = useNavigate()
   return (
     <div className="grid gap-4 xl:grid-cols-2">
-      <Card title="SNMP device">
+      <Card title="SNMP device" className="h-full">
         <div className="space-y-3">
           <Field label="Address (IP or hostname)" required><Input value={address} onChange={(e) => setAddress(e.target.value)} /></Field>
           <SnmpForm value={cfg} onChange={setCfg} />
@@ -104,8 +104,8 @@ function AddSnmp({ p, setP }: { p: Placement; setP: (p: Placement) => void }) {
           </div>
         </div>
       </Card>
-      <Card title="Test result">
-        {!test ? <p className="text-sm text-muted">Test reads the system group, interfaces, profile metrics and LLDP once.</p> : !test.ok ? <ErrorBox error={test.error} /> : (
+      <Card title="Test result" className="h-full" info="Reads the system group, interfaces, profile metrics and LLDP once.">
+        {!test ? <p className="text-sm text-muted">Run a test to see the result here.</p> : !test.ok ? <ErrorBox error={test.error} /> : (
           <div className="space-y-3 text-sm">
             <Note tone="ok">Reached <b>{test.system?.name || address}</b> in {test.duration_ms?.toFixed(0)} ms using profile <b>{test.profile}</b>.</Note>
             <p className="text-muted">{test.system?.descr}</p>
@@ -128,7 +128,7 @@ function AddTarget({ p, setP }: { p: Placement; setP: (p: Placement) => void }) 
   return (
     <Card title="Agentless target" className="max-w-2xl">
       <div className="space-y-3">
-        <Field label="Address" hint="Hostname or IP; add TCP, HTTP, certificate and DNS checks afterwards"><Input value={address} onChange={(e) => setAddress(e.target.value)} /></Field>
+        <Field label="Address" info="Hostname or IP. Add TCP, HTTP, certificate and DNS checks afterwards."><Input value={address} onChange={(e) => setAddress(e.target.value)} /></Field>
         <PlacementFields p={p} onChange={setP} />
         <Toggle checked={ping} onChange={setPing} label="Add a ping check" />
         <ErrorBox error={err} />

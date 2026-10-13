@@ -28,7 +28,7 @@ export function UsersPage() {
   const tname = (id: number) => tenants.data?.find((t) => t.id === id)?.name || `#${id}`
   return (
     <div>
-      <PageHeader title="Users" subtitle="Local accounts and directory users (LDAP/RADIUS users are created automatically on first login)."
+      <PageHeader title="Users" info="Local accounts and directory users. LDAP and RADIUS users are created automatically on first login."
         actions={<Button variant="primary" icon={<Plus className="size-4" />} onClick={() => setEdit({ tenant_id: me?.user.tenant_id || tenant || 0, role: me?.user.tenant_id ? 'tenant_viewer' : 'viewer', auth_source: 'local' })}>Add user</Button>} />
       <Card bodyClass="p-0">
         {users.isLoading ? <Loading /> : !users.data?.length ? <Empty title="No users" icon={<UsersIcon className="size-8" />} /> : (
@@ -92,7 +92,7 @@ function UserEditor({ initial, tenants, onClose }: { initial: Partial<User>; ten
               {tenants.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
             </Select></Field>
           )}
-          <Field label="Role" hint={roleInfo[u.role || '']?.desc}><Select value={u.role} onChange={(e) => setU({ ...u, role: e.target.value })}>
+          <Field label="Role" info={roleInfo[u.role || '']?.desc}><Select value={u.role} onChange={(e) => setU({ ...u, role: e.target.value })}>
             {roles.map((r) => <option key={r} value={r}>{roleInfo[r].label}</option>)}
           </Select></Field>
         </div>
@@ -101,7 +101,7 @@ function UserEditor({ initial, tenants, onClose }: { initial: Partial<User>; ten
         )}
         {u.auth_source !== 'local' && <Note>The password is checked against {u.auth_source?.toUpperCase()} at each login.</Note>}
         <Toggle checked={!!u.must_change_password} onChange={(v) => setU({ ...u, must_change_password: v })} label="Ask to change password at next login" />
-        {u.id && <Toggle checked={!!u.disabled} onChange={(v) => setU({ ...u, disabled: v })} label="Disabled" hint="Disabled users are signed out and cannot log in" />}
+        {u.id && <Toggle checked={!!u.disabled} onChange={(v) => setU({ ...u, disabled: v })} label="Disabled" info="Disabled users are signed out and cannot log in." />}
         <ErrorBox error={err} />
       </div>
     </Modal>

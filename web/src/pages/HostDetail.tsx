@@ -9,7 +9,7 @@ import type { Alert, HostDetail as HD, Series } from '@/lib/types'
 import { Chart, RangePicker, rangeSeconds, type RangeId, type Unit } from '@/components/Chart'
 import { ExportChartsButton, ExportDataButton } from '@/components/MetricsExport'
 import { WritePolicyBadge } from '@/components/OperatorSign'
-import { Badge, Button, Card, Empty, ErrorBox, Input, KV, Loading, Meter, MutedBadge, Note, PageHeader, SeverityBadge, StatusDot, StatusPill, Table, Tabs, Td, Th, UptimePill, useConfirm, useToast } from '@/components/ui'
+import { Badge, Button, Card, Empty, ErrorBox, Input, KV, Loading, Meter, MutedBadge, Note, PageHeader, SeverityBadge, StatusPill, Table, Tabs, Td, Th, UptimePill, useConfirm, useToast } from '@/components/ui'
 import { BeatBar, averageUptime, hostBeatsToBeats, useHostBeats } from '@/components/BeatBar'
 import { hostStatusLabel } from './Hosts'
 import { ChecksTable } from './Checks'
@@ -22,6 +22,7 @@ import { HostPackages } from './host/Packages'
 import { HostSecurity } from './host/Security'
 import { HostSettings } from './host/Settings'
 import { StoragePanel } from './host/DiskUsage'
+import { DiskHealthCard } from './host/DiskHealth'
 
 type Tab = 'overview' | 'metrics' | 'system' | 'interfaces' | 'packages' | 'vulns' | 'security' | 'checks' | 'alerts' | 'jobs' | 'thresholds' | 'settings'
 
@@ -45,7 +46,7 @@ export function HostDetail() {
     <div>
       <PageHeader
         back={<Link to="/hosts" className="mb-1 inline-flex items-center gap-1 text-xs text-muted hover:text-fg"><ArrowLeft className="size-3" />Hosts</Link>}
-        title={<span className="flex items-center gap-3"><StatusDot status={host.in_maintenance ? 'maintenance' : host.status} pulse />{host.name}</span>}
+        title={host.name}
         subtitle={
           <span className="flex flex-wrap items-center gap-1.5">
             <StatusPill tone={st.tone} label={st.label} />
@@ -139,11 +140,11 @@ function Overview({ host, alerts }: { host: HD; alerts: Alert[] }) {
           </Card>
         )}
         {host.kind !== 'target' && (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <MiniStat label="CPU" value={s.cpu} />
             <MiniStat label="Memory" value={s.memory} />
             <MiniStat label="Worst disk" value={s.disk} />
-            <div className="rounded-2xl border border-line/70 bg-panel p-4 shadow-card">
+            <div className="h-full rounded-2xl border border-line/70 bg-panel p-4 shadow-card">
               <div className="text-xs font-medium text-muted">Load / core</div>
               <div className="mt-1 text-2xl font-semibold tabular-nums">{s.load !== undefined && s.load !== null ? s.load.toFixed(2) : '–'}</div>
               <div className="text-xs text-muted">uptime {s.uptime ? duration(s.uptime) : st.uptime_seconds ? duration(st.uptime_seconds) : '–'}</div>
@@ -252,10 +253,10 @@ function UptimeCard({ hostId }: { hostId: number }) {
 function MiniStat({ label, value }: { label: string; value?: number | null }) {
   const tone = value === undefined || value === null ? '' : value >= 90 ? 'text-crit-ink' : value >= 80 ? 'text-warn-ink' : ''
   return (
-    <div className="rounded-2xl border border-line/70 bg-panel p-4 shadow-card">
+    <div className="h-full rounded-2xl border border-line/70 bg-panel p-4 shadow-card">
       <div className="text-xs font-medium text-muted">{label}</div>
       <div className={`mt-1 text-2xl font-semibold tabular-nums ${tone}`}>{pct(value)}</div>
-      <div className="mt-2"><Meter value={value} className="flex-1" /></div>
+      <div className="mt-2"><Meter value={value} className="flex-1" showValue={false} /></div>
     </div>
   )
 }
@@ -274,8 +275,8 @@ function QuickCharts({ host }: { host: HD }) {
   const mem = useSeries(host.id, 'memory', '6h')
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <Card title="CPU (6h)"><Chart series={(cpu.data?.series || []).filter((s) => s.metric === 'cpu_usage_percent')} unit="percent" height={160} max={100} title="CPU" host={host.name} rangeLabel="Last 6h" /></Card>
-      <Card title="Memory (6h)"><Chart series={mem.data?.series || []} unit="percent" height={160} max={100} title="Memory" host={host.name} rangeLabel="Last 6h" /></Card>
+      <Card className="h-full" title="CPU (6h)"><Chart series={(cpu.data?.series || []).filter((s) => s.metric === 'cpu_usage_percent')} unit="percent" height={160} max={100} title="CPU" host={host.name} rangeLabel="Last 6h" /></Card>
+      <Card className="h-full" title="Memory (6h)"><Chart series={mem.data?.series || []} unit="percent" height={160} max={100} title="Memory" host={host.name} rangeLabel="Last 6h" /></Card>
     </div>
   )
 }
@@ -333,7 +334,7 @@ function Metrics({ host }: { host: HD }) {
           if (!results[i].isLoading && series.length === 0 && !['cpu', 'memory', 'network', 'disk', 'if_traffic', 'checks'].includes(p.id)) return null
           const s = p.id === 'agent' ? series.filter((x) => x.metric === 'agent_cpu_percent') : series
           return (
-            <Card key={p.id} title={p.title}>
+            <Card key={p.id} className="h-full" title={p.title}>
               {results[i].isLoading ? <Loading /> : <Chart series={s} unit={p.id === 'agent' ? 'percent' : p.unit} max={p.max} height={200} title={p.title} host={host.name} rangeLabel={`Last ${range}`} />}
               {p.id === 'agent' && series.find((x) => x.metric === 'agent_rss_bytes') && (
                 <p className="mt-2 text-xs text-muted">Agent memory: {bytes(series.find((x) => x.metric === 'agent_rss_bytes')!.points?.slice(-1)[0]?.[1])}</p>
@@ -352,7 +353,7 @@ function SystemTab({ host }: { host: HD }) {
   const services = useMemo(() => (st.services || []).filter((s) => !svcQ || s.name.toLowerCase().includes(svcQ.toLowerCase()) || (s.display_name || '').toLowerCase().includes(svcQ.toLowerCase())), [st.services, svcQ])
   return (
     <div className="grid gap-4 xl:grid-cols-2">
-      <Card title="Top processes" bodyClass="p-0" subtitle={st.process_count ? `${st.process_count} processes` : undefined}>
+      <Card className="h-full" title="Top processes" bodyClass="p-0" subtitle={st.process_count ? `${st.process_count} processes` : undefined}>
         {!st.top_processes?.length ? <Empty title="No process data" /> : (
           <Table>
             <thead><tr><Th>PID</Th><Th>Name</Th><Th>User</Th><Th>CPU</Th><Th>Mem</Th><Th className="hidden sm:table-cell">RSS</Th></tr></thead>
@@ -371,7 +372,7 @@ function SystemTab({ host }: { host: HD }) {
           </Table>
         )}
       </Card>
-      <Card title="Listening ports" bodyClass="p-0">
+      <Card className="h-full" title="Listening ports" bodyClass="p-0">
         {!st.ports?.length ? <Empty title="No listening ports reported" /> : (
           <Table>
             <thead><tr><Th>Port</Th><Th>Protocol</Th><Th>Address</Th><Th>Process</Th></tr></thead>
@@ -383,7 +384,8 @@ function SystemTab({ host }: { host: HD }) {
           </Table>
         )}
       </Card>
-      <Card title="Containers" bodyClass="p-0" subtitle={st.docker_available ? undefined : 'Docker not detected (or the agent cannot read the Docker socket). Reinstall the agent with --docker, or run: sudo usermod -aG docker sentrel-agent && sudo systemctl restart sentrel-agent'}>
+      <Card className="h-full" title="Containers" bodyClass="p-0" subtitle={st.docker_available ? undefined : 'Docker not detected'}
+        info={st.docker_available ? undefined : 'Docker was not detected, or the agent cannot read the Docker socket. Reinstall the agent with --docker, or run: sudo usermod -aG docker sentrel-agent && sudo systemctl restart sentrel-agent'}>
         {!st.containers?.length ? <Empty title="No containers" /> : (
           <Table>
             <thead><tr><Th>Name</Th><Th>Image</Th><Th>State</Th><Th>CPU</Th><Th>Memory</Th><Th>Restarts</Th></tr></thead>
@@ -402,7 +404,7 @@ function SystemTab({ host }: { host: HD }) {
           </Table>
         )}
       </Card>
-      <Card title="Network interfaces" bodyClass="p-0">
+      <Card className="h-full" title="Network interfaces" bodyClass="p-0">
         {!st.interfaces?.length ? <Empty title="No interfaces" /> : (
           <Table>
             <thead><tr><Th>Interface</Th><Th>Addresses</Th><Th>Received</Th><Th>Sent</Th><Th>Errors</Th></tr></thead>
@@ -420,8 +422,9 @@ function SystemTab({ host }: { host: HD }) {
           </Table>
         )}
       </Card>
+      <DiskHealthCard hostId={host.id} />
       {!!st.temperatures?.length && (
-        <Card title="Temperatures">
+        <Card className="h-full" title="Temperatures">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {st.temperatures.map((t) => (
               <div key={t.sensor} className="rounded-xl border border-line/70 p-3">
@@ -459,7 +462,7 @@ function Interfaces({ host }: { host: HD }) {
   return (
     <div className="space-y-4">
       {host.snmp_info?.errors?.length ? <Note tone="warn">Profile warnings: {host.snmp_info.errors.join('; ')}</Note> : null}
-      <Card title="Interfaces" bodyClass="p-0" subtitle={`${ifs.length} interfaces · rates from the last two polls`}>
+      <Card title="Interfaces" bodyClass="p-0" subtitle={`${ifs.length} interfaces`} info="Rates are calculated from the last two polls.">
         {!ifs.length ? <Empty title="No interface data yet" /> : (
           <Table>
             <thead><tr><Th>#</Th><Th>Name</Th><Th>Status</Th><Th>Speed</Th><Th>In</Th><Th>Out</Th><Th>Utilisation</Th><Th className="hidden lg:table-cell">MAC</Th></tr></thead>

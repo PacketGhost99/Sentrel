@@ -18,7 +18,7 @@ import (
 
 // Server-side check types run by the poller; agent check types are
 // evaluated from the host state pushed by the agent.
-var serverCheckTypes = map[string]bool{"ping": true, "tcp": true, "http": true, "cert": true, "dns": true}
+var serverCheckTypes = map[string]bool{"ping": true, "tcp": true, "http": true, "cert": true, "dns": true, "push": true}
 var agentCheckTypes = map[string]bool{"service": true, "process": true, "port": true, "container": true}
 
 // CheckConfig holds type-specific options (stored as JSON).
@@ -49,6 +49,7 @@ type CheckConfig struct {
 	Regex           bool              `json:"regex,omitempty"`           // process
 	Protocol        string            `json:"protocol,omitempty"`        // port: tcp/udp
 	RequireHealthy  bool              `json:"require_healthy,omitempty"` // container
+	GraceSeconds    int               `json:"grace_seconds,omitempty"`   // push: extra wait after the interval (default 300)
 }
 
 // CheckRunner schedules server-side checks.
@@ -60,10 +61,18 @@ type CheckRunner struct {
 	checks  []Check
 	loaded  time.Time
 	sem     chan struct{}
+
+	// Push checks are judged by when their last beat arrived, not polled.
+	pushIDs    []int64
+	pushLoaded time.Time
+	pushNext   map[int64]time.Time
+	pushLimit  *rateLimiter // beats per token
+	pushMiss   *rateLimiter // unknown-token requests per client
 }
 
 func newCheckRunner(a *App) *CheckRunner {
-	return &CheckRunner{app: a, next: map[int64]time.Time{}, running: map[int64]bool{}, sem: make(chan struct{}, 32)}
+	return &CheckRunner{app: a, next: map[int64]time.Time{}, running: map[int64]bool{}, sem: make(chan struct{}, 32),
+		pushNext: map[int64]time.Time{}, pushLimit: newRateLimiter(pushBeatsPerMinute, time.Minute), pushMiss: newRateLimiter(pushMissesPerMinute, time.Minute)}
 }
 
 // Invalidate reloads checks on the next tick and runs a changed check soon.
@@ -119,6 +128,7 @@ func (r *CheckRunner) tick(ctx context.Context) {
 		}
 	}
 	r.mu.Unlock()
+	r.tickPush(ctx)
 	for _, c := range due {
 		c := c
 		go func() {
@@ -136,6 +146,9 @@ func (r *CheckRunner) tick(ctx context.Context) {
 // RunNow executes a check immediately and returns the result.
 func (r *CheckRunner) RunNow(ctx context.Context, c *Check) probe.Result {
 	var res probe.Result
+	if c.Type == "push" {
+		return r.runPushNow(ctx, c)
+	}
 	if agentCheckTypes[c.Type] {
 		res = r.evaluateAgentCheck(ctx, c)
 	} else {
@@ -203,6 +216,16 @@ func certSeverity(days float64, cfg CheckConfig) (string, int) {
 }
 
 func (r *CheckRunner) record(ctx context.Context, c *Check, res probe.Result) {
+	iv := c.IntervalSeconds
+	if iv <= 0 {
+		iv = 60
+	}
+	r.recordWith(ctx, c, res, iv)
+}
+
+// recordWith stores a result; uptime is the number of seconds to credit to
+// the up or down total (0 for none).
+func (r *CheckRunner) recordWith(ctx context.Context, c *Check, res probe.Result, uptime int) {
 	a := r.app
 	now := db.Now()
 	cfg := checkConfig(c)
@@ -285,11 +308,9 @@ func (r *CheckRunner) record(ctx context.Context, c *Check, res probe.Result) {
 		a.events.publish(Event{Type: "check.changed", TenantID: c.TenantID, HostID: hostID, ID: itoa(c.ID)})
 	}
 	// Uptime accounting.
-	iv := c.IntervalSeconds
-	if iv <= 0 {
-		iv = 60
+	if uptime > 0 {
+		a.addUptime(ctx, c.TenantID, "check", c.ID, res.Up, uptime)
 	}
-	a.addUptime(ctx, c.TenantID, "check", c.ID, res.Up, iv)
 }
 
 func (a *App) addUptime(ctx context.Context, tenant int64, typ string, id int64, up bool, seconds int) {

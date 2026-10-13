@@ -93,7 +93,7 @@ export function Chart({ series, unit = 'number', height = 220, max, min, title =
   const image = () => renderChartImage({ series, unit, title, host, rangeLabel, max, min })
   const download = async () => {
     try {
-      downloadBlob(await canvasToBlob(image()), exportFilename(host || 'chart', title, 'png'))
+      downloadBlob(await canvasToBlob(await image()), exportFilename(host || 'chart', title, 'png'))
     } catch (e) {
       toast(errorMessage(e), 'crit')
     }

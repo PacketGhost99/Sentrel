@@ -125,11 +125,11 @@ export function Setup() {
             </Field>
             {f.tls_mode === 'http' ? (
               <>
-                <Field label="Public server URL" hint="The address agents and links in notifications use (e.g. https://monitor.example.com behind a proxy).">
+                <Field label="Public server URL" hint="e.g. https://monitor.example.com" info="The address agents and links in notifications use.">
                   <Input value={f.server_url} onChange={set('server_url')} />
                 </Field>
                 <Toggle checked={f.trust_proxy} onChange={(v) => setF({ ...f, trust_proxy: v })} label="Behind a reverse proxy"
-                  hint="Use X-Forwarded-For and X-Forwarded-Proto for client IPs and HTTPS detection." />
+                  info="Use X-Forwarded-For and X-Forwarded-Proto for client IPs and HTTPS detection." />
               </>
             ) : (
               <div className="grid gap-4 sm:grid-cols-2">
@@ -140,13 +140,13 @@ export function Setup() {
                 <div className="sm:col-span-2"><Note>The server will move to <b>{newURL}</b> after setup.</Note></div>
               </div>
             )}
-            <Field label="Timezone" hint="Used for maintenance windows and schedules.">
+            <Field label="Timezone" info="Used for maintenance windows and schedules.">
               <Select value={f.timezone} onChange={set('timezone')}>
                 {zones.map((z) => <option key={z}>{z}</option>)}
               </Select>
             </Field>
             <Toggle checked={f.vuln_enabled} onChange={(v) => setF({ ...f, vuln_enabled: v })} label="Enable vulnerability (CVE) scanning"
-              hint="Optional. Downloads a vulnerability database of about 3 GB in the background and needs 2 GB of RAM or more. Leave off on a Raspberry Pi or a 1 GB server; you can turn it on later in Settings." />
+              hint="Optional. Needs 2 GB of RAM and a database download of about 3 GB." info="The database downloads in the background. Leave this off on a Raspberry Pi or a 1 GB server; you can turn it on later in Settings." />
             <div className="flex justify-between">
               <Button onClick={() => setStep(1)}>Back</Button>
               <Button variant="primary" onClick={() => setStep(3)}>Continue</Button>

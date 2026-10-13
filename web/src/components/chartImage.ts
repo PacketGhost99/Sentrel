@@ -1,4 +1,5 @@
 import uPlot from 'uplot'
+import { seriesLabel } from '@/lib/seriesLabel'
 import type { Series } from '@/lib/types'
 import { LOCALE } from '@/lib/format'
 import { align, buildChartOptions, cssVar, seriesColor, type Unit } from './chartOptions'
@@ -67,8 +68,10 @@ function layoutLegend(ctx: CanvasRenderingContext2D, names: string[], width: num
  * Renders a chart with title, host, time range and legend onto a canvas, at
  * `ratio` times its CSS size. The plot itself comes from an offscreen uPlot
  * drawn at that ratio, so the output is sharp regardless of the screen.
+ * uPlot paints on a microtask after construction, so this waits for its
+ * draw hook before copying the plot.
  */
-export function renderChartImage(spec: ChartImageSpec, ratio = 2): HTMLCanvasElement {
+export async function renderChartImage(spec: ChartImageSpec, ratio = 2): Promise<HTMLCanvasElement> {
   const { bg, fg, muted, dark } = colors()
   const W = spec.width ?? 900
   const plotH = spec.height ?? 260
@@ -77,7 +80,7 @@ export function renderChartImage(spec: ChartImageSpec, ratio = 2): HTMLCanvasEle
   const empty = data[0].length === 0
 
   const scratch = document.createElement('canvas').getContext('2d')!
-  const legend = layoutLegend(scratch, empty ? [] : spec.series.map((s) => s.name), inner)
+  const legend = layoutLegend(scratch, empty ? [] : spec.series.map((s) => seriesLabel(s.name)), inner)
   const headH = 22 + 20
   const H = PAD + headH + (legend.height ? legend.height + 8 : 0) + plotH + PAD
 
@@ -124,10 +127,15 @@ export function renderChartImage(spec: ChartImageSpec, ratio = 2): HTMLCanvasEle
   document.body.appendChild(holder)
   let u: uPlot | null = null
   try {
-    u = new uPlot(buildChartOptions({ series: spec.series, unit: spec.unit, width: inner, height: plotH, dark, max: spec.max, min: spec.min, legend: false, pxRatio: ratio }), data, holder)
-    ctx.drawImage(u.ctx.canvas, PAD, y, inner, plotH)
+    const opts = buildChartOptions({ series: spec.series, unit: spec.unit, width: inner, height: plotH, dark, max: spec.max, min: spec.min, legend: false, pxRatio: ratio })
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, 2000)
+      opts.hooks = { ...opts.hooks, draw: [...(opts.hooks?.draw ?? []), () => { clearTimeout(timer); resolve() }] }
+      u = new uPlot(opts, data, holder)
+    })
+    ctx.drawImage((u as unknown as uPlot).ctx.canvas, PAD, y, inner, plotH)
   } finally {
-    u?.destroy()
+    (u as uPlot | null)?.destroy()
     holder.remove()
   }
   return out
@@ -172,6 +180,7 @@ export function canvasToBlob(c: HTMLCanvasElement): Promise<Blob> {
 
 export const canCopyImage = () => typeof ClipboardItem !== 'undefined' && !!navigator.clipboard?.write
 
-export async function copyCanvas(c: HTMLCanvasElement) {
-  await navigator.clipboard.write([new ClipboardItem({ 'image/png': canvasToBlob(c) })])
+/** Copies an image to the clipboard. Takes a promise so the clipboard write starts inside the click. */
+export async function copyCanvas(c: Promise<HTMLCanvasElement>) {
+  await navigator.clipboard.write([new ClipboardItem({ 'image/png': c.then(canvasToBlob) })])
 }

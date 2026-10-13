@@ -1,0 +1,9 @@
+{
+  "json_format_version": [1, 0],
+  "smartctl": {"version": [7, 3], "exit_status": 0},
+  "device": {"name": "/dev/nvme0", "type": "nvme", "protocol": "NVMe"},
+  "model_name": "WDC WDS100T2B0C",
+  "serial_number": "ABC1",
+  "smart_status": {"passed": false},
+  "nvme_smart_health_information_log": {"temperature": 41, "percentage_used": 93, "media_errors": 3, "power_on_hours": 4100}
+}

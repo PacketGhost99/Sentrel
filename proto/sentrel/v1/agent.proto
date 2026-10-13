@@ -54,7 +54,15 @@ message AgentMessage {
     JobOutput job_output = 6;
     JobResult job_result = 7;
     Pong pong = 8;
+    DiskHealthReport disk_health = 9;
   }
+}
+
+// Latest SMART / RAID / ZFS snapshot (Linux), collected about every 30 minutes.
+// json is a UTF-8 JSON document whose shape the server validates and caps.
+message DiskHealthReport {
+  int64 ts_ms = 1;
+  bytes json = 2;
 }
 
 message Hello {

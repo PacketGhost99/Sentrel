@@ -67,9 +67,7 @@ export function RemoveKernelDialog({ host, abi, onClose }: { host: HostDetail; a
       </>}>
       <div className="space-y-4">
         <WritePolicyNote host={host} />
-        <Note>
-          Removes only the packages of kernel {abi}. The running kernel and the newest installed kernel are always kept; the host refuses to remove either. Run the dry run first to see the exact package list.
-        </Note>
+        <p className="text-sm text-muted">Run the dry run first to see the exact packages. The running and newest kernels are always kept.</p>
         {job?.status === 'awaiting_signature' && <OperatorSignPanel job={job} />}
         {dryId && !job && <Loading />}
         {job && job.status !== 'awaiting_signature' && !terminal(job.status) && <div className="flex items-center gap-2 text-sm text-muted"><Spinner />Dry run {job.status}…</div>}
@@ -180,7 +178,7 @@ export function BulkRemoveKernelsDialog({ hosts, onClose }: { hosts: FleetKernel
         <Button variant="danger" icon={<Trash2 className="size-4" />} loading={busy && targets.length > 0} disabled={!allDry || !okTargets.length || typed !== needle} onClick={startReal}>Remove {okTargets.length} kernel{okTargets.length === 1 ? '' : 's'}</Button>
       </>}>
       <div className="space-y-4">
-        <Note>Only kernels that are neither running nor the newest installed are removed. Every host re-checks this itself. Hosts that need operator-signed jobs will wait for your signature on the Jobs page.</Note>
+        <p className="text-sm text-muted">The running and newest kernels are kept; each host re-checks this. Hosts that need operator-signed jobs wait for your signature on the Jobs page.</p>
         {done ? (
           <div className="space-y-2 text-sm">
             <p>{done.queued} removal job{done.queued === 1 ? '' : 's'} created{done.waiting ? `, ${done.waiting} waiting for a signature` : ''}. <Link to="/jobs" className="text-accent hover:underline">Open Jobs</Link></p>

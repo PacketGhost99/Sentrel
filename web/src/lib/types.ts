@@ -81,6 +81,7 @@ export interface HostInfo {
 }
 
 export interface Host {
+  parent?: DepParent
   id: number
   tenant_id: number
   kind: 'agent' | 'snmp' | 'target'
@@ -235,6 +236,14 @@ export interface HostGroup {
   host_count: number
 }
 
+/** The host or check a host/check depends on; its alerts are withheld while the parent is down. */
+export interface DepParent {
+  type: 'host' | 'check'
+  id: number
+  name: string
+  down: boolean
+}
+
 export interface Check {
   id: number
   tenant_id: number
@@ -256,6 +265,10 @@ export interface Check {
   last_change_at: number
   host_name?: string
   uptime_24h?: number
+  /** Push checks: URL token (only returned to users who can edit checks) and the last beat. */
+  push_token?: string
+  last_beat_at?: number
+  parent?: DepParent
 }
 
 export interface Alert {
@@ -286,6 +299,8 @@ export interface Alert {
   notify_count: number
   host_name?: string
   in_maintenance: boolean
+  /** e.g. "parent web-1 is down": notifications are withheld. */
+  suppressed_by?: string
 }
 
 export interface AlertEvent {
@@ -623,4 +638,77 @@ export interface FleetKernelHost {
   write_policy: string
   resolves: number
   resolves_critical: number
+}
+
+export interface UpdateScheduleSkip { host_id: number; host: string; reason: string }
+export interface UpdateSchedule {
+  id: number
+  tenant_id: number
+  name: string
+  scope: 'all' | 'tenant' | 'group' | 'host'
+  scope_id: number
+  frequency: 'daily' | 'weekly' | 'monthly' | 'maintenance'
+  weekday: number
+  month_day: number
+  time_of_day: string
+  security_only: boolean
+  enabled: boolean
+  last_run_at: number
+  last_result: { queued?: number; skipped?: UpdateScheduleSkip[] } | null
+  created_at: number
+}
+
+export interface DiskHealthDevice {
+  device: string
+  model?: string
+  serial?: string
+  protocol?: string
+  health: 'passed' | 'failed' | 'unknown'
+  temperature_c?: number
+  power_on_hours?: number
+  reallocated_sectors?: number
+  pending_sectors?: number
+  uncorrectable_sectors?: number
+  percentage_used?: number
+  media_errors?: number
+  error?: string
+}
+
+export interface DiskHealthRaid {
+  name: string
+  level: string
+  state: string
+  members: number
+  working: number
+  failed_devices: number
+  degraded: boolean
+  failed: boolean
+  sync_action?: string
+  sync_percent?: number
+  sync_finish?: string
+}
+
+export interface DiskHealthPool {
+  name: string
+  health: string
+  size: string
+  alloc: string
+}
+
+export interface DiskHealthData {
+  smart_available: boolean
+  smart_reason?: string
+  devices: DiskHealthDevice[]
+  raid: DiskHealthRaid[]
+  zfs_available: boolean
+  zfs_error?: string
+  pools: DiskHealthPool[]
+  zfs_status?: string
+}
+
+export interface DiskHealthResp {
+  supported: boolean
+  known: boolean
+  updated_at: number
+  data: DiskHealthData
 }

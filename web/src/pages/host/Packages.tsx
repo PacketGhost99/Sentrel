@@ -1,20 +1,21 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowUpCircle, FlaskConical } from 'lucide-react'
+import { ArrowUpCircle, FlaskConical, Settings2 } from 'lucide-react'
 import { errorMessage, get, post, put } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { ago } from '@/lib/format'
 import type { HostDetail, Job, Package } from '@/lib/types'
 import { WritePolicyNote } from '@/components/OperatorSign'
 import { InheritableField, useHostSetting } from '@/components/InheritableField'
-import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, Input, Loading, Modal, Note, Segmented, Select, Table, Td, Th, Toggle, useToast } from '@/components/ui'
+import { Badge, Button, Card, Checkbox, Drawer, Empty, ErrorBox, Field, Input, Loading, Modal, Note, Segmented, Select, SettingRow, SettingsGroup, Table, Td, Th, Toggle, useToast } from '@/components/ui'
 
 export function HostPackages({ host }: { host: HostDetail }) {
   const [view, setView] = useState<'upgradable' | 'installed'>('upgradable')
   const [q, setQ] = useState('')
   const [sel, setSel] = useState<Set<string>>(new Set())
   const [dialog, setDialog] = useState(false)
+  const [configOpen, setConfigOpen] = useState(false)
   const { can } = useAuth()
   const qc = useQueryClient()
   const toast = useToast()
@@ -29,23 +30,28 @@ export function HostPackages({ host }: { host: HostDetail }) {
     <div className="space-y-4">
       {inv?.error && <Note tone="warn">Inventory warning: {inv.error}</Note>}
       {host.settings && host.kind === 'agent' && (
-        <Card title="Remote upgrades" subtitle="Upgrades are always confirmed, signed and audited.">
-          <InheritableField label="Allow remote upgrades" description="Lets administrators install updates and remove old kernels from Sentrel. Dry runs work either way." kind="bool" setting={host.settings.allow_upgrades} disabled={!canEdit} onSave={saveSetting('allow_upgrades')} />
-          {!win && (
-            <div className="py-3">
-              <Toggle checked={!!host.auto_remove_old_kernels && host.allow_upgrades && kernelAuto} disabled={!canEdit || !host.allow_upgrades || !kernelAuto}
-                onChange={async (v) => { try { await put(`/hosts/${host.id}`, { auto_remove_old_kernels: v }); qc.invalidateQueries({ queryKey: ['host', String(host.id)] }) } catch (e) { toast(errorMessage(e), 'crit') } }}
-                label="Automatically remove old kernels"
-                hint={kernelAuto ? 'Needs remote upgrades. Removes every kernel except the running and the newest during the next maintenance window that allows jobs, at most once a day.' : 'Not available: this agent is read-only or needs operator-signed jobs.'} />
-            </div>
-          )}
-        </Card>
+        <Drawer open={configOpen} onClose={() => setConfigOpen(false)} title="Package settings" subtitle={`${host.name} · values marked Default come from Settings, Agents`}>
+          <SettingsGroup title="Remote upgrades" info="Upgrades are always confirmed, signed and audited.">
+            <InheritableField label="Allow remote upgrades" description="Lets administrators install updates and remove old kernels from Sentrel. Dry runs work either way." kind="bool" setting={host.settings.allow_upgrades} disabled={!canEdit} onSave={saveSetting('allow_upgrades')} />
+            {!win && (
+              <SettingRow label="Remove old kernels automatically"
+                info={kernelAuto ? 'Needs remote upgrades. Removes every kernel except the running and the newest during the next maintenance window that allows jobs, at most once a day.' : 'Not available: this agent is read-only or needs operator-signed jobs.'}>
+                <Toggle checked={!!host.auto_remove_old_kernels && host.allow_upgrades && kernelAuto} disabled={!canEdit || !host.allow_upgrades || !kernelAuto}
+                  onChange={async (v) => { try { await put(`/hosts/${host.id}`, { auto_remove_old_kernels: v }); qc.invalidateQueries({ queryKey: ['host', String(host.id)] }) } catch (e) { toast(errorMessage(e), 'crit') } }} />
+              </SettingRow>
+            )}
+          </SettingsGroup>
+        </Drawer>
+      )}
+      {host.kind === 'agent' && host.settings && !host.allow_upgrades && (
+        <Note>Upgrades are off for this host.{canEdit && <> <button type="button" className="text-accent hover:underline" onClick={() => setConfigOpen(true)}>Turn them on</button></>}</Note>
       )}
       <Card bodyClass="p-0"
         title={<span>{inv ? `${inv.upgradable_count} upgradable · ${inv.installed_count} installed` : 'Packages'}</span>}
         subtitle={inv ? `${inv.package_manager} · checked ${ago(inv.updated_at)}` : 'No inventory received yet'}
         actions={<>
           <Segmented options={[{ id: 'upgradable', label: 'Upgradable' }, { id: 'installed', label: 'Installed' }]} value={view} onChange={(v) => { setView(v); setSel(new Set()) }} />
+          {host.settings && host.kind === 'agent' && <Button size="sm" icon={<Settings2 className="size-3.5" />} onClick={() => setConfigOpen(true)}>Configure</Button>}
           {can('jobs') && <Button size="sm" variant="primary" icon={<ArrowUpCircle className="size-3.5" />} onClick={() => setDialog(true)} disabled={!inv?.upgradable_count}>Upgrade…</Button>}
         </>}>
         <div className="border-b border-line/70 p-4"><Input placeholder="Search packages" value={q} onChange={(e) => setQ(e.target.value)} className="max-w-xs" /></div>
@@ -131,7 +137,7 @@ export function UpgradeDialog({ host, packages, onClose }: { host: HostDetail; p
         </Field>
         {schedule === 'at' && <Field label="Start at"><Input type="datetime-local" value={at} onChange={(e) => setAt(e.target.value)} /></Field>}
         <Note tone="warn">
-          The package manager runs non-interactively and keeps existing configuration files. Output is captured in the job log and every step is audited. A dry run shows what would change without installing anything.
+          Packages are installed non-interactively and every step is audited. A dry run shows what would change first.
         </Note>
         {host.allow_upgrades ? (
           <Field label={<>Type the host name <b className="mono text-fg">{host.name}</b> to enable the upgrade button</>}>

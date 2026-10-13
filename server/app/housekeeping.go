@@ -18,6 +18,10 @@ import (
 
 // housekeepingLoop runs periodic maintenance: retention, storage accounting,
 // history pruning and storage warnings.
+// maxRestoreEntry caps a single file restored from a backup, so a crafted
+// archive cannot fill the disk.
+const maxRestoreEntry = 512 << 30
+
 func (a *App) housekeepingLoop(ctx context.Context) {
 	// First pass shortly after start, then hourly; heavy work nightly.
 	t := time.NewTimer(2 * time.Minute)
@@ -163,6 +167,7 @@ func (a *App) uptimeLoop(ctx context.Context) {
 			return
 		case <-t.C:
 		}
+		a.runUpdateSchedules(ctx)
 		type hs struct {
 			ID       int64  `db:"id"`
 			TenantID int64  `db:"tenant_id"`
@@ -291,7 +296,11 @@ func RestoreBackup(r io.Reader, dataDir string, force bool) error {
 		if err != nil {
 			return err
 		}
-		if _, err := io.Copy(f, tr); err != nil {
+		if hdr.Size > maxRestoreEntry {
+			f.Close()
+			return fmt.Errorf("backup entry %s is larger than %d bytes", name, int64(maxRestoreEntry))
+		}
+		if _, err := io.Copy(f, io.LimitReader(tr, maxRestoreEntry)); err != nil {
 			f.Close()
 			return err
 		}

@@ -260,6 +260,8 @@ func (s *httpServer) buildHandler() http.Handler {
 	api.NotFound(func(w http.ResponseWriter, _ *http.Request) { writeError(w, errNotFound) })
 	r.Mount("/api/v1", api)
 
+	// Public heartbeat endpoint for push checks: the token is the credential.
+	r.HandleFunc("/api/push/{token}", a.handlePush)
 	r.Get("/download/agent/pkg/{file}", a.handleAgentPackage)
 	r.Get("/download/agent/{os}/{arch}", a.handleAgentDownload)
 	r.Get("/install/agent.sh", a.handleInstallScript("sh"))

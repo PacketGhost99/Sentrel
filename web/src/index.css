@@ -120,6 +120,13 @@ button, a, input, select, textarea { transition: background-color .15s ease, bor
 .u-legend { font-size: 12px; text-align: left; }
 .u-legend .u-marker { border-radius: 999px; }
 .u-legend th { font-weight: 500; }
+/* Legend: no time column, and values only while hovering the chart. */
+.u-legend .u-series:first-child { display: none; }
+.u-legend .u-value { display: none; }
+.uplot:hover .u-legend .u-value { display: inline; }
+.u-legend.u-inline .u-series th::after { content: ""; }
+.uplot:hover .u-legend.u-inline .u-series th::after { content: ":"; }
+.u-legend th { color: var(--muted); }
 .u-select { background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .u-cursor-x, .u-cursor-y { border-color: var(--muted) !important; }
 
@@ -132,7 +139,17 @@ button, a, input, select, textarea { transition: background-color .15s ease, bor
 .fade-in { animation: fade-in .18s ease-out; }
 @keyframes pop-in { from { opacity: 0; transform: translateY(8px) scale(.98) } to { opacity: 1; transform: none } }
 .pop-in { animation: pop-in .16s ease-out; }
+@keyframes tip-in { from { opacity: 0 } to { opacity: 1 } }
+.tip-in { animation: tip-in .12s ease-out; }
+@keyframes drawer-in { from { transform: translateX(24px); opacity: .6 } to { transform: none; opacity: 1 } }
+.drawer-in { animation: drawer-in .18s ease-out; }
 
 @media (prefers-reduced-motion: reduce) {
-  .pulse-ring, .fade-in, .pop-in { animation: none; }
+  .pulse-ring, .fade-in, .pop-in, .tip-in, .drawer-in { animation: none; }
+}
+
+/* Grid items default to min-width:auto, so one wide table or chart would stretch
+   a single-column grid past the screen. Let them shrink; tables scroll inside. */
+@layer base {
+  .grid > * { min-width: 0; }
 }

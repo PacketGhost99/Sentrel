@@ -65,8 +65,28 @@ Create checks under **Checks** or `POST /api/v1/checks`. Common fields: `name`, 
 | `process` | agent host | process name | `regex` |
 | `port` | agent host | port number | `protocol` (`tcp` or `udp`) |
 | `container` | agent host | container name or id prefix | `require_healthy` |
+| `push` | none (the job calls in) | none; the server generates a URL | `grace_seconds` (default 300) |
 
 Agent checks are evaluated from the state the agent reports and must be attached to an agent host; the other types may be standalone or attached to any host. Checks attached to an agentless "target" host drive that host's up/down status. Certificate expiry raises a separate alert that escalates at `warn_days`, `notice_days` and `crit_days` (critical at the last). Ping needs `cap_net_raw` on the server ([install.md](install.md)). **Run now** executes a check immediately.
+
+### Push (heartbeat) checks
+
+A push check inverts the direction: the monitored job (a cron entry, backup script or CI task) calls a URL, and the check goes down when no call arrives within `interval_seconds` plus `grace_seconds` (defaults 3600 and 300). Use it for anything that cannot be probed from outside.
+
+The editor shows the URL, built from the configured server URL, with `curl` examples. The URL is `https://<server>/api/push/<token>`; `GET` and `POST` both work and every request records a beat. Optional query parameters: `status=up` (default) or `status=down` to report a failure at once, and `msg=` (up to 500 characters) shown as the last result. A new check waits one full interval plus grace for its first beat before it can go down. `failure_threshold` defaults to 1. **Run now** re-judges the check from its last beat.
+
+```sh
+curl -fsS -m 10 --retry 3 https://sentrel.example.com/api/push/<token>
+curl -fsS -m 10 "https://sentrel.example.com/api/push/<token>?status=down&msg=backup+failed"
+```
+
+The endpoint needs no login; the token is the credential. It is 192 random bits, looked up by SHA-256 hash and compared in constant time. Unknown, malformed and disabled tokens all return the same 404, each token accepts 60 requests a minute (then 429), and a client that sends 30 unknown tokens in a minute is blocked for the rest of that minute. Only users with the monitoring permission see the URL; `POST /api/v1/checks/{id}/regenerate-token` (the editor's Regenerate button) issues a new one and the old one stops working at once.
+
+## Dependencies
+
+A host or a check can **depend on** a parent: another host or check in the same tenant (the "Depends on" picker in host Settings and in the check editor, or `parent_type` (`host`, `check` or empty to clear) and `parent_id` on `PUT /api/v1/hosts/{id}` and `/checks/{id}`). The server rejects unknown parents, parents in another tenant, self references and cycles, and a host cannot depend on one of its own checks.
+
+While the parent is down (a host marked down, or a check past its failure threshold), alerts for the dependent are still raised, listed and recorded, but nothing is sent: the alert shows `suppressed_by` ("parent X is down") and the timeline records `silenced` with the same text. Fire, escalation, resolution and repeat notifications are all withheld. A check inherits its host's parent unless it names its own. If an alert is still firing once the parent recovers it is not announced again unless its channel has repeats on; set `repeat_minutes` for that. Deleting a parent removes the link.
 
 ## Flap suppression
 
@@ -76,7 +96,7 @@ Each fire and resolve of an alert is a transition. When an alert records `flap_t
 
 - **Grouping**: events for the same channel arriving within `group_wait_seconds` (default 30) are sent as one message. A newer event for the same alert replaces an older queued one (fire plus resolve inside the window becomes one "resolved" item).
 - **Delivery** is retried up to three times (5 s, then 10 s apart); results are in the notification log.
-- **Repeats**: each channel has `repeat_minutes` (new channels default to `default_repeat_minutes`, 240). Unacknowledged, non-flapping, non-silenced firing alerts are re-sent at that interval; 0 disables repeats. An alert that fired during a maintenance window and was never notified is sent once the window ends.
+- **Repeats**: each channel has `repeat_minutes` (new channels default to `default_repeat_minutes` under Settings, Alerting; 240 out of the box). Unacknowledged, non-flapping, non-silenced firing alerts are re-sent at that interval; 0 disables repeats. Repeats stop when the alert is acknowledged (and resume if the acknowledgement is removed), resolved, muted, or suppressed by a maintenance window or a down parent. An alert that fired while suppressed and was never notified is sent once the suppression ends.
 - **Filters** per channel: tenant (a channel in a tenant only sees that tenant's alerts), minimum severity (default warning), send-resolved, host IDs, group IDs, tags.
 
 ## Muting notifications

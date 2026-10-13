@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Ban, PlayCircle } from 'lucide-react'
 import { errorMessage, get, post } from '@/lib/api'
@@ -7,9 +7,10 @@ import { useAuth } from '@/lib/auth'
 import { ago, dateTime, duration } from '@/lib/format'
 import type { HostDetail, Job } from '@/lib/types'
 import { useTenantFilter } from '@/components/Layout'
-import { Badge, Button, Card, Empty, ErrorBox, KV, Loading, Note, PageHeader, Select, Spinner, Table, Td, Th, statusTone, useConfirm, useToast } from '@/components/ui'
+import { Badge, Button, Card, Empty, ErrorBox, KV, Loading, Note, PageHeader, Select, Spinner, Table, Tabs, Td, Th, statusTone, useConfirm, useToast } from '@/components/ui'
 import { UpgradeDialog } from './host/Packages'
 import { OperatorSignPanel } from '@/components/OperatorSign'
+import { ScanSchedules, UpdateSchedules } from '@/components/Schedules'
 
 const jobLabel: Record<string, string> = {
   upgrade: 'Package upgrade', refresh_inventory: 'Refresh inventory', block_ip: 'Block IP', unblock_ip: 'Unblock IP', self_update: 'Agent update', script: 'script (removed)', collect_now: 'Collect now', disk_usage: 'Disk usage analysis', disk_cleanup: 'Disk cleanup',
@@ -39,10 +40,19 @@ export function jobSummary(j: Job): string {
 }
 
 export function Jobs() {
+  const [params, setParams] = useSearchParams()
+  const tab = params.get('tab') === 'schedules' ? 'schedules' : 'history'
+  const setTab = (t: 'history' | 'schedules') => setParams(t === 'history' ? {} : { tab: t }, { replace: true })
   return (
     <div>
-      <PageHeader title="Jobs" subtitle="Remote actions sent to agents: upgrades, disk cleanup, firewall blocks and agent updates. Every job is signed by the server and verified by the agent." />
-      <JobsTable />
+      <PageHeader title="Jobs" info="Remote actions sent to agents: upgrades, disk cleanup, firewall blocks and agent updates. Every job is signed by the server and verified by the agent." />
+      <Tabs value={tab} onChange={setTab} className="mb-4" tabs={[{ id: 'history', label: 'History' }, { id: 'schedules', label: 'Schedules' }]} />
+      {tab === 'history' ? <JobsTable /> : (
+        <div className="space-y-4">
+          <UpdateSchedules />
+          <ScanSchedules />
+        </div>
+      )}
     </div>
   )
 }
@@ -129,7 +139,7 @@ export function JobDetail() {
             <pre ref={out} className="mono max-h-[60vh] min-h-48 overflow-auto whitespace-pre-wrap break-all rounded-xl bg-[#0b0f17] p-4 text-xs text-[#d6deeb]">{j.output || (done ? '(no output)' : '…')}</pre>
           </Card>
         </div>
-        <Card title="Details">
+        <Card title="Details" className="h-full">
           <KV items={[
             ['ID', <span key="i" className="mono text-xs">{j.id}</span>],
             ['Status', statusLabel(j.status)],

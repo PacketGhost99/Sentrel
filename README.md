@@ -9,6 +9,7 @@
 Agents, uptime checks, security, patching and CVEs in one place.
 
 [![CI](https://github.com/PacketGhost99/Sentrel/actions/workflows/ci.yml/badge.svg)](https://github.com/PacketGhost99/Sentrel/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/PacketGhost99/Sentrel/actions/workflows/codeql.yml/badge.svg)](https://github.com/PacketGhost99/Sentrel/actions/workflows/codeql.yml)
 [![Release](https://img.shields.io/github/v/release/PacketGhost99/Sentrel)](https://github.com/PacketGhost99/Sentrel/releases/latest)
 [![Licence](https://img.shields.io/github/license/PacketGhost99/Sentrel)](LICENSE)
 [![Container image](https://img.shields.io/badge/ghcr.io-packetghost99%2Fsentrel-blue?logo=docker&logoColor=white)](https://github.com/PacketGhost99/Sentrel/pkgs/container/sentrel)

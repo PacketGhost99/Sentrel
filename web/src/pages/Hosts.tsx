@@ -135,19 +135,19 @@ export function Hosts() {
       <Card bodyClass="p-0">
         <div className="flex flex-wrap items-center gap-2 border-b border-line/70 p-4">
           <Input placeholder="Filter by name, address, tag, OS…" value={q} onChange={(e) => setQ(e.target.value)} className="w-full sm:w-72" />
-          <div className="w-36"><Select value={status} onChange={(e) => setParam('status', e.target.value)}>
+          <div className="w-[calc(50%-4px)] sm:w-36"><Select value={status} onChange={(e) => setParam('status', e.target.value)}>
             <option value="">Any status</option><option value="up">Up</option><option value="down">Down</option><option value="pending">Pending</option>
           </Select></div>
-          <div className="w-36"><Select value={kind} onChange={(e) => setParam('kind', e.target.value)}>
+          <div className="w-[calc(50%-4px)] sm:w-36"><Select value={kind} onChange={(e) => setParam('kind', e.target.value)}>
             <option value="">Any type</option><option value="agent">Agent</option><option value="snmp">SNMP device</option><option value="target">Target</option>
           </Select></div>
-          <div className="w-40"><Select value={group} onChange={(e) => setParam('group_id', e.target.value)}>
+          <div className="w-[calc(50%-4px)] sm:w-40"><Select value={group} onChange={(e) => setParam('group_id', e.target.value)}>
             <option value="">Any group</option>{groups.data?.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
           </Select></div>
-          {!!tags.data?.length && <div className="w-36"><Select value={tag} onChange={(e) => setParam('tag', e.target.value)}>
+          {!!tags.data?.length && <div className="w-[calc(50%-4px)] sm:w-36"><Select value={tag} onChange={(e) => setParam('tag', e.target.value)}>
             <option value="">Any tag</option>{tags.data.map((t) => <option key={t.tag} value={t.tag}>{t.tag} ({t.count})</option>)}
           </Select></div>}
-          <div className="w-44"><Select value={sortKey} onChange={(e) => setSortKey(e.target.value)}>
+          <div className="w-[calc(50%-4px)] sm:w-44"><Select value={sortKey} onChange={(e) => setSortKey(e.target.value)}>
             {sortOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
           </Select></div>
           <Button variant="ghost" size="sm" aria-label="Refresh" icon={<RefreshCcw className="size-3.5" />} onClick={() => { hosts.refetch(); beats.refetch() }} />
@@ -187,25 +187,28 @@ function HostRow({ h, selected, onToggle, days }: { h: Host; selected: boolean; 
   return (
     <li className={cx('flex flex-wrap lg:flex-nowrap items-center gap-x-5 gap-y-3 px-5 py-4 transition-colors hover:bg-panel-2/50', selected && 'bg-accent/5')}>
       <Checkbox checked={selected} onChange={onToggle} />
-      <div className="flex min-w-0 basis-60 flex-1 items-center gap-3">
+      <div className="flex min-w-0 flex-1 basis-60 items-center gap-3 lg:min-w-56">
         <StatusPill tone={st.tone} label={st.label} className="shrink-0" />
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <Link to={`/hosts/${h.id}`} className="block truncate text-[15px] font-semibold tracking-tight hover:text-accent">{h.name}</Link>
-          <div className="flex flex-wrap items-center gap-1 text-xs text-muted">
-            <span className="truncate">{h.address}</span>
-            <span className="hidden sm:inline">· {system}</span>
-            {h.group_name && <Badge>{h.group_name}</Badge>}
-            {(h.tags || []).slice(0, 3).map((t) => <Badge key={t} tone="info">{t}</Badge>)}
-            {h.tenant_name && h.tenant_id !== 0 && <Badge tone="accent">{h.tenant_name}</Badge>}
+          <div className="truncate text-xs text-muted" title={`${h.address} · ${system}`}>
+            {h.address}<span className="hidden sm:inline"> · {system}</span>
           </div>
+          {(h.group_name || !!h.tags?.length || (h.tenant_name && h.tenant_id !== 0)) && (
+            <div className="mt-1 flex flex-wrap items-center gap-1">
+              {h.group_name && <Badge>{h.group_name}</Badge>}
+              {(h.tags || []).slice(0, 3).map((t) => <Badge key={t} tone="info">{t}</Badge>)}
+              {h.tenant_name && h.tenant_id !== 0 && <Badge tone="accent">{h.tenant_name}</Badge>}
+            </div>
+          )}
         </div>
       </div>
-      <div className="hidden items-center gap-3 md:flex">
+      <div className="hidden shrink-0 items-center gap-3 md:flex">
         <MiniMeter label="CPU" value={h.summary?.cpu} />
         <MiniMeter label="Mem" value={h.summary?.memory} />
         <MiniMeter label="Disk" value={h.summary?.disk} />
       </div>
-      <div className="hidden min-w-24 max-w-64 flex-wrap items-center gap-1 xl:flex">
+      <div className="hidden w-40 shrink-0 flex-col items-start gap-1 xl:flex">
         {h.kind === 'agent' && h.security_count > 0 && <Badge tone="crit">{h.security_count} security</Badge>}
         {h.kind === 'agent' && h.upgrade_count > 0 && <Badge tone="warn">{plural(h.upgrade_count, 'update')}</Badge>}
         {h.kind === 'agent' && h.reboot_required && <Badge tone="warn">reboot</Badge>}
@@ -215,7 +218,7 @@ function HostRow({ h, selected, onToggle, days }: { h: Host; selected: boolean; 
           </Badge>
         )}
       </div>
-      <div className="flex w-full items-center gap-3 lg:w-[330px]">
+      <div className="flex w-full items-center gap-3 lg:w-56 lg:shrink-0 2xl:w-72">
         <BeatBar beats={hostBeatsToBeats(days)} count={30} className="flex-1" />
         <UptimePill value={avg} title="Average uptime over 30 days" />
       </div>

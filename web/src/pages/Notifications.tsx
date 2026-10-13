@@ -6,7 +6,7 @@ import { useAuth } from '@/lib/auth'
 import { ago } from '@/lib/format'
 import type { Channel, Host, HostGroup } from '@/lib/types'
 import { useTenantFilter } from '@/components/Layout'
-import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, Input, Loading, Modal, Note, PageHeader, Select, Table, TagInput, Td, Textarea, Th, Toggle, useConfirm, useToast } from '@/components/ui'
+import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, InfoTip, Input, Loading, Modal, PageHeader, Select, Table, TagInput, Td, Textarea, Th, Toggle, useConfirm, useToast } from '@/components/ui'
 
 const types: { id: string; label: string; help: string }[] = [
   { id: 'discord', label: 'Discord', help: 'Server settings → Integrations → Webhooks → copy URL' },
@@ -38,10 +38,10 @@ export function Notifications() {
   const log = useQuery({ queryKey: ['notification-log', tenant], queryFn: () => get<any[]>('/notification-log', { tenant_id: tenant ?? undefined }), refetchInterval: 30_000 })
   return (
     <div>
-      <PageHeader title="Notifications" subtitle="Where alerts go. Events within the group-wait window are combined into one message per channel; unacknowledged alerts repeat at the channel's interval."
+      <PageHeader title="Notifications" info="Where alerts go. Events within the group-wait window are combined into one message per channel; unacknowledged alerts repeat at the channel's interval."
         actions={can('monitoring') && <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => setEdit({ type: 'discord', tenant_id: tenant ?? 0 })}>Add channel</Button>} />
       <Card bodyClass="p-0">
-        {ch.isLoading ? <Loading /> : !ch.data?.length ? <Empty title="No channels yet" icon={<Radar className="size-8" />}>Add Discord, Slack, Teams, Telegram, ntfy, Gotify, Pushover, email or a generic webhook.</Empty> : (
+        {ch.isLoading ? <Loading /> : !ch.data?.length ? <Empty title="No channels yet" icon={<Radar className="size-8" />} /> : (
           <Table>
             <thead><tr><Th>Channel</Th><Th>Type</Th><Th className="hidden md:table-cell">Routing</Th><Th className="hidden lg:table-cell">Last sent</Th><Th>Status</Th><Th /></tr></thead>
             <tbody>
@@ -124,20 +124,19 @@ function ChannelEditor({ initial, onClose }: { initial: Partial<Channel>; onClos
       </>}>
       <div className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Type">
+          <Field label="Type" info={t.help}>
             <Select value={c.type} onChange={(e) => setC({ ...c, type: e.target.value, config: {} })} disabled={!!c.id}>
               {types.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
             </Select>
           </Field>
           <Field label="Name" required><Input value={c.name} onChange={(e) => setC({ ...c, name: e.target.value })} placeholder={`${t.label} – ops`} /></Field>
         </div>
-        <Note>{t.help}</Note>
         <div className="grid gap-3 sm:grid-cols-2">
           {['discord', 'slack', 'teams', 'webhook'].includes(c.type!) && <Field label="Webhook URL" className="sm:col-span-2" required><Input value={cfg.url || ''} onChange={(e) => setCfg({ url: e.target.value })} /></Field>}
           {c.type === 'discord' && <Field label="Bot display name (optional)"><Input value={cfg.username || ''} onChange={(e) => setCfg({ username: e.target.value })} /></Field>}
           {c.type === 'telegram' && <>{secret('bot_token', 'Bot token')}<Field label="Chat ID" required><Input value={cfg.chat_id || ''} onChange={(e) => setCfg({ chat_id: e.target.value })} /></Field></>}
           {c.type === 'ntfy' && <>
-            <Field label="Server" hint="Default https://ntfy.sh"><Input value={cfg.server || ''} onChange={(e) => setCfg({ server: e.target.value })} placeholder="https://ntfy.sh" /></Field>
+            <Field label="Server"><Input value={cfg.server || ''} onChange={(e) => setCfg({ server: e.target.value })} placeholder="https://ntfy.sh" /></Field>
             <Field label="Topic" required><Input value={cfg.topic || ''} onChange={(e) => setCfg({ topic: e.target.value })} /></Field>
             {secret('token', 'Access token (optional)')}
             <Field label="Priority (1-5, 0 = automatic)"><Input type="number" min={0} max={5} value={cfg.priority || 0} onChange={(e) => setCfg({ priority: Number(e.target.value) })} /></Field>
@@ -156,23 +155,22 @@ function ChannelEditor({ initial, onClose }: { initial: Partial<Channel>; onClos
             <Field label="Basic auth user"><Input value={cfg.username || ''} onChange={(e) => setCfg({ username: e.target.value })} /></Field>
             {secret('password', 'Basic auth password')}
             <Field label="Body template (Go text/template, optional)" className="sm:col-span-2"
-              hint={<>Leave empty to send the full JSON payload. Fields: <code>.Subject .Status .Severity .URL .Items</code> (each: <code>.Title .Message .Host .Severity .Status .Event .URL</code>); helpers <code>json</code>, <code>upper</code>, <code>time</code>.</>}>
+              info={<>Leave empty to send the full JSON payload. Fields: <code>.Subject .Status .Severity .URL .Items</code> (each: <code>.Title .Message .Host .Severity .Status .Event .URL</code>); helpers <code>json</code>, <code>upper</code>, <code>time</code>.</>}>
               <Textarea className="mono min-h-36 text-xs" value={cfg.template || ''} onChange={(e) => setCfg({ template: e.target.value })} placeholder={defaultTemplate} />
             </Field>
           </>}
         </div>
         <div className="grid gap-3 sm:grid-cols-3">
           <Field label="Minimum severity"><Select value={c.min_severity} onChange={(e) => setC({ ...c, min_severity: e.target.value as any })}><option value="warning">Warning and critical</option><option value="critical">Critical only</option></Select></Field>
-          <Field label="Repeat unacknowledged every (min)" hint="0 = never"><Input type="number" min={0} value={c.repeat_minutes} onChange={(e) => setC({ ...c, repeat_minutes: Number(e.target.value) })} /></Field>
+          <Field label="Repeat unacknowledged every (min)" hint="0 = never" info="Re-sends a firing alert at this interval. Repeats stop when the alert is acknowledged, resolved, muted, or suppressed by a maintenance window or a parent that is down."><Input type="number" min={0} value={c.repeat_minutes} onChange={(e) => setC({ ...c, repeat_minutes: Number(e.target.value) })} /></Field>
           <div className="space-y-2 pt-5">
             <Toggle checked={!!c.send_resolved} onChange={(v) => setC({ ...c, send_resolved: v })} label="Send resolved" />
             <Toggle checked={c.enabled !== false} onChange={(v) => setC({ ...c, enabled: v })} label="Enabled" />
           </div>
         </div>
         <details className="rounded-xl border border-line/70 p-4">
-          <summary className="cursor-pointer text-sm font-medium">Routing filters (optional)</summary>
+          <summary className="flex cursor-pointer items-center gap-1.5 text-sm font-medium">Routing filters (optional)<InfoTip>With no filters the channel receives every alert in its tenant. Filters combine with AND.</InfoTip></summary>
           <div className="mt-3 space-y-3">
-            <p className="text-xs text-muted">With no filters the channel receives every alert in its tenant. Filters combine with AND.</p>
             <Field label="Only these groups">
               <div className="flex flex-wrap gap-3">{groups.data?.map((g) => <Checkbox key={g.id} checked={(c.filter_groups || []).includes(g.id)} label={g.name}
                 onChange={(v) => setC({ ...c, filter_groups: v ? [...(c.filter_groups || []), g.id] : (c.filter_groups || []).filter((x) => x !== g.id) })} />)}</div>

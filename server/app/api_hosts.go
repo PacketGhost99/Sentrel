@@ -116,6 +116,7 @@ func (a *App) decorateHosts(ctx context.Context, hosts []Host) {
 	for i := range hosts {
 		h := &hosts[i]
 		a.resolveHost(h)
+		h.Parent = a.parentInfo(ctx, "host", h.ID)
 		if h.GroupID != nil {
 			h.GroupName = groups[*h.GroupID]
 		}
@@ -246,6 +247,10 @@ type hostUpdate struct {
 	TenantID       *int64                     `json:"tenant_id"`
 	ClearInterval  bool                       `json:"clear_interval"`
 	ClearRetention bool                       `json:"clear_retention"`
+	// Parent: a host or check this host depends on. Omit both to keep it;
+	// an empty parent_type clears it.
+	ParentType *string `json:"parent_type"`
+	ParentID   *int64  `json:"parent_id"`
 }
 
 func (a *App) apiUpdateHost(c *Ctx) (any, error) {
@@ -258,6 +263,13 @@ func (a *App) apiUpdateHost(c *Ctx) (any, error) {
 		return nil, err
 	}
 	ctx := c.ctx()
+	dep := depRequest{ParentType: req.ParentType, ParentID: req.ParentID}
+	depType, depID := dep.values()
+	if dep.present() {
+		if err := a.validateDependency(ctx, h.TenantID, "host", h.ID, depType, depID); err != nil {
+			return nil, err
+		}
+	}
 	sets := []string{}
 	args := []any{}
 	set := func(col string, v any) {
@@ -401,6 +413,13 @@ func (a *App) apiUpdateHost(c *Ctx) (any, error) {
 			return nil, err
 		}
 		changes["tenant_id"] = *req.TenantID
+		// Dependencies never cross tenants.
+		a.forgetDependencies(ctx, "host", h.ID)
+	} else if dep.present() {
+		if err := a.setDependency(ctx, h.TenantID, "host", h.ID, depType, depID); err != nil {
+			return nil, err
+		}
+		changes["parent_type"], changes["parent_id"] = depType, depID
 	}
 	_ = a.alerts.refreshHosts(ctx)
 	hostTenantCache.Delete(h.ID)
@@ -446,6 +465,7 @@ func (a *App) moveHostTenant(ctx context.Context, hostID, tenant int64) error {
 			`UPDATE security_events SET tenant_id=? WHERE host_id=?`,
 			`UPDATE ip_blocks SET tenant_id=? WHERE host_id=?`,
 			`UPDATE fail2ban_status SET tenant_id=? WHERE host_id=?`,
+			`UPDATE disk_health SET tenant_id=? WHERE host_id=?`,
 			`UPDATE portscan_status SET tenant_id=? WHERE host_id=?`,
 			`UPDATE vuln_scans SET tenant_id=? WHERE host_id=?`,
 			`UPDATE vuln_findings SET tenant_id=? WHERE host_id=?`,
@@ -471,6 +491,7 @@ func (a *App) apiDeleteHost(c *Ctx) (any, error) {
 		_, _ = a.db.ExecContext(ctx, `INSERT OR IGNORE INTO revoked_certs (serial, tenant_id, host_id, revoked_at) VALUES (?,?,?,?)`, h.CertSerial, h.TenantID, h.ID, db.Now())
 	}
 	a.hub.Disconnect(h.ID, "host deleted", true)
+	a.forgetDependencies(ctx, "host", h.ID)
 	if _, err := a.db.ExecContext(ctx, `DELETE FROM hosts WHERE id=?`, h.ID); err != nil {
 		return nil, err
 	}

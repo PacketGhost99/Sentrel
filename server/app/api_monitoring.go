@@ -34,6 +34,10 @@ type checkReq struct {
 	FailureThreshold int             `json:"failure_threshold"`
 	Severity         string          `json:"severity"`
 	Enabled          *bool           `json:"enabled"`
+	// Parent: leave both out to keep the current dependency; an empty
+	// parent_type clears it.
+	ParentType *string `json:"parent_type"`
+	ParentID   *int64  `json:"parent_id"`
 }
 
 var checkSecrets = []string{"basic_password"}
@@ -47,6 +51,9 @@ func (a *App) validateCheck(c *Ctx, req *checkReq) (int64, error) {
 	if !serverCheckTypes[req.Type] && !agentCheckTypes[req.Type] {
 		return 0, badRequest("unknown check type %q", req.Type)
 	}
+	if req.Type == "push" {
+		req.Target = "heartbeat" // the target is the generated URL
+	}
 	if req.Target == "" {
 		return 0, badRequest("target is required")
 	}
@@ -54,6 +61,9 @@ func (a *App) validateCheck(c *Ctx, req *checkReq) (int64, error) {
 		req.IntervalSeconds = 60
 		if req.Type == "cert" {
 			req.IntervalSeconds = 3600 * 6
+		}
+		if req.Type == "push" {
+			req.IntervalSeconds = pushDefaultInterval
 		}
 	}
 	if req.IntervalSeconds < 10 || req.IntervalSeconds > 86400 {
@@ -69,6 +79,9 @@ func (a *App) validateCheck(c *Ctx, req *checkReq) (int64, error) {
 		req.FailureThreshold = 3
 		if agentCheckTypes[req.Type] {
 			req.FailureThreshold = 2
+		}
+		if req.Type == "push" {
+			req.FailureThreshold = 1
 		}
 	}
 	if req.FailureThreshold < 1 || req.FailureThreshold > 100 {
@@ -88,6 +101,10 @@ func (a *App) validateCheck(c *Ctx, req *checkReq) (int64, error) {
 		return 0, badRequest("config: %v", err)
 	}
 	switch req.Type {
+	case "push":
+		if cfg.GraceSeconds < 0 || cfg.GraceSeconds > 86400 {
+			return 0, badRequest("grace must be 0-86400 seconds")
+		}
 	case "tcp":
 		if _, p, err := net.SplitHostPort(req.Target); err != nil || p == "" {
 			return 0, badRequest("TCP target must be host:port")
@@ -180,8 +197,32 @@ func (a *App) apiListChecks(c *Ctx) (any, error) {
 			out[i].Uptime24h = &vv
 		}
 		out[i].Config = JSON(mustJSON(redact(out[i].Config, checkSecrets)))
+		a.decorateCheck(c, &out[i])
 	}
 	return out, nil
+}
+
+// decorateCheck hides the push token from read-only users and adds the
+// check's parent.
+func (a *App) decorateCheck(c *Ctx, k *Check) {
+	if !c.P.Has(PermMonitoring) {
+		k.PushToken = ""
+	}
+	k.Parent = a.parentInfo(c.ctx(), "check", k.ID)
+}
+
+// checkDependency validates the parent named in a request. set is false when
+// the request leaves the dependency alone.
+func (a *App) checkDependency(c *Ctx, tenant, id int64, req *checkReq) (pt string, pid int64, set bool, err error) {
+	d := depRequest{ParentType: req.ParentType, ParentID: req.ParentID}
+	if !d.present() {
+		return "", 0, false, nil
+	}
+	pt, pid = d.values()
+	if err := a.validateDependency(c.ctx(), tenant, "check", id, pt, pid); err != nil {
+		return "", 0, false, err
+	}
+	return pt, pid, true, nil
 }
 
 func (a *App) visibleCheck(c *Ctx, id int64) (*Check, error) {
@@ -202,20 +243,38 @@ func (a *App) apiCreateCheck(c *Ctx) (any, error) {
 		return nil, err
 	}
 	enabled := req.Enabled == nil || *req.Enabled
-	res, err := a.db.ExecContext(c.ctx(), `INSERT INTO checks (tenant_id, host_id, name, type, target, config, interval_seconds, timeout_seconds, failure_threshold, severity, enabled, created_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`, tenant, req.HostID, req.Name, req.Type, req.Target, string(req.Config), req.IntervalSeconds, req.TimeoutSeconds,
-		req.FailureThreshold, req.Severity, enabled, db.Now())
+	pt, pid, setDep, err := a.checkDependency(c, tenant, 0, &req)
+	if err != nil {
+		return nil, err
+	}
+	var pushTok, pushHash string
+	if req.Type == "push" {
+		pushTok, pushHash = newPushToken()
+	}
+	res, err := a.db.ExecContext(c.ctx(), `INSERT INTO checks (tenant_id, host_id, name, type, target, config, interval_seconds, timeout_seconds, failure_threshold, severity, enabled, created_at, push_token, push_token_hash)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, tenant, req.HostID, req.Name, req.Type, req.Target, string(req.Config), req.IntervalSeconds, req.TimeoutSeconds,
+		req.FailureThreshold, req.Severity, enabled, db.Now(), pushTok, pushHash)
 	if err != nil {
 		return nil, err
 	}
 	id, _ := res.LastInsertId()
+	if setDep {
+		if err := a.setDependency(c.ctx(), tenant, "check", id, pt, pid); err != nil {
+			return nil, err
+		}
+		c.auditDep(tenant, "check", id, pt, pid)
+	}
 	a.checks.Invalidate(id)
 	if req.Type == "service" && req.HostID != nil {
 		a.hub.PushConfig(c.ctx(), *req.HostID)
 	}
 	c.auditT(tenant, "check.created", "check", itoa(id), map[string]any{"name": req.Name, "type": req.Type, "target": req.Target})
 	k, err := a.visibleCheck(c, id)
-	return created{k}, err
+	if err != nil {
+		return nil, err
+	}
+	a.decorateCheck(c, k)
+	return created{k}, nil
 }
 
 func (a *App) apiGetCheck(c *Ctx) (any, error) {
@@ -227,6 +286,7 @@ func (a *App) apiGetCheck(c *Ctx) (any, error) {
 	if k.HostID != nil {
 		k.HostName = a.hostNames(c.ctx())[*k.HostID]
 	}
+	a.decorateCheck(c, k)
 	return k, nil
 }
 
@@ -248,11 +308,36 @@ func (a *App) apiUpdateCheck(c *Ctx) (any, error) {
 	}
 	cfg := mergeSecrets(req.Config, k.Config, checkSecrets)
 	enabled := req.Enabled == nil || *req.Enabled
-	_, err = a.db.ExecContext(c.ctx(), `UPDATE checks SET tenant_id=?, host_id=?, name=?, type=?, target=?, config=?, interval_seconds=?, timeout_seconds=?,
-		failure_threshold=?, severity=?, enabled=? WHERE id=?`, tenant, req.HostID, req.Name, req.Type, req.Target, string(cfg), req.IntervalSeconds,
-		req.TimeoutSeconds, req.FailureThreshold, req.Severity, enabled, k.ID)
+	if tenant != k.TenantID {
+		// Dependencies never cross tenants.
+		a.forgetDependencies(c.ctx(), "check", k.ID)
+	}
+	pt, pid, setDep, err := a.checkDependency(c, tenant, k.ID, &req)
 	if err != nil {
 		return nil, err
+	}
+	pushTok, pushHash := k.PushToken, k.PushTokenHash
+	switch {
+	case req.Type != "push":
+		pushTok, pushHash = "", ""
+	case pushTok == "":
+		pushTok, pushHash = newPushToken()
+	}
+	_, err = a.db.ExecContext(c.ctx(), `UPDATE checks SET tenant_id=?, host_id=?, name=?, type=?, target=?, config=?, interval_seconds=?, timeout_seconds=?,
+		failure_threshold=?, severity=?, enabled=?, push_token=?, push_token_hash=? WHERE id=?`, tenant, req.HostID, req.Name, req.Type, req.Target, string(cfg), req.IntervalSeconds,
+		req.TimeoutSeconds, req.FailureThreshold, req.Severity, enabled, pushTok, pushHash, k.ID)
+	if err != nil {
+		return nil, err
+	}
+	if req.Type == "push" && enabled && !k.Enabled {
+		// Re-enabled: give the job a fresh window to call in.
+		_, _ = a.db.ExecContext(c.ctx(), `UPDATE checks SET last_beat_at=?, last_beat_up=1, last_beat_msg='Check enabled' WHERE id=?`, db.Now(), k.ID)
+	}
+	if setDep {
+		if err := a.setDependency(c.ctx(), tenant, "check", k.ID, pt, pid); err != nil {
+			return nil, err
+		}
+		c.auditDep(tenant, "check", k.ID, pt, pid)
 	}
 	if !enabled {
 		a.alerts.forceResolve(c.ctx(), "check:"+itoa(k.ID), "check disabled", c.P.Name)
@@ -264,7 +349,12 @@ func (a *App) apiUpdateCheck(c *Ctx) (any, error) {
 		a.hub.PushConfig(c.ctx(), *req.HostID)
 	}
 	c.auditT(tenant, "check.updated", "check", itoa(k.ID), map[string]any{"name": req.Name})
-	return a.visibleCheck(c, k.ID)
+	nk, err := a.visibleCheck(c, k.ID)
+	if err != nil {
+		return nil, err
+	}
+	a.decorateCheck(c, nk)
+	return nk, nil
 }
 
 func (a *App) apiDeleteCheck(c *Ctx) (any, error) {
@@ -276,6 +366,7 @@ func (a *App) apiDeleteCheck(c *Ctx) (any, error) {
 	if _, err := a.db.ExecContext(c.ctx(), `DELETE FROM checks WHERE id=?`, k.ID); err != nil {
 		return nil, err
 	}
+	a.forgetDependencies(c.ctx(), "check", k.ID)
 	_, _ = a.db.ExecContext(c.ctx(), `DELETE FROM uptime_daily WHERE item_type='check' AND item_id=?`, k.ID)
 	a.checks.Invalidate(k.ID)
 	c.auditT(k.TenantID, "check.deleted", "check", itoa(k.ID), map[string]any{"name": k.Name})
@@ -483,7 +574,8 @@ func (a *App) apiListAlerts(c *Ctx) (any, error) {
 			if al.HostID != nil {
 				al.HostName = names[*al.HostID]
 			}
-			al.InMaintenance = a.alerts.suppressed(&al)
+			al.InMaintenance = a.alerts.inMaintenance(&al)
+			al.SuppressedBy = a.dependencyReason(&al)
 			out = append(out, al)
 		}
 		sort.SliceStable(out, func(i, j int) bool {
@@ -540,7 +632,10 @@ func (a *App) apiGetAlert(c *Ctx) (any, error) {
 	if al.HostID != nil {
 		al.HostName = a.hostNames(c.ctx())[*al.HostID]
 	}
-	al.InMaintenance = a.alerts.suppressed(&al)
+	if al.Status == "pending" || al.Status == "firing" {
+		al.InMaintenance = a.alerts.inMaintenance(&al)
+		al.SuppressedBy = a.dependencyReason(&al)
+	}
 	events := []AlertEvent{}
 	_ = a.db.SelectContext(c.ctx(), &events, `SELECT e.*, '' AS title, '' AS host_name FROM alert_events e WHERE alert_id=? ORDER BY id DESC LIMIT 300`, al.ID)
 	return map[string]any{"alert": al, "events": events}, nil

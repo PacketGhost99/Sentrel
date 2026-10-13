@@ -18,7 +18,7 @@ export function Tenants() {
   const t = useQuery({ queryKey: ['tenants'], queryFn: () => get<Tenant[]>('/tenants') })
   return (
     <div>
-      <PageHeader title="Tenants" subtitle="Customers or business units. Each tenant's users see only their own hosts, checks, alerts and branding. Portal: /login?tenant=<slug> or a custom hostname."
+      <PageHeader title="Tenants" subtitle="Customers or business units" info="Each tenant's users see only their own hosts, checks, alerts and branding. Portal: /login?tenant=<slug> or a custom hostname."
         actions={<Button variant="primary" icon={<Plus className="size-4" />} onClick={() => setEdit({})}>New tenant</Button>} />
       <Card bodyClass="p-0">
         {t.isLoading ? <Loading /> : !t.data?.length ? <Empty title="No tenants" icon={<Building2 className="size-8" />} /> : (
@@ -58,9 +58,9 @@ function TenantEditor({ initial, onClose }: { initial: Partial<Tenant>; onClose:
       <div className="space-y-3">
         <Field label="Name" required><Input value={x.name} onChange={(e) => setX({ ...x, name: e.target.value, slug: x.id !== undefined ? x.slug : e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') })} /></Field>
         {x.id !== 0 && <Field label="Slug" hint="Used in the portal link /login?tenant=slug"><Input value={x.slug} onChange={(e) => setX({ ...x, slug: e.target.value })} /></Field>}
-        {x.id !== 0 && <Field label="Custom portal hostname (optional)" hint="If this hostname points at the server, its login page shows the tenant's branding"><Input value={x.hostname} onChange={(e) => setX({ ...x, hostname: e.target.value })} placeholder="monitor.customer.com" /></Field>}
+        {x.id !== 0 && <Field label="Custom portal hostname (optional)" info="If this hostname points at the server, its login page shows the tenant's branding."><Input value={x.hostname} onChange={(e) => setX({ ...x, hostname: e.target.value })} placeholder="monitor.customer.com" /></Field>}
         <Field label="Notes"><Textarea value={x.notes} onChange={(e) => setX({ ...x, notes: e.target.value })} /></Field>
-        {x.id !== undefined && x.id !== 0 && <Toggle checked={!!x.disabled} onChange={(v) => setX({ ...x, disabled: v })} label="Disabled" hint="Tenant users cannot sign in; monitoring continues" />}
+        {x.id !== undefined && x.id !== 0 && <Toggle checked={!!x.disabled} onChange={(v) => setX({ ...x, disabled: v })} label="Disabled" info="Tenant users cannot sign in; monitoring continues." />}
         <ErrorBox error={err} />
       </div>
     </Modal>

@@ -63,7 +63,7 @@ export function Profile() {
             <div className="space-y-3"><p className="text-sm text-muted">Add a second factor with any TOTP app.</p><Button variant="primary" onClick={() => setTotp(true)}>Set up</Button></div>
           )}
         </Card>
-        <Card title="Passkeys & security keys" subtitle="Phishing-resistant second factor; also allows passwordless sign-in.">
+        <Card title="Passkeys & security keys" info="Phishing-resistant second factor; also allows passwordless sign-in.">
           {!!passkeys.data?.length && (
             <Table className="mb-3">
               <thead><tr><Th>Name</Th><Th>Added</Th><Th>Last used</Th><Th /></tr></thead>

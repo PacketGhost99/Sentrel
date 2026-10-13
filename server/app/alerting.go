@@ -323,8 +323,8 @@ func (e *AlertEngine) apply(ctx context.Context, c condition) {
 			e.event(ctx, cur, "fired", "", "")
 			a.maybeAutoDiskAnalysis(*cur)
 			if !cur.Flapping {
-				if e.suppressed(cur) {
-					e.event(ctx, cur, "silenced", "in maintenance window", "")
+				if why := e.suppression(cur); why != "" {
+					e.event(ctx, cur, "silenced", why, "")
 				} else {
 					a.notifier.enqueue(*cur, "fired")
 				}
@@ -402,14 +402,26 @@ func (e *AlertEngine) checkFlapping(ctx context.Context, cur *Alert, now int64, 
 	}
 }
 
-// suppressed reports whether notifications for an alert are silenced by a
+// inMaintenance reports whether an alert is covered by a silencing
 // maintenance window.
-func (e *AlertEngine) suppressed(al *Alert) bool {
+func (e *AlertEngine) inMaintenance(al *Alert) bool {
 	if al.HostID != nil {
 		return e.app.maint.hostSuppressed(*al.HostID)
 	}
 	return e.app.maint.tenantSuppressed(al.TenantID)
 }
+
+// suppression says why notifications for an alert are withheld: a
+// maintenance window or a parent that is down. Empty means not suppressed.
+func (e *AlertEngine) suppression(al *Alert) string {
+	if e.inMaintenance(al) {
+		return "in maintenance window"
+	}
+	return e.app.dependencyReason(al)
+}
+
+// suppressed reports whether notifications for an alert are withheld.
+func (e *AlertEngine) suppressed(al *Alert) bool { return e.suppression(al) != "" }
 
 func (e *AlertEngine) event(ctx context.Context, al *Alert, ev, msg, actor string) {
 	if msg == "" {

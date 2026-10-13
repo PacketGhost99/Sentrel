@@ -168,7 +168,7 @@ export function Layout() {
           <header className="flex h-16 shrink-0 items-center gap-2 border-b border-line/70 bg-bg/80 px-3 backdrop-blur sm:px-6">
             <button className="rounded-lg p-2 text-muted hover:bg-panel-2 lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Menu"><Menu className="size-5" /></button>
             <button onClick={() => setPaletteOpen(true)} className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-xl border border-line/70 bg-panel px-3.5 text-sm text-muted shadow-card hover:border-muted/40 hover:text-fg sm:max-w-sm">
-              <Search className="size-4 shrink-0" /><span className="truncate">Search hosts and pages…</span>
+              <Search className="size-4 shrink-0" /><span className="truncate sm:hidden">Search</span><span className="hidden truncate sm:inline">Search hosts and pages…</span>
               <kbd className="ml-auto hidden rounded-md border border-line bg-panel-2 px-1.5 text-[10px] sm:inline">Ctrl K</kbd>
             </button>
             <div className="flex-1" />

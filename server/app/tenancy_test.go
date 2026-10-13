@@ -15,7 +15,7 @@ import (
 var kindTable = map[string]string{
 	"host": "hosts", "check": "checks", "alert": "alerts", "group": "host_groups",
 	"maintenance": "maintenance_windows", "channel": "notification_channels", "status_page": "status_pages",
-	"threshold": "threshold_rules", "job": "jobs", "vuln_finding": "vuln_findings", "vuln_schedule": "vuln_schedules",
+	"threshold": "threshold_rules", "job": "jobs", "vuln_finding": "vuln_findings", "vuln_schedule": "vuln_schedules", "update_schedule": "update_schedules",
 	"enrollment_token": "enrollment_tokens", "user": "users", "tenant": "tenants",
 	"api_key": "api_keys",
 }
@@ -26,7 +26,7 @@ var kindTable = map[string]string{
 var routeKinds = map[string]string{
 	"hosts": "host", "checks": "check", "alerts": "alert", "groups": "group", "maintenance": "maintenance",
 	"notification-channels": "channel", "status-pages": "status_page", "thresholds": "threshold", "jobs": "job",
-	"vulnerabilities": "vuln_finding", "vuln-schedules": "vuln_schedule", "enrollment-tokens": "enrollment_token",
+	"vulnerabilities": "vuln_finding", "vuln-schedules": "vuln_schedule", "update-schedules": "update_schedule", "enrollment-tokens": "enrollment_token",
 	"users": "user", "tenants": "tenant", "api-keys": "api_key",
 }
 
@@ -99,6 +99,8 @@ func seedTenantFixture(t *testing.T, e *testEnv, root *client, name, label strin
 		"tenant_id": tid, "scope": "global", "metric": "cpu", "warn": 80, "crit": 90}))
 	o["vuln_schedule"] = idOf(t, okDo(t, root, "POST", "/vuln-schedules", map[string]any{
 		"tenant_id": tid, "scope": "tenant", "frequency": "daily", "time_of_day": "03:00"}))
+	o["update_schedule"] = idOf(t, okDo(t, root, "POST", "/update-schedules", map[string]any{
+		"tenant_id": tid, "name": label + "-upd", "scope": "tenant", "frequency": "weekly", "weekday": 0, "time_of_day": "03:00"}))
 	o["enrollment_token"] = idOf(t, okDo(t, root, "POST", "/enrollment-tokens", map[string]any{
 		"tenant_id": tid, "host_name": label + "-new", "ttl_minutes": 15}))
 	okDo(t, f.admin, "POST", "/api-keys", map[string]any{"name": label + "-key", "scopes": []string{"read"}})

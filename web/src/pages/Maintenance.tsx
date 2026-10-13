@@ -37,7 +37,7 @@ export function Maintenance() {
   }
   return (
     <div>
-      <PageHeader title="Maintenance windows" subtitle="Silence alerts during planned work. Windows that allow jobs also run upgrades scheduled “during maintenance”."
+      <PageHeader title="Maintenance windows" info="Silence alerts during planned work. Windows that allow jobs also run upgrades scheduled “during maintenance”."
         actions={can('monitoring') && <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => setEdit({})}>New window</Button>} />
       <Card bodyClass="p-0">
         {w.isLoading ? <Loading /> : !w.data?.length ? <Empty title="No maintenance windows" icon={<CalendarClock className="size-8" />} /> : (
@@ -136,8 +136,8 @@ function MaintEditor({ initial, hosts, groups, onClose }: { initial: Partial<Mai
           </div>
         )}
         <div className="space-y-2">
-          <Toggle checked={!!m.suppress_alerts} onChange={(v) => setM({ ...m, suppress_alerts: v })} label="Silence notifications" hint="Alerts are still recorded and shown, but nobody is paged" />
-          <Toggle checked={!!m.allow_jobs} onChange={(v) => setM({ ...m, allow_jobs: v })} label="Run scheduled jobs" hint="Upgrades scheduled “during maintenance” run in this window" />
+          <Toggle checked={!!m.suppress_alerts} onChange={(v) => setM({ ...m, suppress_alerts: v })} label="Silence notifications" info="Alerts are still recorded and shown, but nobody is paged." />
+          <Toggle checked={!!m.allow_jobs} onChange={(v) => setM({ ...m, allow_jobs: v })} label="Run scheduled jobs" info="Upgrades scheduled “during maintenance” run in this window." />
           <Toggle checked={m.enabled !== false} onChange={(v) => setM({ ...m, enabled: v })} label="Enabled" />
         </div>
         <ErrorBox error={err} />

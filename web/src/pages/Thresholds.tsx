@@ -4,7 +4,7 @@ import { BellOff, Plus, RotateCcw, Save, X } from 'lucide-react'
 import { del, errorMessage, get, post } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import type { HostDetail, HostGroup, MergedRule, MetricDef, Tenant, ThresholdRule } from '@/lib/types'
-import { Badge, Button, Card, Input, Loading, Note, PageHeader, Select, Table, Td, Th, Toggle, cx, useToast } from '@/components/ui'
+import { Badge, Button, Card, InfoTip, Input, Loading, PageHeader, Select, Table, Td, Th, Toggle, cx, useToast } from '@/components/ui'
 
 type Scope = { scope: 'global' | 'group' | 'host'; scope_id: number; tenant_id: number }
 
@@ -18,7 +18,7 @@ export function Thresholds() {
   const s: Scope = { scope: scope as Scope['scope'], scope_id: Number(id), tenant_id: Number(tenant) }
   return (
     <div>
-      <PageHeader title="Thresholds" subtitle="Thresholds inherit from provider to tenant, group and host. The most specific rule wins, and label rules (for example a single mount) take precedence over wildcard rules at the same level." />
+      <PageHeader title="Thresholds" info="Thresholds inherit from provider to tenant, group and host. The most specific rule wins, and label rules (for example a single mount) take precedence over wildcard rules at the same level." />
       <Card bodyClass="p-0">
         <div className="flex flex-wrap items-center gap-3 border-b border-line/70 p-4">
           <span className="text-sm text-muted">Editing</span>
@@ -30,7 +30,7 @@ export function Thresholds() {
               {groups.data?.map((g) => <option key={g.id} value={`group:${g.id}:${g.tenant_id}`}>Group: {g.name}</option>)}
             </Select>
           </div>
-          <span className="text-xs text-muted">Per-host overrides are edited on each host's Thresholds tab.</span>
+          <InfoTip>Per-host overrides are edited on each host's Thresholds tab.</InfoTip>
         </div>
         <ThresholdTable scope={s} editable={can('monitoring')} />
       </Card>
@@ -113,7 +113,7 @@ function RuleRow({ metric, scope, rule, inherited, label, isNew, editable, onSav
             <span className="font-medium text-fg">{metric.name}</span>
             {metric.lower_is_worse && <Badge className="ml-1">lower is worse</Badge>}
             {!rule && inherited && <Badge className="ml-1">inherited</Badge>}
-            {metric.description && <div className="text-xs text-muted">{metric.description}</div>}
+            {metric.description && <InfoTip className="ml-1 align-middle">{metric.description}</InfoTip>}
           </div>
         )}
       </Td>
@@ -147,11 +147,10 @@ export function HostThresholds({ host }: { host: HostDetail }) {
   })
   return (
     <div className="space-y-4">
-      <Card title="Effective thresholds" subtitle="What applies to this host right now" bodyClass="p-0"
+      <Card title="Effective thresholds" info="What applies to this host right now. In edit mode, values come from the inherited rule; saving creates an override for this host only, and removing it inherits again." bodyClass="p-0"
         actions={can('monitoring') && <Button size="sm" onClick={() => setEdit(!edit)}>{edit ? 'Done' : 'Edit host overrides'}</Button>}>
         {edit ? (
           <>
-            <div className="p-4"><Note>Values shown come from the inherited rule; saving creates an override for this host only. Remove an override to inherit again.</Note></div>
             <ThresholdTable scope={{ scope: 'host', scope_id: host.id, tenant_id: host.tenant_id }} editable inherited={inherited} />
           </>
         ) : (

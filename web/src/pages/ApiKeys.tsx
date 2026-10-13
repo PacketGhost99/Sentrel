@@ -21,7 +21,7 @@ export function ApiKeys() {
   const keys = useQuery({ queryKey: ['api-keys'], queryFn: () => get<APIKey[]>('/api-keys') })
   return (
     <div>
-      <PageHeader title="API keys" subtitle={<>Use <code className="mono">Authorization: Bearer sentrel_…</code>. A key never has more access than its owner. See the <a href="/api-docs" className="text-accent hover:underline">API reference</a>.</>}
+      <PageHeader title="API keys" info={<>Send <code className="mono">Authorization: Bearer sentrel_…</code>. A key never has more access than its owner.</>} subtitle={<a href="/api-docs" className="text-accent hover:underline">API reference</a>}
         actions={<Button variant="primary" icon={<Plus className="size-4" />} onClick={() => setOpen(true)}>Create key</Button>} />
       <Card bodyClass="p-0">
         {keys.isLoading ? <Loading /> : !keys.data?.length ? <Empty title="No API keys" icon={<KeyRound className="size-8" />} /> : (

@@ -21,7 +21,7 @@ export function StatusPages() {
   const link = (p: StatusPage) => `${location.origin}/status/${p.slug}${p.public ? '' : `?token=${p.access_token}`}`
   return (
     <div>
-      <PageHeader title="Status pages" subtitle="Public or token-protected pages showing up/down and 90-day uptime for chosen hosts and checks."
+      <PageHeader title="Status pages" info="Public or token-protected pages showing up/down and 90-day uptime for chosen hosts and checks."
         actions={can('monitoring') && <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => setEdit({ tenant_id: tenant ?? 0 })}>New status page</Button>} />
       <Card bodyClass="p-0">
         {pages.isLoading ? <Loading /> : !pages.data?.length ? <Empty title="No status pages" icon={<Globe className="size-8" />} /> : (
@@ -87,7 +87,7 @@ function StatusEditor({ initial, onClose }: { initial: Partial<StatusPage>; onCl
           <Field label="Announcement banner (optional)" className="sm:col-span-2"><Textarea value={p.announcement} onChange={(e) => setP({ ...p, announcement: e.target.value })} placeholder="Scheduled maintenance Saturday 02:00–04:00 UTC" /></Field>
         </div>
         <div className="space-y-2">
-          <Toggle checked={!!p.public} onChange={(v) => setP({ ...p, public: v })} label="Public" hint="Off: only people with the secret link can view it" />
+          <Toggle checked={!!p.public} onChange={(v) => setP({ ...p, public: v })} label="Public" info="When off, only people with the secret link can view the page." />
           <Toggle checked={!!p.show_history} onChange={(v) => setP({ ...p, show_history: v })} label="Show 90-day history" />
         </div>
         {!p.public && p.access_token && <CodeBlock code={`${location.origin}/status/${p.slug}?token=${p.access_token}`} />}

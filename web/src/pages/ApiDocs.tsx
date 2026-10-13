@@ -31,7 +31,7 @@ export function ApiDocs() {
   }
   return (
     <div>
-      <PageHeader title="API reference" subtitle="Generated from the server's route table: every action in the UI is available here."
+      <PageHeader title="API reference" info="Generated from the server's route table: every action in the UI is available here."
         actions={<a href="/api/v1/openapi.json" target="_blank" rel="noreferrer"><Button icon={<Download className="size-4" />}>OpenAPI JSON</Button></a>} />
       <Card className="mb-4">
         <div className="space-y-2 text-sm">

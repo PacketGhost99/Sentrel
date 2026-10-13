@@ -95,7 +95,7 @@ Services named in `service` checks are always reported even when service collect
 sentrel-agent ALL=(root) NOPASSWD: /usr/local/bin/sentrel-agent priv *
 ```
 
-The helper validates its own arguments. Verbs: `pkg-refresh`, `pkg-upgrade`, `block-ip`, `unblock-ip`, `list-blocks`, `scan-sync`, `scan-list`, `scan-off`, `fail2ban-status`, `disk-usage`, `disk-cleanup`, `install-update`, `rollback-update`. Package names and versions are matched against strict patterns, IPs must parse and not be loopback or unspecified, block durations are 1 to 129600 minutes, and update files must be regular files inside the agent state directory, verified against the root-owned key (`/etc/sentrel-agent/job.pub`). Package upgrades run in their own `systemd-run --scope` unit, so they are outside the agent's CPU and memory limits and survive an agent restart.
+The helper validates its own arguments. Verbs: `pkg-refresh`, `pkg-upgrade`, `block-ip`, `unblock-ip`, `list-blocks`, `scan-sync`, `scan-list`, `scan-off`, `fail2ban-status`, `smart`, `disk-usage`, `disk-cleanup`, `install-update`, `rollback-update`. Package names and versions are matched against strict patterns, IPs must parse and not be loopback or unspecified, block durations are 1 to 129600 minutes, and update files must be regular files inside the agent state directory, verified against the root-owned key (`/etc/sentrel-agent/job.pub`). Package upgrades run in their own `systemd-run --scope` unit, so they are outside the agent's CPU and memory limits and survive an agent restart.
 
 IP blocking uses an `inet sentrel` nftables table with timeout sets (and falls back to iptables/ip6tables rules tagged `sentrel-block:<expiry>`). Uninstalling removes the nftables table.
 
@@ -114,6 +114,14 @@ Note that membership of the `docker` group is equivalent to root on the host; fo
 **Windows.** The service runs as LocalSystem (the default for a service without an account), so there is no privilege boundary: upgrades install Windows Updates through the Windows Update API, blocks are Windows Firewall rules named `Sentrel block <ip>`.
 
 Remote actions (upgrade, IP block, disk cleanup) are governed by permission settings with global defaults (upgrades off, cleanup and IP blocking on) that each host inherits or overrides on its Packages, Storage and Security views; see [security.md](security.md#privilege-boundary-and-opt-in-remote-actions).
+
+## Scheduled updates
+
+Jobs, Schedules, **Update schedules** queue package upgrades on a recurring basis. A schedule has a scope (`all`, `tenant`, `group` or `host`), a name, and one of four timings: `daily`, `weekly` (weekday 0 to 6, Sunday is 0), `monthly` (day 1 to 28) or `maintenance`. Times use the timezone set under Settings, General. A daily, weekly or monthly schedule fires once, after its time on a matching day. A `maintenance` schedule queues one upgrade job per host and holds it until the host's next maintenance window that allows jobs opens; it queues another only after the previous one finishes, fails or expires.
+
+By default only security updates are installed (`security_only`); choose all updates to install everything pending. Schedules never reboot hosts.
+
+Each run records how many jobs it queued and which hosts it skipped, with the reason: nothing to install, remote upgrades not enabled for the host, a read-only agent, or an agent that requires operator-signed jobs. The jobs run as `system:update-schedule:<id>` and show in the job history. The API is `/update-schedules`; creating, editing and deleting need the `jobs` permission and are audited as `update.schedule_created`, `update.schedule_updated` and `update.schedule_deleted`.
 
 ## Write policy: read-only and operator-signed agents
 

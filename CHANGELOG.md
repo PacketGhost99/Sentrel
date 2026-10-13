@@ -4,6 +4,32 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Added
+
+- Push (heartbeat) checks: a new `push` check type with a secret URL, `GET`/`POST /api/push/{token}?status=up|down&msg=...`. The check goes down when no beat arrives within the interval plus grace (defaults 3600 s and 300 s). Tokens are 192 random bits, looked up by hash and compared in constant time, unknown tokens all return 404, and requests are rate-limited per token and per client. The editor shows the URL, `curl` examples and a Regenerate button; API `POST /checks/{id}/regenerate-token`.
+- Dependencies: hosts and checks can name a parent host or check in the same tenant (cycles are rejected). While the parent is down, dependent alerts are still raised and shown as "suppressed: parent X is down" but are not notified, including repeats. "Depends on" pickers in host Settings and the check editor; `parent_type`/`parent_id` on host and check updates.
+- Repeat notification help text: the per-channel repeat interval (and the global default in Settings, Alerting) now documents that repeats stop on acknowledgement, resolution, muting and suppression.
+- Disk health for Linux agents: SMART (through the new root helper verb `priv smart`, needs smartmontools), software RAID from `/proc/mdstat` and ZFS pools, collected every 30 minutes. A Disk health card on the host System tab, SMART metrics, and alerts for failed SMART, bad sectors, NVMe wear at 90% or more, degraded md arrays and ZFS pools that are not online. API `GET /hosts/{id}/disk-health`. Windows is not covered.
+- Update schedules (auto-patching): recurring daily, weekly, monthly or maintenance-window upgrade jobs per scope, security updates only by default, never rebooting. Hosts with upgrades off, read-only agents and operator-signed agents are skipped and listed in the last run. A maintenance-window schedule queues at most one job per host every 12 hours. Jobs, Schedules now holds both update and scan schedules; API `/update-schedules`.
+- CI security scanning: CodeQL, gosec, govulncheck and `npm audit` on every push and weekly, and Dependabot for Go modules, npm and GitHub Actions.
+
+### Changed
+
+- Less cluttered web UI:
+  - Explanations moved behind (i) tooltips.
+  - Host security, upgrade and cleanup settings moved into a Configure panel, as one compact row each with a Default or Custom marker.
+  - Global Settings has a grouped section list, and sign-in providers hide their fields until enabled.
+  - The dashboard has a single Health card.
+  - Stat cards are equal height.
+  - Chart legends use readable series names.
+  - Host lists, host pages and dashboards fit phone screens.
+- Go 1.26.9.
+
+### Fixed
+
+- Exported chart PNGs were blank: the image was captured before the chart had drawn.
+- Restoring a backup caps the size of each restored file.
+
 ## [0.9.1] - 2026-10-13
 
 ### Added

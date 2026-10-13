@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Activity, ArrowLeft, Pencil, Play, Plus, Trash2 } from 'lucide-react'
+import { Activity, ArrowLeft, Pencil, Play, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { del, errorMessage, get, post, put } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { ago, dateTime, LOCALE } from '@/lib/format'
@@ -9,14 +9,16 @@ import type { Check, Host } from '@/lib/types'
 import { BeatBar, type Beat, checkBeatsToBeats, checkSuccessRate, useCheckBeats } from '@/components/BeatBar'
 import { Chart, RangePicker, rangeSeconds, type RangeId } from '@/components/Chart'
 import { useTenantFilter } from '@/components/Layout'
-import { Badge, Button, Card, Empty, ErrorBox, Field, Input, KV, Loading, Modal, Note, PageHeader, Select, StatusDot, Table, Td, Th, Toggle, UptimePill, cx, statusTone, useConfirm, useSort, useToast } from '@/components/ui'
+import { DependsOn, depBody, depValueOf } from '@/components/DependsOn'
+import { Badge, Button, Card, CodeBlock, CopyButton, Empty, ErrorBox, Field, Input, KV, Loading, Modal, PageHeader, Select, StatusDot, Table, Td, Th, Toggle, UptimePill, cx, statusTone, useConfirm, useSort, useToast } from '@/components/ui'
 
 export const checkTypes: { id: string; label: string; agent?: boolean; target: string; hint: string }[] = [
   { id: 'ping', label: 'Ping (ICMP)', target: 'Host or IP', hint: 'e.g. 192.168.1.1' },
   { id: 'tcp', label: 'TCP port', target: 'host:port', hint: 'e.g. db.internal:5432' },
   { id: 'http', label: 'HTTP(S)', target: 'URL', hint: 'https://example.com/health' },
-  { id: 'cert', label: 'TLS certificate expiry', target: 'host[:port]', hint: 'example.com:443 — warns at 30/14/7 days' },
+  { id: 'cert', label: 'TLS certificate expiry', target: 'host[:port]', hint: 'example.com:443' },
   { id: 'dns', label: 'DNS record', target: 'Name', hint: 'example.com' },
+  { id: 'push', label: 'Push (heartbeat)', target: 'URL', hint: '' },
   { id: 'service', label: 'Service running (agent)', agent: true, target: 'Service name', hint: 'systemd unit or Windows service, e.g. nginx' },
   { id: 'process', label: 'Process exists (agent)', agent: true, target: 'Process name', hint: 'e.g. postgres' },
   { id: 'port', label: 'Port listening (agent)', agent: true, target: 'Port', hint: 'e.g. 443' },
@@ -27,7 +29,7 @@ export function Checks() {
   const { can } = useAuth()
   return (
     <div>
-      <PageHeader title="Checks" subtitle="Server-side probes (ping, TCP, HTTP, certificates, DNS) and agent-evaluated checks (services, processes, ports, containers)" />
+      <PageHeader title="Checks" info="Server-side probes (ping, TCP, HTTP, certificates, DNS), push checks that wait for your job to call in, and agent-evaluated checks (services, processes, ports, containers)." />
       <ChecksTable canCreate={can('monitoring')} />
     </div>
   )
@@ -70,7 +72,7 @@ export function ChecksTable({ hostId, hostKind, tenantId, canCreate = true }: { 
             {sorted.map((c) => (
               <tr key={c.id} className={cx(!c.enabled && 'opacity-50')}>
                 <Td><div className="flex items-center gap-2"><StatusDot status={c.status} pulse /><Badge tone={statusTone(c.status)}>{c.enabled ? c.status : 'disabled'}</Badge></div></Td>
-                <Td><Link to={`/checks/${c.id}`} className="font-medium hover:underline">{c.name}</Link><div className="mono max-w-xs truncate text-xs text-muted">{c.target}</div></Td>
+                <Td><Link to={`/checks/${c.id}`} className="font-medium hover:underline">{c.name}</Link>{c.type === 'push' ? <div className="text-xs text-muted">{c.last_beat_at ? `last beat ${ago(c.last_beat_at)}` : 'waiting for first beat'}</div> : <div className="mono max-w-xs truncate text-xs text-muted">{c.target}</div>}</Td>
                 <Td className="hidden text-xs md:table-cell">{checkTypes.find((t) => t.id === c.type)?.label || c.type}</Td>
                 {!hostId && <Td className="hidden text-xs lg:table-cell">{c.host_id ? <Link to={`/hosts/${c.host_id}`} className="hover:underline">{c.host_name}</Link> : <span className="text-muted">–</span>}</Td>}
                 <Td className="hidden text-xs tabular-nums sm:table-cell">{c.last_latency_ms ? `${c.last_latency_ms.toFixed(1)} ms` : '–'}</Td>
@@ -96,6 +98,8 @@ export function ChecksTable({ hostId, hostKind, tenantId, canCreate = true }: { 
 
 export function CheckEditor({ initial, onClose, hostKind }: { initial: Partial<Check>; onClose: () => void; hostKind?: string }) {
   const toast = useToast()
+  const confirm = useConfirm()
+  const { info } = useAuth()
   const { tenant } = useTenantFilter()
   const hosts = useQuery({ queryKey: ['hosts', 'all'], queryFn: () => get<Host[]>('/hosts') })
   const [c, setC] = useState<Partial<Check>>({
@@ -104,7 +108,14 @@ export function CheckEditor({ initial, onClose, hostKind }: { initial: Partial<C
   })
   const [err, setErr] = useState<unknown>(null)
   const [busy, setBusy] = useState(false)
+  const [parent, setParent] = useState(depValueOf(initial.parent))
   const t = checkTypes.find((x) => x.id === c.type)!
+  const pushBase = (info?.server_url || window.location.origin).replace(/\/+$/, '')
+  const pushURL = c.push_token ? `${pushBase}/api/push/${c.push_token}` : ''
+  const regenerate = async () => {
+    if (!c.id || !(await confirm({ title: 'Regenerate URL', danger: true, confirmLabel: 'Regenerate', body: <p>The current URL stops working immediately. Update every job that calls it.</p> }))) return
+    try { const k = await post<Check>(`/checks/${c.id}/regenerate-token`); setC({ ...c, push_token: k.push_token }); toast('New URL issued') } catch (e) { setErr(e) }
+  }
   const cfg = c.config || {}
   const setCfg = (patch: Record<string, unknown>) => setC({ ...c, config: { ...cfg, ...patch } })
   const host = hosts.data?.find((h) => h.id === c.host_id)
@@ -113,7 +124,7 @@ export function CheckEditor({ initial, onClose, hostKind }: { initial: Partial<C
     setBusy(true)
     setErr(null)
     try {
-      const body = { ...c, name: c.name || `${t.label.split(' (')[0]} ${c.target}` }
+      const body = { ...c, name: c.name || (c.type === 'push' ? 'Heartbeat' : `${t.label.split(' (')[0]} ${c.target}`), ...depBody(parent) }
       if (c.id) await put(`/checks/${c.id}`, body)
       else await post('/checks', body)
       toast(c.id ? 'Check updated' : 'Check created')
@@ -134,30 +145,47 @@ export function CheckEditor({ initial, onClose, hostKind }: { initial: Partial<C
       </>}>
       <div className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Type">
-            <Select value={c.type} onChange={(e) => setC({ ...c, type: e.target.value, config: {} })}>
+          <Field label="Type" info={t.agent ? "Agent checks are evaluated each time the host reports." : undefined}>
+            <Select value={c.type} onChange={(e) => setC({ ...c, type: e.target.value, config: {}, ...(c.id ? {} : e.target.value === 'push' ? { interval_seconds: 3600, failure_threshold: 1 } : { interval_seconds: 60, failure_threshold: 3 }) })}>
               {checkTypes.filter((x) => !x.agent || agentHost || !c.host_id).map((x) => <option key={x.id} value={x.id} disabled={x.agent && !agentHost}>{x.label}</option>)}
             </Select>
           </Field>
-          <Field label="Attach to host" hint={t.agent ? 'Required: evaluated from the agent' : 'Optional: groups the check with a host'}>
+          <Field label="Attach to host" info={t.agent ? "Required: agent checks are evaluated from the host." : "Optional: groups the check with a host."}>
             <Select value={c.host_id ?? ''} onChange={(e) => setC({ ...c, host_id: e.target.value ? Number(e.target.value) : null })}>
               <option value="">None</option>
               {hosts.data?.map((h) => <option key={h.id} value={h.id}>{h.name} ({h.kind})</option>)}
             </Select>
           </Field>
-          <Field label={t.target} hint={t.hint} className="sm:col-span-2" required><Input className="mono" value={c.target} onChange={(e) => setC({ ...c, target: e.target.value })} /></Field>
-          <Field label="Name"><Input value={c.name} placeholder={`${t.label.split(' (')[0]} ${c.target}`} onChange={(e) => setC({ ...c, name: e.target.value })} /></Field>
+          {c.type !== 'push' && <Field label={t.target} hint={t.hint} className="sm:col-span-2" required><Input className="mono" value={c.target} onChange={(e) => setC({ ...c, target: e.target.value })} /></Field>}
+          <Field label="Name"><Input value={c.name} placeholder={c.type === 'push' ? 'Heartbeat' : `${t.label.split(' (')[0]} ${c.target}`} onChange={(e) => setC({ ...c, name: e.target.value })} /></Field>
           <Field label="Severity when failing">
             <Select value={c.severity} onChange={(e) => setC({ ...c, severity: e.target.value as any })}><option value="critical">Critical</option><option value="warning">Warning</option></Select>
           </Field>
         </div>
 
+        {c.type === 'push' && (
+          <div className="space-y-3 rounded-xl border border-line/70 bg-panel-2/40 p-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Expected every (seconds)" info="The check goes down when no beat arrives within the interval plus the grace period."><Input type="number" min={10} value={c.interval_seconds} onChange={(e) => setC({ ...c, interval_seconds: Number(e.target.value) })} /></Field>
+              <Field label="Grace (seconds)" info="Extra time allowed after the interval. Default 300."><Input type="number" min={0} value={cfg.grace_seconds ?? ''} placeholder="300" onChange={(e) => setCfg({ grace_seconds: Number(e.target.value) || 0 })} /></Field>
+            </div>
+            {pushURL ? (
+              <>
+                <Field label="Push URL" info="Anyone with this URL can report for this check, so keep it private. Add ?status=down&msg=... to report a failure explicitly. Requests are limited to 60 a minute.">
+                  <div className="flex items-center gap-1"><Input readOnly className="mono" value={pushURL} onFocus={(e) => e.currentTarget.select()} /><CopyButton text={pushURL} /></div>
+                </Field>
+                <CodeBlock code={`# success\ncurl -fsS -m 10 --retry 3 ${pushURL}\n\n# failure with a message\ncurl -fsS -m 10 "${pushURL}?status=down&msg=backup+failed"\n\n# cron: report after the job succeeds\n0 3 * * * /usr/local/bin/backup.sh && curl -fsS -m 10 ${pushURL}`} />
+                {c.id && <Button size="sm" icon={<RefreshCw className="size-3.5" />} onClick={regenerate}>Regenerate URL</Button>}
+              </>
+            ) : <p className="text-xs text-muted">{c.id ? 'The URL is only shown to users who can edit checks.' : 'The URL is generated when you save.'}</p>}
+          </div>
+        )}
         {c.type === 'http' && (
           <div className="grid gap-3 rounded-xl border border-line/70 bg-panel-2/40 p-4 sm:grid-cols-2">
             <Field label="Method"><Select value={cfg.method || 'GET'} onChange={(e) => setCfg({ method: e.target.value })}>{['GET', 'HEAD', 'POST', 'PUT'].map((m) => <option key={m}>{m}</option>)}</Select></Field>
             <Field label="Expected status" hint="e.g. 200, 2xx, 200-299,301"><Input value={cfg.expect_status || ''} placeholder="2xx/3xx" onChange={(e) => setCfg({ expect_status: e.target.value })} /></Field>
-            <Field label="Keyword" hint="Must appear in the response body"><Input value={cfg.keyword || ''} onChange={(e) => setCfg({ keyword: e.target.value })} /></Field>
-            <Field label="Max latency (ms)" hint="Fail if slower"><Input type="number" value={cfg.max_latency_ms || ''} onChange={(e) => setCfg({ max_latency_ms: Number(e.target.value) || 0 })} /></Field>
+            <Field label="Keyword" info="Must appear in the response body."><Input value={cfg.keyword || ''} onChange={(e) => setCfg({ keyword: e.target.value })} /></Field>
+            <Field label="Max latency (ms)" info="Fail if the response is slower."><Input type="number" value={cfg.max_latency_ms || ''} onChange={(e) => setCfg({ max_latency_ms: Number(e.target.value) || 0 })} /></Field>
             <Toggle checked={!!cfg.keyword_absent} onChange={(v) => setCfg({ keyword_absent: v })} label="Fail if keyword IS present" />
             <Toggle checked={!!cfg.keyword_regex} onChange={(v) => setCfg({ keyword_regex: v })} label="Keyword is a regex" />
             <Toggle checked={cfg.follow_redirects !== false} onChange={(v) => setCfg({ follow_redirects: v })} label="Follow redirects" />
@@ -186,17 +214,17 @@ export function CheckEditor({ initial, onClose, hostKind }: { initial: Partial<C
             <Field label="Expected value (optional)"><Input value={cfg.expect || ''} onChange={(e) => setCfg({ expect: e.target.value })} /></Field>
           </div>
         )}
-        {c.type === 'service' && <Field label="Expected state" hint="Default: running / active"><Input value={cfg.state || ''} placeholder="running" onChange={(e) => setCfg({ state: e.target.value })} /></Field>}
+        {c.type === 'service' && <Field label="Expected state" info="Default: running / active."><Input value={cfg.state || ''} placeholder="running" onChange={(e) => setCfg({ state: e.target.value })} /></Field>}
         {c.type === 'process' && <Toggle checked={!!cfg.regex} onChange={(v) => setCfg({ regex: v })} label="Process name is a regex" />}
         {c.type === 'port' && <Field label="Protocol"><Select value={cfg.protocol || 'tcp'} onChange={(e) => setCfg({ protocol: e.target.value })}><option value="tcp">TCP</option><option value="udp">UDP</option></Select></Field>}
         {c.type === 'container' && <Toggle checked={!!cfg.require_healthy} onChange={(v) => setCfg({ require_healthy: v })} label="Require Docker health status “healthy”" />}
 
         <div className="grid gap-3 sm:grid-cols-3">
-          {!t.agent && <Field label="Interval (seconds)"><Input type="number" min={10} value={c.interval_seconds} onChange={(e) => setC({ ...c, interval_seconds: Number(e.target.value) })} /></Field>}
-          {!t.agent && <Field label="Timeout (seconds)"><Input type="number" min={1} max={120} value={c.timeout_seconds} onChange={(e) => setC({ ...c, timeout_seconds: Number(e.target.value) })} /></Field>}
-          <Field label="Alert after N failures" hint="Flap suppression"><Input type="number" min={1} value={c.failure_threshold} onChange={(e) => setC({ ...c, failure_threshold: Number(e.target.value) })} /></Field>
+          {!t.agent && c.type !== 'push' && <Field label="Interval (seconds)"><Input type="number" min={10} value={c.interval_seconds} onChange={(e) => setC({ ...c, interval_seconds: Number(e.target.value) })} /></Field>}
+          {!t.agent && c.type !== 'push' && <Field label="Timeout (seconds)"><Input type="number" min={1} max={120} value={c.timeout_seconds} onChange={(e) => setC({ ...c, timeout_seconds: Number(e.target.value) })} /></Field>}
+          <Field label="Alert after N failures" info={c.type === 'push' ? 'Consecutive missed or failed beats before alerting.' : 'Consecutive failures before alerting; suppresses flapping.'}><Input type="number" min={1} value={c.failure_threshold} onChange={(e) => setC({ ...c, failure_threshold: Number(e.target.value) })} /></Field>
+          <DependsOn value={parent} onChange={setParent} tenantId={c.tenant_id ?? 0} self={{ type: 'check', id: c.id }} />
         </div>
-        {t.agent && <Note>Agent checks are evaluated each time the host reports (every collection interval).</Note>}
         <Toggle checked={c.enabled !== false} onChange={(v) => setC({ ...c, enabled: v })} label="Enabled" />
         <ErrorBox error={err} />
       </div>
@@ -246,7 +274,7 @@ export function CheckDetail() {
     <div>
       <PageHeader back={<Link to="/checks" className="mb-1 inline-flex items-center gap-1 text-xs text-muted hover:text-fg"><ArrowLeft className="size-3" />Checks</Link>}
         title={<span className="flex items-center gap-2"><StatusDot status={k.status} pulse />{k.name}</span>}
-        subtitle={<span className="mono">{k.target}</span>}
+        subtitle={k.type === 'push' ? 'Push (heartbeat) check' : <span className="mono">{k.target}</span>}
         actions={<>
           <RangePicker value={range} onChange={setRange} />
           {can('monitoring') && <Button icon={<Pencil className="size-4" />} onClick={() => setEditing(true)}>Edit</Button>}
@@ -258,17 +286,19 @@ export function CheckDetail() {
             <UptimeBars days={h.data?.uptime_days || []} />
           </Card>
         </div>
-        <Card title="Details">
+        <Card title="Details" className="h-full">
           <KV items={[
             ['Status', <Badge key="s" tone={statusTone(k.status)}>{k.status}</Badge>],
             ['Type', checkTypes.find((t) => t.id === k.type)?.label],
             ['Host', k.host_id ? <Link key="h" to={`/hosts/${k.host_id}`} className="text-accent hover:underline">{k.host_name}</Link> : '–'],
+            ...(k.type === 'push' ? [['Last beat', k.last_beat_at ? ago(k.last_beat_at) : 'none yet'] as [string, string]] : []),
+            ...(k.parent ? [['Depends on', <span key="p" className="flex items-center gap-1.5"><Link to={`/${k.parent.type === 'host' ? 'hosts' : 'checks'}/${k.parent.id}`} className="text-accent hover:underline">{k.parent.name}</Link>{k.parent.down && <Badge tone="crit">down</Badge>}</span>] as [string, React.ReactNode]] : []),
             ['Last result', k.last_message],
             ['Latency', k.last_latency_ms ? `${k.last_latency_ms.toFixed(1)} ms` : '–'],
             ['Consecutive failures', `${k.consecutive_failures} (alerts at ${k.failure_threshold})`],
             ['Checked', ago(k.last_checked_at)],
             ['State since', dateTime(k.last_change_at)],
-            ['Interval', `${k.interval_seconds}s, timeout ${k.timeout_seconds}s`],
+            ['Interval', k.type === 'push' ? `every ${k.interval_seconds}s, grace ${k.config?.grace_seconds || 300}s` : `${k.interval_seconds}s, timeout ${k.timeout_seconds}s`],
             ['Severity', k.severity],
             ...(h.data?.cert_days !== undefined ? [['Certificate', `${Math.floor(h.data.cert_days)} days left`] as [string, string]] : []),
           ]} />

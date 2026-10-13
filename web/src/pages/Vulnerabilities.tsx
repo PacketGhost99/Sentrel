@@ -1,17 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowUpCircle, CalendarClock, ChevronDown, DatabaseZap, ExternalLink, Plus, RotateCw, ScanSearch, ShieldCheck, Trash2 } from 'lucide-react'
-import { del, errorMessage, get, post, put } from '@/lib/api'
+import { ArrowUpCircle, CalendarClock, ChevronDown, DatabaseZap, ExternalLink, RotateCw, ScanSearch, ShieldCheck, Trash2 } from 'lucide-react'
+import { errorMessage, get, post, put } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { ago, bytes, dateTime } from '@/lib/format'
-import type { FleetKernelHost, Finding, HostDetail, HostGroup, HostKernels, VulnScan } from '@/lib/types'
+import type { FleetKernelHost, Finding, HostDetail, HostKernels, VulnScan } from '@/lib/types'
 import { inactiveText, isKernelRemoval, kernelUpgradePackages, remediationBadge, removalBlocker, showsNotInRepos, summarizeFleet } from '@/lib/kernel'
 import { BulkRemoveKernelsDialog, RemoveKernelDialog } from '@/components/RemoveKernel'
 import { useTenantFilter } from '@/components/Layout'
 import { UpgradeDialog } from './host/Packages'
 import { CRIT_HIGH_TITLE, FIXABLE_TITLE, findingKBs, nf, type VulnCounts } from '@/lib/vulns'
-import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, Input, KV, Loading, Modal, Note, PageHeader, Segmented, Select, Stat, Table, Tabs, Td, Th, useToast } from '@/components/ui'
+import { Badge, Button, Card, Checkbox, Empty, ErrorBox, InfoTip, Input, KV, Loading, Modal, Note, PageHeader, Segmented, Stat, Table, Tabs, Td, Th, useToast } from '@/components/ui'
 
 export function sevTone(s: string): 'crit' | 'warn' | 'info' | 'muted' {
   return s === 'Critical' ? 'crit' : s === 'High' ? 'warn' : s === 'Medium' ? 'info' : 'muted'
@@ -111,7 +111,7 @@ function FixCell({ x, onUpgrade, onRemove, canUpgrade }: { x: Finding; onUpgrade
 }
 
 export function Vulnerabilities() {
-  const [tab, setTab] = useState<'hosts' | 'findings' | 'scans' | 'schedules'>('hosts')
+  const [tab, setTab] = useState<'hosts' | 'findings' | 'scans'>('hosts')
   const { tenant } = useTenantFilter()
   const { can } = useAuth()
   const toast = useToast()
@@ -145,7 +145,7 @@ export function Vulnerabilities() {
   if (sum.data && !sum.data.enabled) {
     return (
       <div>
-        <PageHeader title="Vulnerabilities" subtitle="Installed packages matched against the Grype vulnerability database." />
+        <PageHeader title="Vulnerabilities" />
         <Card>
           <Empty title="Vulnerability scanning is turned off" icon={<ShieldCheck className="size-8" />}>
             <p>Scanning matches each host's installed packages against a vulnerability database. Enabling it downloads about 3 GB to the server in the background and works best with 2 GB of RAM or more.</p>
@@ -159,9 +159,10 @@ export function Vulnerabilities() {
   }
   return (
     <div>
-      <PageHeader title="Vulnerabilities" subtitle="Installed packages matched against the Grype vulnerability database. Agents only send package lists; nothing is scanned over the network."
+      <PageHeader title="Vulnerabilities" info="Installed packages are matched against the Grype vulnerability database. Agents only send package lists; nothing is scanned over the network."
         actions={<>
           {phase && <span className="text-sm text-muted" role="status">{phase}</span>}
+          <Link to="/jobs?tab=schedules"><Button icon={<CalendarClock className="size-4" />}>Schedules</Button></Link>
           {can('settings') && <Button variant="primary" icon={<DatabaseZap className="size-4" />} loading={!!refresh?.refresh_pending} onClick={startRefresh}>Update database &amp; scan all</Button>}
           {(can('jobs') || can('settings')) && (
             <ActionMenu label="More actions">
@@ -173,18 +174,18 @@ export function Vulnerabilities() {
           )}
         </>} />
       {db && !db.available && <Note tone="warn" className="mb-4">{db.updating ? 'Downloading the vulnerability database (about 3 GB uncompressed; first download takes several minutes)…' : `The vulnerability database is not available yet${db.last_error ? `: ${db.last_error}` : ''}.`}</Note>}
-      <div className="mb-2 grid grid-cols-2 gap-3 md:grid-cols-5">
-        <Stat label="Critical" value={nf(totals.critical)} tone={totals.critical ? 'crit' : 'muted'} sub={`of ${nf(totals.total)} total`} />
+      <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-5">
+        <Stat label="Critical" value={nf(totals.critical)} tone={totals.critical ? 'crit' : 'muted'} sub={`of ${nf(totals.total)} total`}
+          info={<>Counts are open CVEs, one per host and CVE (a CVE in several packages counts once), at its highest severity. {nf(totals.total)} total across all severities.{totals.inactive > 0 && <span className="mt-1 block">{inactiveText(totals.total, totals.inactive)} CVEs. Findings in a kernel that is installed but not running are counted but are not exploitable and do not raise alerts by default.</span>}</>} />
         <Stat label="High" value={nf(totals.high)} tone={totals.high ? 'warn' : 'muted'} sub={`${nf(totals.critical + totals.high)} critical/high`} />
-        <Stat label="Medium" value={nf(totals.medium)} tone="muted" sub={`${nf(totals.low)} low · ${nf(totals.other)} negligible/unknown`} />
-        <div title={FIXABLE_TITLE}><Stat label="Fixable now" value={nf(totals.fixable)} sub={`of ${nf(totals.total)} total`} /></div>
+        <Stat label="Medium" value={nf(totals.medium)} tone="muted" sub={`${nf(totals.low)} low · ${nf(totals.other)} other`} title={`${nf(totals.other)} negligible or unknown severity`} />
+        <Stat label="Fixable now" value={nf(totals.fixable)} sub={`of ${nf(totals.total)} total`} info={FIXABLE_TITLE} />
         <Stat label="Known exploited" value={nf(totals.kev)} tone={totals.kev ? 'crit' : 'muted'} sub="CISA KEV" />
       </div>
-      <p className="mb-3 text-xs text-muted">Counts are open CVEs, one per host and CVE (a CVE in several packages counts once), at its highest severity. {nf(totals.total)} total across all severities.</p>
-      {totals.inactive > 0 && <p className="mb-3 text-xs text-muted">{inactiveText(totals.total, totals.inactive)} CVEs. Findings in a kernel that is installed but not running are counted here but are not exploitable and do not raise alerts by default.</p>}
       {fleet.hosts > 0 && (
         <Card className="mb-4" title={`${fleet.hosts} ${fleet.hosts === 1 ? 'host has' : 'hosts have'} old kernels installed`}
-          subtitle={`Removing them resolves ${fleet.cves} CVEs${fleet.critical ? ` (${fleet.critical} critical)` : ''}. The running and the newest kernel are always kept.`}
+          subtitle={`Removing them resolves ${fleet.cves} CVEs${fleet.critical ? ` (${fleet.critical} critical)` : ''}`}
+          info="The running and the newest kernel are always kept."
           actions={can('jobs') && <Button size="sm" variant="primary" icon={<Trash2 className="size-3.5" />} onClick={() => setBulk(true)}>Remove on all eligible hosts</Button>}>
           <ul className="divide-y divide-line/60 text-sm">
             {(kernels.data || []).filter((h) => h.removable.length > 0).map((h) => {
@@ -211,12 +212,12 @@ export function Vulnerabilities() {
       {bulk && <BulkRemoveKernelsDialog hosts={(kernels.data || []).filter((h) => h.removable.length > 0)} onClose={() => { setBulk(false); qc.invalidateQueries({ queryKey: ['vulns'] }) }} />}
       {removeOne && <RemoveKernelLauncher hostId={removeOne.hostId} abi={removeOne.abi} onClose={() => { setRemoveOne(null); qc.invalidateQueries({ queryKey: ['vulns'] }) }} />}
       {db?.available && <p className="mb-3 text-xs text-muted">Database built {dateTime(Date.parse(db.built) / 1000)} · schema {db.schema_version} · {bytes(db.size_bytes)} · checked {ago(Date.parse(db.last_check) / 1000)}{sum.data?.queue ? ` · ${sum.data.queue} scans queued` : ''}{db.updating ? ' · updating…' : ''}</p>}
-      <Tabs value={tab} onChange={setTab} className="mb-4" tabs={[{ id: 'hosts', label: 'By host' }, { id: 'findings', label: 'All findings' }, { id: 'scans', label: 'Scan history' }, { id: 'schedules', label: 'Schedules' }]} />
+      <Tabs value={tab} onChange={setTab} className="mb-4" tabs={[{ id: 'hosts', label: 'By host' }, { id: 'findings', label: 'All findings' }, { id: 'scans', label: 'Scan history' }]} />
       {tab === 'hosts' && (
         <Card bodyClass="p-0">
           {sum.isLoading ? <Loading /> : !sum.data?.hosts?.length ? <Empty title="No agent hosts" /> : (
             <Table>
-              <thead><tr><Th>Host</Th><Th>Critical</Th><Th>High</Th><Th className="hidden sm:table-cell">Medium</Th><Th className="hidden sm:table-cell">Low</Th><Th className="hidden sm:table-cell"><span title="All severities, including negligible and unknown">Total</span></Th><Th className="hidden md:table-cell"><span title={FIXABLE_TITLE}>Fixable now</span></Th><Th className="hidden md:table-cell">KEV</Th><Th>Last scan</Th><Th /></tr></thead>
+              <thead><tr><Th>Host</Th><Th>Critical</Th><Th>High</Th><Th className="hidden sm:table-cell">Medium</Th><Th className="hidden sm:table-cell">Low</Th><Th className="hidden sm:table-cell"><span title="All severities, including negligible and unknown">Total</span></Th><Th className="hidden md:table-cell" title={FIXABLE_TITLE}>Fixable now</Th><Th className="hidden md:table-cell">KEV</Th><Th>Last scan</Th><Th /></tr></thead>
               <tbody>
                 {sum.data.hosts.map((h: any) => (
                   <tr key={h.host_id}>
@@ -237,7 +238,6 @@ export function Vulnerabilities() {
       )}
       {tab === 'findings' && <FindingsTable />}
       {tab === 'scans' && <ScanHistory />}
-      {tab === 'schedules' && <Schedules />}
     </div>
   )
 }
@@ -274,7 +274,6 @@ export function FindingsTable({ hostId }: { hostId?: number }) {
         </div>
       )}
       {hostId && <KernelCard hostId={hostId} onRemove={(abi) => setRemoveKernel({ hostId, abi })} />}
-      {hostIsWindows && <Note>CVEs on Windows come from the security updates Windows Update has pending, and clear once an update is installed. Third-party applications on Windows are not matched to CVEs.</Note>}
       <Card bodyClass="p-0">
         <div className="flex flex-wrap items-center gap-2 border-b border-line/70 p-4">
           <Segmented value={sev} onChange={setSev} options={[{ id: 'Critical', label: 'Critical' }, { id: 'Critical,High', label: 'High+' }, { id: 'Critical,High,Medium', label: 'Medium+' }, { id: '', label: 'All severities' }]} />
@@ -283,6 +282,7 @@ export function FindingsTable({ hostId }: { hostId?: number }) {
           <Checkbox checked={kev} onChange={setKev} label="Known exploited" />
           <Checkbox checked={inactive} onChange={setInactive} label="Include inactive kernels" />
           <Input placeholder="CVE or package" value={q} onChange={(e) => setQ(e.target.value)} className="w-full sm:w-48" />
+          {hostIsWindows && <InfoTip>CVEs on Windows come from the security updates Windows Update has pending, and clear once an update is installed. Third-party applications on Windows are not matched to CVEs.</InfoTip>}
         </div>
         {f.isLoading ? <Loading /> : !f.data?.length ? <Empty title="No findings" icon={<ShieldCheck className="size-8 text-ok" />} /> : (
           <Table>
@@ -365,8 +365,8 @@ function FindingModal({ f, onClose, onUpgrade, onRemove }: { f: Finding; onClose
           ['First seen', dateTime(f.first_seen_at)],
           ['Last seen', dateTime(f.last_seen_at)],
         ]} />
-        {f.os === 'windows' && f.fixed_version && <Note>Install the Windows update {findingKBs(f).join(', ') || f.fixed_version} to resolve this CVE. Severity comes from Microsoft (MSRC); CVSS and exploit data come from the local vulnerability database when it has the CVE.</Note>}
-        {f.inactive && <Note>This finding only affects a kernel that is installed but not running, so it is not exploitable on this host and does not raise alerts by default.</Note>}
+        {f.os === 'windows' && f.fixed_version && <Note>Install the Windows update {findingKBs(f).join(', ') || f.fixed_version} to resolve this CVE. <InfoTip>Severity comes from Microsoft (MSRC); CVSS and exploit data come from the local vulnerability database when it has the CVE.</InfoTip></Note>}
+        {f.inactive && <Note>This only affects a kernel that is installed but not running, so it does not raise alerts by default.</Note>}
         {f.remediation === 'remove_old_kernel' && <Note tone="warn">Kernel {f.kernel_abi} is installed but not running. Remove it to resolve this finding; the fix is a different kernel package, so it never appears as an upgrade.</Note>}
         {f.remediation === 'reboot' && <Note tone="warn">A newer kernel is already installed. Reboot the host to run it.</Note>}
         {f.remediation === 'upgrade_kernel' && <Note tone="warn">Upgrade the kernel meta-package ({kernelUpgradePackages(f).join(', ') || 'linux-generic'}), then reboot the host.</Note>}
@@ -402,54 +402,5 @@ function ScanHistory() {
         </Table>
       )}
     </Card>
-  )
-}
-
-const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-
-function Schedules() {
-  const { can, me } = useAuth()
-  const qc = useQueryClient()
-  const toast = useToast()
-  const [adding, setAdding] = useState(false)
-  const s = useQuery({ queryKey: ['vulns', 'schedules'], queryFn: () => get<any[]>('/vuln-schedules') })
-  const groups = useQuery({ queryKey: ['groups'], queryFn: () => get<HostGroup[]>('/groups') })
-  return (
-    <Card bodyClass="p-0" title="Scheduled scans" subtitle="Hosts are also rescanned automatically whenever their package inventory changes."
-      actions={can('jobs') && <Button size="sm" variant="primary" icon={<Plus className="size-3.5" />} onClick={() => setAdding(true)}>Add schedule</Button>}>
-      {!s.data?.length ? <Empty title="No schedules" icon={<CalendarClock className="size-8" />} /> : (
-        <Table>
-          <thead><tr><Th>Scope</Th><Th>When</Th><Th>Last run</Th><Th /></tr></thead>
-          <tbody>{s.data.map((x) => (
-            <tr key={x.id}>
-              <Td>{x.scope === 'group' ? `Group: ${groups.data?.find((g) => g.id === x.scope_id)?.name || x.scope_id}` : x.scope === 'host' ? `Host #${x.scope_id}` : x.scope === 'tenant' ? 'Tenant' : 'All hosts'}</Td>
-              <Td>{x.frequency === 'weekly' ? `${weekdays[x.weekday]}s` : 'Daily'} at {x.time_of_day}</Td>
-              <Td className="text-xs text-muted">{ago(x.last_run_at)}</Td>
-              <Td className="text-right">{can('jobs') && <Button size="sm" variant="ghost" icon={<Trash2 className="size-3.5" />} onClick={async () => { await del(`/vuln-schedules/${x.id}`); qc.invalidateQueries({ queryKey: ['vulns', 'schedules'] }); toast('Deleted') }} />}</Td>
-            </tr>
-          ))}</tbody>
-        </Table>
-      )}
-      {adding && <ScheduleEditor provider={me?.user.tenant_id === 0} groups={groups.data || []} onClose={() => { setAdding(false); qc.invalidateQueries({ queryKey: ['vulns', 'schedules'] }) }} />}
-    </Card>
-  )
-}
-
-function ScheduleEditor({ provider, groups, onClose }: { provider: boolean; groups: HostGroup[]; onClose: () => void }) {
-  const [x, setX] = useState({ scope: provider ? 'all' : 'tenant', scope_id: 0, frequency: 'daily', weekday: 0, time_of_day: '03:00' })
-  const [err, setErr] = useState<unknown>(null)
-  return (
-    <Modal open onClose={onClose} title="Add scan schedule" size="sm" footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" onClick={async () => { try { await post('/vuln-schedules', x); onClose() } catch (e) { setErr(e) } }}>Save</Button></>}>
-      <div className="space-y-3">
-        <Field label="Scope"><Select value={x.scope} onChange={(e) => setX({ ...x, scope: e.target.value })}>
-          {provider && <option value="all">All hosts</option>}<option value="tenant">Tenant</option><option value="group">Group</option>
-        </Select></Field>
-        {x.scope === 'group' && <Field label="Group"><Select value={x.scope_id} onChange={(e) => setX({ ...x, scope_id: Number(e.target.value) })}><option value={0}>Choose…</option>{groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</Select></Field>}
-        <Field label="Frequency"><Segmented value={x.frequency} onChange={(v) => setX({ ...x, frequency: v })} options={[{ id: 'daily', label: 'Daily' }, { id: 'weekly', label: 'Weekly' }]} /></Field>
-        {x.frequency === 'weekly' && <Field label="Day"><Select value={x.weekday} onChange={(e) => setX({ ...x, weekday: Number(e.target.value) })}>{weekdays.map((d, i) => <option key={d} value={i}>{d}</option>)}</Select></Field>}
-        <Field label="Time (server timezone)"><Input type="time" value={x.time_of_day} onChange={(e) => setX({ ...x, time_of_day: e.target.value })} /></Field>
-        <ErrorBox error={err} />
-      </div>
-    </Modal>
   )
 }

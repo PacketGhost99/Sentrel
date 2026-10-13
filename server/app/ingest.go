@@ -34,6 +34,8 @@ func (a *App) handleAgentMessage(ctx context.Context, hostID int64, m *pb.AgentM
 		a.jobs.output(ctx, hostID, x.JobOutput)
 	case *pb.AgentMessage_JobResult:
 		a.jobs.result(ctx, hostID, x.JobResult)
+	case *pb.AgentMessage_DiskHealth:
+		a.ingestDiskHealth(ctx, hostID, x.DiskHealth)
 	case *pb.AgentMessage_Pong:
 	case *pb.AgentMessage_Hello:
 		// Duplicate hello: ignore.

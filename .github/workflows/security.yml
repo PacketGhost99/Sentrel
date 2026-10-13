@@ -1,0 +1,49 @@
+name: security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "41 5 * * 1"   # weekly, so new advisories surface without a push
+
+permissions:
+  contents: read
+
+env:
+  GOVULNCHECK_VERSION: v1.9.0
+  GOSEC_VERSION: v2.29.0
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      # The Go packages embed web/dist, so build the UI before analysing Go.
+      - name: Web dependencies and build
+        working-directory: web
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION} ./...
+      - name: gosec (medium severity and above)
+        run: >
+          go run github.com/securego/gosec/v2/cmd/gosec@${GOSEC_VERSION}
+          -conf .gosec.json -severity medium -confidence medium
+          -exclude-dir=web ./...
+      - name: npm audit (production dependencies)
+        working-directory: web
+        run: npm audit --omit=dev --audit-level=high

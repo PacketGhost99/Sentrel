@@ -44,3 +44,31 @@ curl -X POST -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json'
      -d '{"host_id":7,"type":"disk_cleanup","dry_run":true,"params":{"tasks":"journal,tmp,logs"}}' \
      https://monitor.example.com/api/v1/jobs
 ```
+
+## Disk health (Linux)
+
+Linux agents report SMART, software RAID and ZFS health about every 30 minutes (first report a couple of minutes after the agent starts). It appears as the **Disk health** card on a host's System tab; `GET /api/v1/hosts/{id}/disk-health` returns the latest snapshot. **Windows hosts are not covered yet.**
+
+| Source | What runs | Root? |
+|---|---|---|
+| SMART | `sentrel-agent priv smart`, which runs `smartctl --scan-open -j` and then `smartctl -a -j [-d TYPE] DEVICE` for each device found | Yes: smartctl needs raw access to the disks |
+| Software RAID | reads `/proc/mdstat` | No |
+| ZFS | `zpool list -H -o name,health,size,alloc` and `zpool status -x` | No: both are read-only and work for an unprivileged user |
+
+The `smart` verb is covered by the existing `priv *` sudo rule, so no sudoers change is needed. It runs no shell, uses fixed smartctl locations (`/usr/sbin`, `/usr/bin`, `/sbin`, `/usr/local/...`) rather than `PATH`, caps each run at 25 seconds and 2 MB of output, and handles at most 32 devices. Device paths must match `/dev/sd[a-z]`, `/dev/hd[a-z]`, `/dev/vd[a-z]` (up to three letters) or `/dev/nvme<N>n<M>`; anything else the scan reports is ignored. The optional `-d` type is limited to `ata`, `sat`, `scsi` and `nvme`.
+
+If smartctl is not installed, the card shows "Install smartmontools to see SMART data" (smartmontools 7.0 or newer is required for JSON output). Nothing is installed automatically. Serial numbers are reduced to their last four characters before leaving the host.
+
+Per device the card shows model, health (the SMART overall check), temperature, power-on hours, reallocated, pending and uncorrectable sectors, and for NVMe the percentage of rated endurance used and media errors. RAID rows show members working, failed members and resync or recovery progress; ZFS rows show pool health and usage.
+
+Alerts raised from each report (they clear when the condition goes away or the device disappears):
+
+| Condition | Severity |
+|---|---|
+| SMART health check failed | critical |
+| Reallocated, pending or uncorrectable sectors above 0 (the message notes an increase) | warning |
+| NVMe percentage used at or above 90 | warning |
+| md array degraded or failed | critical |
+| ZFS pool not `ONLINE` | critical |
+
+Numeric values are also stored as metrics: `smart_temperature_celsius`, `smart_reallocated_sectors`, `smart_pending_sectors`, `smart_uncorrectable_sectors`, `smart_nvme_percentage_used` and `smart_power_on_hours`, each labelled with `device`.

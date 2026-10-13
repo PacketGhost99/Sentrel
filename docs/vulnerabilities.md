@@ -60,7 +60,7 @@ Scanning is **off by default** for new installs, because the database is large (
 |---|---|
 | After inventory | when a host's package inventory changed and `scan_after_inventory` is on (default) |
 | Manual | host page, **Scan all** (queues all visible hosts) or **Update database & scan all** |
-| Schedules | **Vuln schedules**: scope `all`, `tenant`, `group` or `host`; `daily` or `weekly` (weekday 0 to 6, Sunday is 0); time of day in the timezone set under Settings, General |
+| Schedules | **Scan schedules** (Jobs, Schedules): scope `all`, `tenant`, `group` or `host`; `daily` or `weekly` (weekday 0 to 6, Sunday is 0); time of day in the timezone set under Settings, General |
 | After a server restart | scans that were running are marked failed and re-queued |
 
 Scans run one at a time from a queue with a 10 minute limit each. The scan history (packages, findings by severity, database build used) is kept per host.

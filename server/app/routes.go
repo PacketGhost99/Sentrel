@@ -56,6 +56,7 @@ func (a *App) registerRoutes(r *apiRouter) {
 	r.add(routeDef{Method: POST, Path: "/hosts/{id}/block", Summary: "Block an IP on the host firewall", Tag: "hosts", Perm: PermJobs, Req: blockReq{}}, a.apiBlockIP)
 	r.add(routeDef{Method: POST, Path: "/hosts/{id}/unblock", Summary: "Remove an IP block", Tag: "hosts", Perm: PermJobs, Req: blockReq{}}, a.apiUnblockIP)
 	r.add(routeDef{Method: GET, Path: "/hosts/{id}/disk-usage", Summary: "Latest disk usage analysis for a mount", Tag: "hosts", Perm: PermRead, Resp: DiskUsageReport{}, Query: []string{"mount"}}, a.apiGetDiskUsage)
+	r.add(routeDef{Method: GET, Path: "/hosts/{id}/disk-health", Summary: "Latest SMART, RAID and ZFS health snapshot (Linux agents)", Tag: "hosts", Perm: PermRead, Resp: DiskHealthResp{}}, a.apiHostDiskHealth)
 	r.add(routeDef{Method: POST, Path: "/hosts/{id}/disk-usage", Summary: "Queue a disk usage analysis", Tag: "hosts", Perm: PermJobs, Req: diskUsageReq{}}, a.apiPostDiskUsage)
 	r.add(routeDef{Method: GET, Path: "/hosts/{id}/disk-cleanup/tasks", Summary: "Disk cleanup tasks available on the host", Tag: "hosts", Perm: PermRead, Resp: []CleanupTask{}}, a.apiDiskCleanupTasks)
 	r.add(routeDef{Method: GET, Path: "/hosts/{id}/thresholds", Summary: "Merged threshold view for a host", Tag: "thresholds", Perm: PermRead, Resp: []MergedRule{}}, a.apiHostThresholds)
@@ -92,6 +93,7 @@ func (a *App) registerRoutes(r *apiRouter) {
 	r.add(routeDef{Method: GET, Path: "/checks/{id}", Summary: "Get a check", Tag: "checks", Perm: PermRead, Resp: Check{}}, a.apiGetCheck)
 	r.add(routeDef{Method: PUT, Path: "/checks/{id}", Summary: "Update a check", Tag: "checks", Perm: PermMonitoring, Req: checkReq{}}, a.apiUpdateCheck)
 	r.add(routeDef{Method: DELETE, Path: "/checks/{id}", Summary: "Delete a check", Tag: "checks", Perm: PermMonitoring}, a.apiDeleteCheck)
+	r.add(routeDef{Method: POST, Path: "/checks/{id}/regenerate-token", Summary: "Issue a new push URL for a push check (the old one stops working)", Tag: "checks", Perm: PermMonitoring, Resp: Check{}}, a.apiRegenerateCheckToken)
 	r.add(routeDef{Method: POST, Path: "/checks/{id}/run", Summary: "Run a check now", Tag: "checks", Perm: PermRead}, a.apiRunCheck)
 	r.add(routeDef{Method: GET, Path: "/checks/{id}/history", Summary: "Latency and uptime history", Tag: "checks", Perm: PermRead, Query: []string{"start", "end"}}, a.apiCheckHistory)
 
@@ -148,6 +150,12 @@ func (a *App) registerRoutes(r *apiRouter) {
 	r.add(routeDef{Method: POST, Path: "/vuln-schedules", Summary: "Create a scan schedule", Tag: "vulnerabilities", Perm: PermJobs, Req: vulnScheduleReq{}, Resp: VulnSchedule{}}, a.apiCreateVulnSchedule)
 	r.add(routeDef{Method: PUT, Path: "/vuln-schedules/{id}", Summary: "Update a scan schedule", Tag: "vulnerabilities", Perm: PermJobs, Req: vulnScheduleReq{}}, a.apiUpdateVulnSchedule)
 	r.add(routeDef{Method: DELETE, Path: "/vuln-schedules/{id}", Summary: "Delete a scan schedule", Tag: "vulnerabilities", Perm: PermJobs}, a.apiDeleteVulnSchedule)
+
+	// Update schedules.
+	r.add(routeDef{Method: GET, Path: "/update-schedules", Summary: "List update schedules", Tag: "updates", Perm: PermRead, Resp: []UpdateSchedule{}}, a.apiListUpdateSchedules)
+	r.add(routeDef{Method: POST, Path: "/update-schedules", Summary: "Create an update schedule", Tag: "updates", Perm: PermJobs, Req: updateScheduleReq{}, Resp: UpdateSchedule{}}, a.apiCreateUpdateSchedule)
+	r.add(routeDef{Method: PUT, Path: "/update-schedules/{id}", Summary: "Update an update schedule", Tag: "updates", Perm: PermJobs, Req: updateScheduleReq{}}, a.apiUpdateUpdateSchedule)
+	r.add(routeDef{Method: DELETE, Path: "/update-schedules/{id}", Summary: "Delete an update schedule", Tag: "updates", Perm: PermJobs}, a.apiDeleteUpdateSchedule)
 
 	// Metrics.
 	r.add(routeDef{Method: GET, Path: "/metrics/query", Summary: "PromQL range query (tenant-scoped)", Tag: "metrics", Perm: PermRead, Query: []string{"query", "start", "end", "step"}}, a.apiMetricQuery)

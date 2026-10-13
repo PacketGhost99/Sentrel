@@ -1,4 +1,5 @@
 import uPlot from 'uplot'
+import { seriesLabel } from '@/lib/seriesLabel'
 import type { Series } from '@/lib/types'
 import { bits, bytes, LOCALE } from '@/lib/format'
 
@@ -84,7 +85,7 @@ export function buildChartOptions({ series, unit, width, height, dark, max, min,
     ...(pxRatio ? { pxRatio } : {}),
     padding: [8, 8, 0, 0],
     cursor: { drag: { x: true, y: false }, points: { size: 7, width: 2 } },
-    legend: { show: legend && series.length > 0, live: true },
+    legend: { show: legend && series.length > 1, live: true },
     scales: { x: { time: true, range: (_u, lo, hi) => (hi - lo < 60 ? [lo - 300, hi + 60] : [lo, hi]) }, y: { range: (_u, lo, hi) => [min ?? Math.min(0, lo), max ?? (hi === lo ? hi + 1 : hi * 1.08)] } },
     axes: [
       { stroke: muted, font: axisFont, grid: { stroke: grid, width: 1, dash: [3, 4] }, ticks: { show: false } },
@@ -95,7 +96,7 @@ export function buildChartOptions({ series, unit, width, height, dark, max, min,
       ...series.map((s, i) => {
         const color = seriesColor(i, series.length)
         return {
-          label: s.name,
+          label: seriesLabel(s.name),
           stroke: color,
           width: 1.5,
           fill: series.length === 1

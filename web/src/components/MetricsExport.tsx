@@ -3,7 +3,7 @@ import { Download, Image } from 'lucide-react'
 import { errorMessage } from '@/lib/api'
 import { downloadBlob, downloadMetricsExport, EXPORT_PRESETS, exportFilename, exportQuery, localInputToUnix, type ExportFormat, type ExportPreset } from '@/lib/metricExport'
 import type { Series } from '@/lib/types'
-import { Button, Field, Input, Modal, Segmented, useToast } from './ui'
+import { Button, Field, InfoTip, Input, Modal, Segmented, useToast } from './ui'
 import { canvasToBlob, renderChartImage, safeRatio, stackImages } from './chartImage'
 import type { Unit } from './chartOptions'
 
@@ -39,13 +39,12 @@ export function ExportDataButton({ hostId, hostName }: { hostId: number; hostNam
   return (
     <>
       <Button size="sm" icon={<Download className="size-3.5" />} onClick={() => setOpen(true)}>Export data</Button>
-      <Modal open={open} onClose={() => setOpen(false)} title="Export metrics" size="sm"
+      <Modal open={open} onClose={() => setOpen(false)} title={<span className="flex items-center gap-1.5">Export metrics<InfoTip>{`All standard series for ${hostName}: one column per series, one row per timestamp.`}</InfoTip></span>} size="sm"
         footer={<>
           <Button onClick={() => setOpen(false)}>Cancel</Button>
           <Button variant="primary" loading={busy} disabled={!query} onClick={go}>Download</Button>
         </>}>
         <div className="space-y-4 text-sm">
-          <p className="text-muted">All standard series for {hostName}: one column per series, one row per timestamp.</p>
           <div><span className="mb-1.5 block text-xs font-medium text-muted">Time range</span>
             <Segmented<ExportPreset> options={[...EXPORT_PRESETS.map((p) => ({ id: p.id as ExportPreset, label: p.label })), { id: 'custom', label: 'Custom' }]} value={preset} onChange={setPreset} />
           </div>
@@ -76,7 +75,8 @@ export function ExportChartsButton({ hostName, rangeLabel, panels }: { hostName:
       await new Promise((r) => setTimeout(r, 20))
       const approxCss = 64 + usable.length * 340
       const ratio = safeRatio(approxCss)
-      const parts = usable.map((p) => renderChartImage({ series: p.series, unit: p.unit, title: p.title, host: hostName, rangeLabel, max: p.max }, ratio))
+      const parts: HTMLCanvasElement[] = []
+      for (const p of usable) parts.push(await renderChartImage({ series: p.series, unit: p.unit, title: p.title, host: hostName, rangeLabel, max: p.max }, ratio))
       const img = stackImages(parts, { title: `${hostName} metrics`, sub: `${rangeLabel}  ·  exported ${new Date().toLocaleString()}` }, ratio)
       downloadBlob(await canvasToBlob(img), exportFilename(hostName, 'all-charts', 'png'))
     } catch (e) {

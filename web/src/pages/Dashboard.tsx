@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Bell, BellOff, Plus, Server, ShieldAlert, Wrench } from 'lucide-react'
+import { Bell, BellOff, Plus, ShieldAlert, Wrench } from 'lucide-react'
 import { get, post } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { ago, plural } from '@/lib/format'
@@ -32,21 +32,36 @@ type Tone = 'ok' | 'crit' | 'warn' | 'maint'
 const tileStyle: Record<Tone, { ring: string; text: string; dot: string; label: string }> = {
   ok: { ring: 'from-ok/12', text: 'text-ok-ink', dot: 'bg-ok-fill', label: 'Up' },
   crit: { ring: 'from-crit/12', text: 'text-crit-ink', dot: 'bg-crit-fill', label: 'Down' },
-  warn: { ring: 'from-warn/14', text: 'text-warn-ink', dot: 'bg-warn-fill', label: 'Warning' },
+  warn: { ring: 'from-warn/14', text: 'text-warn-ink', dot: 'bg-warn-fill', label: 'Alerting' },
   maint: { ring: 'from-maint/12', text: 'text-maint-ink', dot: 'bg-maint', label: 'Maintenance' },
 }
 
-function StatusTile({ tone, value, sub, onClick }: { tone: Tone; value: number; sub: string; onClick?: () => void }) {
-  const t = tileStyle[tone]
+/** One card summarising everything monitored: counts per state and a proportion bar. */
+function HealthCard({ parts, total }: { parts: { tone: Tone; value: number; title: string; onClick: () => void }[]; total: string }) {
+  const sum = parts.reduce((n, p) => n + p.value, 0)
   return (
-    <button onClick={onClick}
-      className={cx('group relative overflow-hidden rounded-2xl border border-line/70 bg-panel bg-linear-to-br to-transparent p-5 text-left shadow-card transition-[transform,box-shadow] duration-150 hover:-translate-y-px hover:shadow-pop', t.ring)}>
-      <div className="flex items-center gap-2 text-sm font-medium text-muted">
-        <span className={cx('size-2 rounded-full', t.dot)} />{t.label}
+    <div className="flex h-full flex-col rounded-2xl border border-line/70 bg-panel p-4 shadow-card">
+      <div className="flex items-center justify-between gap-2 text-xs font-medium text-muted">
+        <span>Health</span>
+        <span className="truncate">{total}</span>
       </div>
-      <div className={cx('mt-2 text-5xl font-semibold tabular-nums tracking-tight', value === 0 && tone !== 'ok' ? 'text-muted/60' : t.text)}>{value}</div>
-      <div className="mt-1 text-xs text-muted">{sub}</div>
-    </button>
+      <div className="mt-1.5 grid grid-cols-4 gap-2">
+        {parts.map((p) => {
+          const t = tileStyle[p.tone]
+          return (
+            <button key={p.tone} type="button" onClick={p.onClick} title={p.title} className="-mx-1.5 rounded-lg px-1.5 py-0.5 text-left hover:bg-panel-2">
+              <div className={cx('text-3xl font-semibold tabular-nums tracking-tight', p.value === 0 ? 'text-muted/50' : t.text)}>{p.value}</div>
+              <div className="flex items-center gap-1.5 text-xs text-muted"><span className={cx('size-1.5 rounded-full', t.dot)} />{t.label}</div>
+            </button>
+          )
+        })}
+      </div>
+      <div className="mt-auto pt-3">
+        <div className="flex h-1.5 gap-0.5 overflow-hidden rounded-full bg-panel-2">
+          {sum > 0 && parts.map((p) => p.value > 0 && <div key={p.tone} className={tileStyle[p.tone].dot} style={{ width: `${(p.value / sum) * 100}%` }} />)}
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -87,29 +102,29 @@ export function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Dashboard" subtitle="Overall health at a glance"
+      <PageHeader title="Dashboard"
         actions={can('hosts') && <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => nav('/hosts/new')}>Add host</Button>} />
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatusTile tone="ok" value={upHosts + x.checks.up} sub={`${plural(upHosts, 'host')} · ${plural(x.checks.up, 'check')}`} onClick={() => nav('/hosts?status=up')} />
-        <StatusTile tone="crit" value={x.hosts.down + x.checks.down} sub={`${plural(x.hosts.down, 'host')} · ${plural(x.checks.down, 'check')}`} onClick={() => nav(x.hosts.down ? '/hosts?status=down' : '/checks')} />
-        <StatusTile tone="warn" value={warnTotal} sub={`${plural(hosts.data ? warnHosts : 0, 'host')} · ${plural(x.checks.warning, 'check')}`} onClick={() => nav('/alerts')} />
-        <StatusTile tone="maint" value={x.hosts.maintenance} sub={x.hosts.maintenance === 1 ? '1 host in a maintenance window' : `${x.hosts.maintenance} hosts in a maintenance window`} onClick={() => nav('/maintenance')} />
-      </div>
-
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className={cx('grid grid-cols-2 gap-3 sm:gap-4', x.vuln_enabled ? 'xl:grid-cols-[minmax(0,1.7fr)_repeat(3,minmax(0,1fr))]' : 'xl:grid-cols-[minmax(0,1.7fr)_repeat(2,minmax(0,1fr))]')}>
+        <div className="col-span-2 xl:col-span-1">
+          <HealthCard total={`${plural(x.hosts.total, 'host')} · ${plural(x.checks.total, 'check')}${x.hosts.pending ? ` · ${x.hosts.pending} pending` : ''}`} parts={[
+            { tone: 'ok', value: upHosts + x.checks.up, title: `${plural(upHosts, 'host')} · ${plural(x.checks.up, 'check')}`, onClick: () => nav('/hosts?status=up') },
+            { tone: 'crit', value: x.hosts.down + x.checks.down, title: `${plural(x.hosts.down, 'host')} · ${plural(x.checks.down, 'check')}`, onClick: () => nav(x.hosts.down ? '/hosts?status=down' : '/checks') },
+            { tone: 'warn', value: warnTotal, title: `${plural(hosts.data ? warnHosts : 0, 'host')} · ${plural(x.checks.warning, 'check')}`, onClick: () => nav('/alerts') },
+            { tone: 'maint', value: x.hosts.maintenance, title: `${plural(x.hosts.maintenance, 'host')} in a maintenance window`, onClick: () => nav('/maintenance') },
+          ]} />
+        </div>
         <Stat label="Active alerts" icon={<Bell />} value={x.alerts.critical + x.alerts.warning} tone={x.alerts.critical ? 'crit' : x.alerts.warning ? 'warn' : 'muted'}
           sub={`${x.alerts.critical} critical · ${x.alerts.warning} warning${x.alerts.acked ? ` · ${x.alerts.acked} acknowledged` : ''}`} onClick={() => nav('/alerts')} />
         <Stat label="Updates pending" icon={<Wrench />} value={x.upgrades_pending} tone={x.security_updates ? 'warn' : 'muted'} sub={`${x.security_updates} security${x.reboot_required ? ` · ${x.reboot_required} need a reboot` : ''}`} onClick={() => nav('/hosts')} />
-        {x.vuln_enabled && <Stat label="Critical CVEs" icon={<ShieldAlert />} value={nf(v.critical ?? 0)} tone={v.critical ? 'crit' : v.high ? 'warn' : 'muted'} sub={<span title={FIXABLE_TITLE}>{nf(v.high ?? 0)} high · {nf(x.vulnerabilities_fixable ?? 0)} of {nf(x.vulnerabilities_total ?? 0)} total fixable{x.vulnerabilities_inactive ? ` · ${nf(x.vulnerabilities_inactive)} in inactive kernels` : ''}</span>} onClick={() => nav('/vulnerabilities')} />}
-        <Stat label="Monitored" icon={<Server />} value={x.hosts.total} tone="muted" sub={`${plural(x.checks.total, 'check')}${x.hosts.pending ? ` · ${x.hosts.pending} pending` : ''}`} onClick={() => nav('/hosts')} />
+        {x.vuln_enabled && <Stat label="Critical CVEs" icon={<ShieldAlert />} value={nf(v.critical ?? 0)} tone={v.critical ? 'crit' : v.high ? 'warn' : 'muted'} title={FIXABLE_TITLE} sub={`${nf(v.high ?? 0)} high · ${nf(x.vulnerabilities_fixable ?? 0)} fixable`} onClick={() => nav('/vulnerabilities')} />}
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <Card title="Hosts needing attention" subtitle={problemHosts.length ? `${problemHosts.length} with a problem` : undefined} bodyClass="p-0"
+        <Card className="h-full" title="Hosts needing attention" bodyClass="p-0"
           actions={<Link to="/hosts" className="text-xs font-medium text-accent hover:underline">All hosts</Link>}>
           {hosts.isLoading ? <Loading /> : problemHosts.length === 0 ? (
-            <AllClear title="All hosts healthy">No host is down or has an active alert.</AllClear>
+            <AllClear title="All hosts healthy" />
           ) : (
             <ul className="divide-y divide-line/60">
               {problemHosts.slice(0, 8).map((h) => {
@@ -131,10 +146,10 @@ export function Dashboard() {
           )}
         </Card>
 
-        <Card title="Checks needing attention" subtitle={problemChecks.length ? `${problemChecks.length} failing` : undefined} bodyClass="p-0"
+        <Card className="h-full" title="Checks needing attention" subtitle={problemChecks.length ? `${problemChecks.length} failing` : undefined} bodyClass="p-0"
           actions={<Link to="/checks" className="text-xs font-medium text-accent hover:underline">All checks</Link>}>
           {checks.isLoading ? <Loading /> : problemChecks.length === 0 ? (
-            <AllClear title="All checks passing">Nothing is failing right now.</AllClear>
+            <AllClear title="All checks passing" />
           ) : (
             <ul className="divide-y divide-line/60">
               {problemChecks.slice(0, 8).map((c) => (
@@ -155,9 +170,9 @@ export function Dashboard() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-3">
-        <Card className="xl:col-span-2" title="Firing alerts" actions={<Link to="/alerts" className="text-xs font-medium text-accent hover:underline">View all</Link>} bodyClass="p-0">
+        <Card className="h-full xl:col-span-2" title="Firing alerts" actions={<Link to="/alerts" className="text-xs font-medium text-accent hover:underline">View all</Link>} bodyClass="p-0">
           {x.firing_alerts.length === 0 ? (
-            <AllClear title="All quiet">No alerts are firing right now.</AllClear>
+            <AllClear title="All quiet" />
           ) : (
             <ul className="divide-y divide-line/60">
               {x.firing_alerts.slice(0, 12).map((a) => (
@@ -181,7 +196,7 @@ export function Dashboard() {
           )}
         </Card>
 
-        <Card title="Recent events" bodyClass="p-0">
+        <Card className="h-full" title="Recent events" bodyClass="p-0">
           {x.recent_events.length === 0 ? <Empty title="No events yet" /> : (
             <ul className="divide-y divide-line/60">
               {x.recent_events.map((e) => (
@@ -199,7 +214,7 @@ export function Dashboard() {
         </Card>
       </div>
 
-      <Card title="Host overview" subtitle="Status, CPU, memory and disk for every host" bodyClass="p-4">
+      <Card title="Host overview" bodyClass="p-4">
         {!allHosts.length ? (
           <Empty title="No hosts yet">{can('hosts') && <Link to="/hosts/new" className="text-accent hover:underline">Add your first host</Link>}</Empty>
         ) : (

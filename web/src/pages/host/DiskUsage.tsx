@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Eraser, FlaskConical, HardDrive, ScanSearch } from 'lucide-react'
+import { Eraser, FlaskConical, HardDrive, ScanSearch, Settings2 } from 'lucide-react'
 import { errorMessage, get, post } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { ago, bytes } from '@/lib/format'
 import type { Alert, CleanupTask, DiskUsageReport, HostDetail, Job } from '@/lib/types'
 import { OperatorSignPanel, WritePolicyNote } from '@/components/OperatorSign'
 import { InheritableField, useHostSetting } from '@/components/InheritableField'
-import { Badge, Button, Card, Checkbox, ErrorBox, Field, Input, Modal, Note, Select, Spinner, useToast } from '@/components/ui'
+import { Badge, Button, Card, Checkbox, Drawer, ErrorBox, Field, Input, Modal, Note, Select, SettingsGroup, Spinner, useToast } from '@/components/ui'
 
 export const DISK_ALERT_METRICS = ['disk', 'inodes', 'disk_fill_hours']
 
@@ -38,6 +38,7 @@ export function StorageReport({ host, mount }: { host: HostDetail; mount: string
   const toast = useToast()
   const qc = useQueryClient()
   const [cleanup, setCleanup] = useState(false)
+  const [configOpen, setConfigOpen] = useState(false)
   const saveSetting = useHostSetting(host.id)
   const canEdit = can('host_settings') || can('hosts')
   const key = ['disk-usage', host.id, mount]
@@ -75,11 +76,17 @@ export function StorageReport({ host, mount }: { host: HostDetail; mount: string
         </div>
         {can('jobs') && <Button size="sm" icon={<ScanSearch className="size-3.5" />} loading={running} onClick={analyse}>{r?.status === 'done' ? 'Analyse again' : 'Analyse'}</Button>}
         {can('jobs') && <Button size="sm" icon={<Eraser className="size-3.5" />} onClick={() => setCleanup(true)}>Clean up…</Button>}
+        {host.settings && <Button size="sm" icon={<Settings2 className="size-3.5" />} onClick={() => setConfigOpen(true)}>Configure</Button>}
       </div>
       {host.settings && (
-        <div className="rounded-xl border border-line/70 px-4">
-          <InheritableField label="Allow disk cleanup" description="Lets administrators remove caches, old logs and temporary files with Clean up. Every run needs a dry run and confirmation first." kind="bool" setting={host.settings.allow_cleanup} disabled={!canEdit} onSave={saveSetting('allow_cleanup')} />
-        </div>
+        <Drawer open={configOpen} onClose={() => setConfigOpen(false)} title="Disk settings" subtitle={`${host.name} · values marked Default come from Settings, Agents`}>
+          <SettingsGroup title="Disk cleanup">
+            <InheritableField label="Allow disk cleanup" description="Lets administrators remove caches, old logs and temporary files with Clean up. Every run needs a dry run and confirmation first." kind="bool" setting={host.settings.allow_cleanup} disabled={!canEdit} onSave={saveSetting('allow_cleanup')} />
+          </SettingsGroup>
+        </Drawer>
+      )}
+      {host.settings && !host.allow_cleanup && (
+        <Note>Disk cleanup is off for this host.{canEdit && <> <button type="button" className="text-accent hover:underline" onClick={() => setConfigOpen(true)}>Turn it on</button></>}</Note>
       )}
       {report.error ? <ErrorBox error={report.error} /> : null}
       {r?.status === 'failed' && <ErrorBox error={r.error || 'The analysis failed.'} />}
@@ -142,7 +149,7 @@ export function StoragePanel({ host, alerts }: { host: HostDetail; alerts: Alert
   if (host.kind !== 'agent') return null
   return (
     <Card title={<span className="flex items-center gap-2"><HardDrive className="size-4 text-muted" />Storage breakdown{firing.length > 0 && <Badge tone="warn">disk alert</Badge>}</span>}
-      subtitle="Find what is using space on a volume"
+      info="Find what is using space on a volume."
       actions={<>
         {open && mounts.length > 1 && <div className="w-40"><Select value={mount} onChange={(e) => setMount(e.target.value)}>{mounts.map((m) => <option key={m} value={m}>{m}</option>)}</Select></div>}
         <Button size="sm" variant="ghost" onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</Button>
@@ -159,7 +166,7 @@ export function StorageForAlert({ hostId, mount }: { hostId: number; mount: stri
   if (!host.data || host.data.kind !== 'agent') return null
   return (
     <Card className="mt-4" title={<span className="flex items-center gap-2"><HardDrive className="size-4 text-muted" />Storage breakdown for {mount}</span>}
-      subtitle="Where the space is going on this volume">
+      info="Where the space is going on this volume.">
       <StorageReport host={host.data} mount={mount} />
     </Card>
   )
@@ -215,7 +222,7 @@ export function CleanupDialog({ host, onClose }: { host: HostDetail; onClose: ()
       <div className="space-y-4">
         <WritePolicyNote host={host} />
         {!host.allow_cleanup && (
-          <Note tone="warn">Disk cleanup is turned off for this host. Turn on <b>Allow disk cleanup</b> in the Storage breakdown on the Overview tab, then come back here.</Note>
+          <Note tone="warn">Disk cleanup is turned off for this host. Turn on <b>Allow disk cleanup</b> under Configure in the Storage breakdown on the Overview tab.</Note>
         )}
         <div>
           <div className="mb-2 flex items-center justify-between gap-2">
@@ -258,7 +265,7 @@ export function CleanupDialog({ host, onClose }: { host: HostDetail; onClose: ()
             <Input value={typed} onChange={(e) => setTyped(e.target.value)} />
           </Field>
         )}
-        <Note tone="warn">Cleanup permanently deletes files such as caches, old logs and temporary data. Every run is recorded in the job log and audit trail.</Note>
+        <Note tone="warn">Cleanup permanently deletes caches, old logs and temporary files.</Note>
         <ErrorBox error={err} />
       </div>
     </Modal>

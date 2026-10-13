@@ -239,6 +239,7 @@ type AgentMessage struct {
 	//	*AgentMessage_JobOutput
 	//	*AgentMessage_JobResult
 	//	*AgentMessage_Pong
+	//	*AgentMessage_DiskHealth
 	Msg           isAgentMessage_Msg `protobuf_oneof:"msg"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -353,6 +354,15 @@ func (x *AgentMessage) GetPong() *Pong {
 	return nil
 }
 
+func (x *AgentMessage) GetDiskHealth() *DiskHealthReport {
+	if x != nil {
+		if x, ok := x.Msg.(*AgentMessage_DiskHealth); ok {
+			return x.DiskHealth
+		}
+	}
+	return nil
+}
+
 type isAgentMessage_Msg interface {
 	isAgentMessage_Msg()
 }
@@ -389,6 +399,10 @@ type AgentMessage_Pong struct {
 	Pong *Pong `protobuf:"bytes,8,opt,name=pong,proto3,oneof"`
 }
 
+type AgentMessage_DiskHealth struct {
+	DiskHealth *DiskHealthReport `protobuf:"bytes,9,opt,name=disk_health,json=diskHealth,proto3,oneof"`
+}
+
 func (*AgentMessage_Hello) isAgentMessage_Msg() {}
 
 func (*AgentMessage_Metrics) isAgentMessage_Msg() {}
@@ -404,6 +418,62 @@ func (*AgentMessage_JobOutput) isAgentMessage_Msg() {}
 func (*AgentMessage_JobResult) isAgentMessage_Msg() {}
 
 func (*AgentMessage_Pong) isAgentMessage_Msg() {}
+
+func (*AgentMessage_DiskHealth) isAgentMessage_Msg() {}
+
+// Latest SMART / RAID / ZFS snapshot (Linux), collected about every 30 minutes.
+// json is a UTF-8 JSON document whose shape the server validates and caps.
+type DiskHealthReport struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TsMs          int64                  `protobuf:"varint,1,opt,name=ts_ms,json=tsMs,proto3" json:"ts_ms,omitempty"`
+	Json          []byte                 `protobuf:"bytes,2,opt,name=json,proto3" json:"json,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DiskHealthReport) Reset() {
+	*x = DiskHealthReport{}
+	mi := &file_sentrel_v1_agent_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DiskHealthReport) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DiskHealthReport) ProtoMessage() {}
+
+func (x *DiskHealthReport) ProtoReflect() protoreflect.Message {
+	mi := &file_sentrel_v1_agent_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DiskHealthReport.ProtoReflect.Descriptor instead.
+func (*DiskHealthReport) Descriptor() ([]byte, []int) {
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *DiskHealthReport) GetTsMs() int64 {
+	if x != nil {
+		return x.TsMs
+	}
+	return 0
+}
+
+func (x *DiskHealthReport) GetJson() []byte {
+	if x != nil {
+		return x.Json
+	}
+	return nil
+}
 
 type Hello struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -432,7 +502,7 @@ type Hello struct {
 
 func (x *Hello) Reset() {
 	*x = Hello{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[3]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -444,7 +514,7 @@ func (x *Hello) String() string {
 func (*Hello) ProtoMessage() {}
 
 func (x *Hello) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[3]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -457,7 +527,7 @@ func (x *Hello) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Hello.ProtoReflect.Descriptor instead.
 func (*Hello) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{3}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *Hello) GetAgentId() string {
@@ -562,7 +632,7 @@ type HostInfo struct {
 
 func (x *HostInfo) Reset() {
 	*x = HostInfo{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[4]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -574,7 +644,7 @@ func (x *HostInfo) String() string {
 func (*HostInfo) ProtoMessage() {}
 
 func (x *HostInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[4]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -587,7 +657,7 @@ func (x *HostInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HostInfo.ProtoReflect.Descriptor instead.
 func (*HostInfo) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{4}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *HostInfo) GetHostname() string {
@@ -714,7 +784,7 @@ type Sample struct {
 
 func (x *Sample) Reset() {
 	*x = Sample{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[5]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -726,7 +796,7 @@ func (x *Sample) String() string {
 func (*Sample) ProtoMessage() {}
 
 func (x *Sample) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[5]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -739,7 +809,7 @@ func (x *Sample) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Sample.ProtoReflect.Descriptor instead.
 func (*Sample) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{5}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *Sample) GetName() string {
@@ -779,7 +849,7 @@ type MetricBatch struct {
 
 func (x *MetricBatch) Reset() {
 	*x = MetricBatch{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[6]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -791,7 +861,7 @@ func (x *MetricBatch) String() string {
 func (*MetricBatch) ProtoMessage() {}
 
 func (x *MetricBatch) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[6]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -804,7 +874,7 @@ func (x *MetricBatch) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MetricBatch.ProtoReflect.Descriptor instead.
 func (*MetricBatch) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{6}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *MetricBatch) GetSamples() []*Sample {
@@ -840,7 +910,7 @@ type HostState struct {
 
 func (x *HostState) Reset() {
 	*x = HostState{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[7]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -852,7 +922,7 @@ func (x *HostState) String() string {
 func (*HostState) ProtoMessage() {}
 
 func (x *HostState) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[7]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -865,7 +935,7 @@ func (x *HostState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HostState.ProtoReflect.Descriptor instead.
 func (*HostState) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{7}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *HostState) GetTsMs() int64 {
@@ -999,7 +1069,7 @@ type Disk struct {
 
 func (x *Disk) Reset() {
 	*x = Disk{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[8]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1011,7 +1081,7 @@ func (x *Disk) String() string {
 func (*Disk) ProtoMessage() {}
 
 func (x *Disk) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[8]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1024,7 +1094,7 @@ func (x *Disk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Disk.ProtoReflect.Descriptor instead.
 func (*Disk) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{8}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *Disk) GetMountpoint() string {
@@ -1113,7 +1183,7 @@ type NetInterface struct {
 
 func (x *NetInterface) Reset() {
 	*x = NetInterface{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[9]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1125,7 +1195,7 @@ func (x *NetInterface) String() string {
 func (*NetInterface) ProtoMessage() {}
 
 func (x *NetInterface) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[9]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1138,7 +1208,7 @@ func (x *NetInterface) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NetInterface.ProtoReflect.Descriptor instead.
 func (*NetInterface) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{9}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *NetInterface) GetName() string {
@@ -1210,7 +1280,7 @@ type Service struct {
 
 func (x *Service) Reset() {
 	*x = Service{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[10]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1222,7 +1292,7 @@ func (x *Service) String() string {
 func (*Service) ProtoMessage() {}
 
 func (x *Service) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[10]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1235,7 +1305,7 @@ func (x *Service) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Service.ProtoReflect.Descriptor instead.
 func (*Service) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{10}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *Service) GetName() string {
@@ -1286,7 +1356,7 @@ type ListeningPort struct {
 
 func (x *ListeningPort) Reset() {
 	*x = ListeningPort{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[11]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1298,7 +1368,7 @@ func (x *ListeningPort) String() string {
 func (*ListeningPort) ProtoMessage() {}
 
 func (x *ListeningPort) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[11]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1311,7 +1381,7 @@ func (x *ListeningPort) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListeningPort.ProtoReflect.Descriptor instead.
 func (*ListeningPort) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{11}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ListeningPort) GetProtocol() string {
@@ -1364,7 +1434,7 @@ type Process struct {
 
 func (x *Process) Reset() {
 	*x = Process{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[12]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1376,7 +1446,7 @@ func (x *Process) String() string {
 func (*Process) ProtoMessage() {}
 
 func (x *Process) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[12]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1389,7 +1459,7 @@ func (x *Process) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Process.ProtoReflect.Descriptor instead.
 func (*Process) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{12}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *Process) GetPid() int32 {
@@ -1460,7 +1530,7 @@ type Container struct {
 
 func (x *Container) Reset() {
 	*x = Container{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[13]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1472,7 +1542,7 @@ func (x *Container) String() string {
 func (*Container) ProtoMessage() {}
 
 func (x *Container) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[13]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1485,7 +1555,7 @@ func (x *Container) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Container.ProtoReflect.Descriptor instead.
 func (*Container) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{13}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *Container) GetId() string {
@@ -1575,7 +1645,7 @@ type Temperature struct {
 
 func (x *Temperature) Reset() {
 	*x = Temperature{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[14]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1587,7 +1657,7 @@ func (x *Temperature) String() string {
 func (*Temperature) ProtoMessage() {}
 
 func (x *Temperature) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[14]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1600,7 +1670,7 @@ func (x *Temperature) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Temperature.ProtoReflect.Descriptor instead.
 func (*Temperature) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{14}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *Temperature) GetSensor() string {
@@ -1629,7 +1699,7 @@ type BlockedIP struct {
 
 func (x *BlockedIP) Reset() {
 	*x = BlockedIP{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[15]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1641,7 +1711,7 @@ func (x *BlockedIP) String() string {
 func (*BlockedIP) ProtoMessage() {}
 
 func (x *BlockedIP) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[15]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1654,7 +1724,7 @@ func (x *BlockedIP) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BlockedIP.ProtoReflect.Descriptor instead.
 func (*BlockedIP) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{15}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *BlockedIP) GetIp() string {
@@ -1699,7 +1769,7 @@ type Inventory struct {
 
 func (x *Inventory) Reset() {
 	*x = Inventory{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[16]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1711,7 +1781,7 @@ func (x *Inventory) String() string {
 func (*Inventory) ProtoMessage() {}
 
 func (x *Inventory) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[16]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1724,7 +1794,7 @@ func (x *Inventory) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Inventory.ProtoReflect.Descriptor instead.
 func (*Inventory) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{16}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *Inventory) GetTsMs() int64 {
@@ -1787,7 +1857,7 @@ type Package struct {
 
 func (x *Package) Reset() {
 	*x = Package{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[17]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1799,7 +1869,7 @@ func (x *Package) String() string {
 func (*Package) ProtoMessage() {}
 
 func (x *Package) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[17]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1812,7 +1882,7 @@ func (x *Package) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Package.ProtoReflect.Descriptor instead.
 func (*Package) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{17}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *Package) GetName() string {
@@ -1901,7 +1971,7 @@ type SecurityReport struct {
 
 func (x *SecurityReport) Reset() {
 	*x = SecurityReport{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[18]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1913,7 +1983,7 @@ func (x *SecurityReport) String() string {
 func (*SecurityReport) ProtoMessage() {}
 
 func (x *SecurityReport) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[18]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1926,7 +1996,7 @@ func (x *SecurityReport) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SecurityReport.ProtoReflect.Descriptor instead.
 func (*SecurityReport) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{18}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *SecurityReport) GetWindowStartMs() int64 {
@@ -1997,7 +2067,7 @@ type PortScan struct {
 
 func (x *PortScan) Reset() {
 	*x = PortScan{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[19]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2009,7 +2079,7 @@ func (x *PortScan) String() string {
 func (*PortScan) ProtoMessage() {}
 
 func (x *PortScan) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[19]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2022,7 +2092,7 @@ func (x *PortScan) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PortScan.ProtoReflect.Descriptor instead.
 func (*PortScan) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{19}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *PortScan) GetIp() string {
@@ -2057,7 +2127,7 @@ type PortScanStatus struct {
 
 func (x *PortScanStatus) Reset() {
 	*x = PortScanStatus{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[20]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2069,7 +2139,7 @@ func (x *PortScanStatus) String() string {
 func (*PortScanStatus) ProtoMessage() {}
 
 func (x *PortScanStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[20]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2082,7 +2152,7 @@ func (x *PortScanStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PortScanStatus.ProtoReflect.Descriptor instead.
 func (*PortScanStatus) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{20}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *PortScanStatus) GetSupported() bool {
@@ -2118,7 +2188,7 @@ type FailedLogins struct {
 
 func (x *FailedLogins) Reset() {
 	*x = FailedLogins{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[21]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2130,7 +2200,7 @@ func (x *FailedLogins) String() string {
 func (*FailedLogins) ProtoMessage() {}
 
 func (x *FailedLogins) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[21]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2143,7 +2213,7 @@ func (x *FailedLogins) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FailedLogins.ProtoReflect.Descriptor instead.
 func (*FailedLogins) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{21}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *FailedLogins) GetIp() string {
@@ -2185,7 +2255,7 @@ type Fail2Ban struct {
 
 func (x *Fail2Ban) Reset() {
 	*x = Fail2Ban{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[22]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2197,7 +2267,7 @@ func (x *Fail2Ban) String() string {
 func (*Fail2Ban) ProtoMessage() {}
 
 func (x *Fail2Ban) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[22]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2210,7 +2280,7 @@ func (x *Fail2Ban) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Fail2Ban.ProtoReflect.Descriptor instead.
 func (*Fail2Ban) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{22}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *Fail2Ban) GetAvailable() bool {
@@ -2248,7 +2318,7 @@ type Fail2BanJail struct {
 
 func (x *Fail2BanJail) Reset() {
 	*x = Fail2BanJail{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[23]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2260,7 +2330,7 @@ func (x *Fail2BanJail) String() string {
 func (*Fail2BanJail) ProtoMessage() {}
 
 func (x *Fail2BanJail) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[23]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2273,7 +2343,7 @@ func (x *Fail2BanJail) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Fail2BanJail.ProtoReflect.Descriptor instead.
 func (*Fail2BanJail) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{23}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *Fail2BanJail) GetName() string {
@@ -2329,7 +2399,7 @@ type JobOutput struct {
 
 func (x *JobOutput) Reset() {
 	*x = JobOutput{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[24]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2341,7 +2411,7 @@ func (x *JobOutput) String() string {
 func (*JobOutput) ProtoMessage() {}
 
 func (x *JobOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[24]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2354,7 +2424,7 @@ func (x *JobOutput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JobOutput.ProtoReflect.Descriptor instead.
 func (*JobOutput) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{24}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *JobOutput) GetJobId() string {
@@ -2394,7 +2464,7 @@ type JobResult struct {
 
 func (x *JobResult) Reset() {
 	*x = JobResult{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[25]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2406,7 +2476,7 @@ func (x *JobResult) String() string {
 func (*JobResult) ProtoMessage() {}
 
 func (x *JobResult) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[25]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2419,7 +2489,7 @@ func (x *JobResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JobResult.ProtoReflect.Descriptor instead.
 func (*JobResult) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{25}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *JobResult) GetJobId() string {
@@ -2480,7 +2550,7 @@ type Pong struct {
 
 func (x *Pong) Reset() {
 	*x = Pong{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[26]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2492,7 +2562,7 @@ func (x *Pong) String() string {
 func (*Pong) ProtoMessage() {}
 
 func (x *Pong) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[26]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2505,7 +2575,7 @@ func (x *Pong) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Pong.ProtoReflect.Descriptor instead.
 func (*Pong) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{26}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *Pong) GetUnixMs() int64 {
@@ -2531,7 +2601,7 @@ type ServerMessage struct {
 
 func (x *ServerMessage) Reset() {
 	*x = ServerMessage{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[27]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2543,7 +2613,7 @@ func (x *ServerMessage) String() string {
 func (*ServerMessage) ProtoMessage() {}
 
 func (x *ServerMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[27]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2556,7 +2626,7 @@ func (x *ServerMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerMessage.ProtoReflect.Descriptor instead.
 func (*ServerMessage) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{27}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *ServerMessage) GetMsg() isServerMessage_Msg {
@@ -2657,7 +2727,7 @@ type Welcome struct {
 
 func (x *Welcome) Reset() {
 	*x = Welcome{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[28]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2669,7 +2739,7 @@ func (x *Welcome) String() string {
 func (*Welcome) ProtoMessage() {}
 
 func (x *Welcome) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[28]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2682,7 +2752,7 @@ func (x *Welcome) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Welcome.ProtoReflect.Descriptor instead.
 func (*Welcome) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{28}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *Welcome) GetHostId() string {
@@ -2736,7 +2806,7 @@ type AgentConfig struct {
 
 func (x *AgentConfig) Reset() {
 	*x = AgentConfig{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[29]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2748,7 +2818,7 @@ func (x *AgentConfig) String() string {
 func (*AgentConfig) ProtoMessage() {}
 
 func (x *AgentConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[29]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2761,7 +2831,7 @@ func (x *AgentConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AgentConfig.ProtoReflect.Descriptor instead.
 func (*AgentConfig) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{29}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *AgentConfig) GetIntervalSeconds() uint32 {
@@ -2886,7 +2956,7 @@ type SignedJob struct {
 
 func (x *SignedJob) Reset() {
 	*x = SignedJob{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[30]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2898,7 +2968,7 @@ func (x *SignedJob) String() string {
 func (*SignedJob) ProtoMessage() {}
 
 func (x *SignedJob) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[30]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2911,7 +2981,7 @@ func (x *SignedJob) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SignedJob.ProtoReflect.Descriptor instead.
 func (*SignedJob) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{30}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *SignedJob) GetSpec() []byte {
@@ -2958,7 +3028,7 @@ type JobSpec struct {
 
 func (x *JobSpec) Reset() {
 	*x = JobSpec{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[31]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2970,7 +3040,7 @@ func (x *JobSpec) String() string {
 func (*JobSpec) ProtoMessage() {}
 
 func (x *JobSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[31]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2983,7 +3053,7 @@ func (x *JobSpec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JobSpec.ProtoReflect.Descriptor instead.
 func (*JobSpec) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{31}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *JobSpec) GetId() string {
@@ -3051,7 +3121,7 @@ type Ping struct {
 
 func (x *Ping) Reset() {
 	*x = Ping{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[32]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3063,7 +3133,7 @@ func (x *Ping) String() string {
 func (*Ping) ProtoMessage() {}
 
 func (x *Ping) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[32]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3076,7 +3146,7 @@ func (x *Ping) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Ping.ProtoReflect.Descriptor instead.
 func (*Ping) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{32}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *Ping) GetUnixMs() int64 {
@@ -3096,7 +3166,7 @@ type Goodbye struct {
 
 func (x *Goodbye) Reset() {
 	*x = Goodbye{}
-	mi := &file_sentrel_v1_agent_proto_msgTypes[33]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3108,7 +3178,7 @@ func (x *Goodbye) String() string {
 func (*Goodbye) ProtoMessage() {}
 
 func (x *Goodbye) ProtoReflect() protoreflect.Message {
-	mi := &file_sentrel_v1_agent_proto_msgTypes[33]
+	mi := &file_sentrel_v1_agent_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3121,7 +3191,7 @@ func (x *Goodbye) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Goodbye.ProtoReflect.Descriptor instead.
 func (*Goodbye) Descriptor() ([]byte, []int) {
-	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{33}
+	return file_sentrel_v1_agent_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *Goodbye) GetReason() string {
@@ -3155,7 +3225,7 @@ const file_sentrel_v1_agent_proto_rawDesc = "" +
 	"\bcert_pem\x18\x02 \x01(\fR\acertPem\x12\x15\n" +
 	"\x06ca_pem\x18\x03 \x01(\fR\x05caPem\x12$\n" +
 	"\x0ejob_public_key\x18\x04 \x01(\fR\fjobPublicKey\x12/\n" +
-	"\x06config\x18\x05 \x01(\v2\x17.sentrel.v1.AgentConfigR\x06config\"\xad\x03\n" +
+	"\x06config\x18\x05 \x01(\v2\x17.sentrel.v1.AgentConfigR\x06config\"\xee\x03\n" +
 	"\fAgentMessage\x12)\n" +
 	"\x05hello\x18\x01 \x01(\v2\x11.sentrel.v1.HelloH\x00R\x05hello\x123\n" +
 	"\ametrics\x18\x02 \x01(\v2\x17.sentrel.v1.MetricBatchH\x00R\ametrics\x12-\n" +
@@ -3166,8 +3236,13 @@ const file_sentrel_v1_agent_proto_rawDesc = "" +
 	"job_output\x18\x06 \x01(\v2\x15.sentrel.v1.JobOutputH\x00R\tjobOutput\x126\n" +
 	"\n" +
 	"job_result\x18\a \x01(\v2\x15.sentrel.v1.JobResultH\x00R\tjobResult\x12&\n" +
-	"\x04pong\x18\b \x01(\v2\x10.sentrel.v1.PongH\x00R\x04pongB\x05\n" +
-	"\x03msg\"\xf2\x02\n" +
+	"\x04pong\x18\b \x01(\v2\x10.sentrel.v1.PongH\x00R\x04pong\x12?\n" +
+	"\vdisk_health\x18\t \x01(\v2\x1c.sentrel.v1.DiskHealthReportH\x00R\n" +
+	"diskHealthB\x05\n" +
+	"\x03msg\";\n" +
+	"\x10DiskHealthReport\x12\x13\n" +
+	"\x05ts_ms\x18\x01 \x01(\x03R\x04tsMs\x12\x12\n" +
+	"\x04json\x18\x02 \x01(\fR\x04json\"\xf2\x02\n" +
 	"\x05Hello\x12\x19\n" +
 	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12%\n" +
 	"\x0eschema_version\x18\x02 \x01(\rR\rschemaVersion\x12#\n" +
@@ -3451,91 +3526,93 @@ func file_sentrel_v1_agent_proto_rawDescGZIP() []byte {
 }
 
 var file_sentrel_v1_agent_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_sentrel_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 36)
+var file_sentrel_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 37)
 var file_sentrel_v1_agent_proto_goTypes = []any{
 	(SchemaVersion)(0),       // 0: sentrel.v1.SchemaVersion
 	(*RegisterRequest)(nil),  // 1: sentrel.v1.RegisterRequest
 	(*RegisterResponse)(nil), // 2: sentrel.v1.RegisterResponse
 	(*AgentMessage)(nil),     // 3: sentrel.v1.AgentMessage
-	(*Hello)(nil),            // 4: sentrel.v1.Hello
-	(*HostInfo)(nil),         // 5: sentrel.v1.HostInfo
-	(*Sample)(nil),           // 6: sentrel.v1.Sample
-	(*MetricBatch)(nil),      // 7: sentrel.v1.MetricBatch
-	(*HostState)(nil),        // 8: sentrel.v1.HostState
-	(*Disk)(nil),             // 9: sentrel.v1.Disk
-	(*NetInterface)(nil),     // 10: sentrel.v1.NetInterface
-	(*Service)(nil),          // 11: sentrel.v1.Service
-	(*ListeningPort)(nil),    // 12: sentrel.v1.ListeningPort
-	(*Process)(nil),          // 13: sentrel.v1.Process
-	(*Container)(nil),        // 14: sentrel.v1.Container
-	(*Temperature)(nil),      // 15: sentrel.v1.Temperature
-	(*BlockedIP)(nil),        // 16: sentrel.v1.BlockedIP
-	(*Inventory)(nil),        // 17: sentrel.v1.Inventory
-	(*Package)(nil),          // 18: sentrel.v1.Package
-	(*SecurityReport)(nil),   // 19: sentrel.v1.SecurityReport
-	(*PortScan)(nil),         // 20: sentrel.v1.PortScan
-	(*PortScanStatus)(nil),   // 21: sentrel.v1.PortScanStatus
-	(*FailedLogins)(nil),     // 22: sentrel.v1.FailedLogins
-	(*Fail2Ban)(nil),         // 23: sentrel.v1.Fail2Ban
-	(*Fail2BanJail)(nil),     // 24: sentrel.v1.Fail2BanJail
-	(*JobOutput)(nil),        // 25: sentrel.v1.JobOutput
-	(*JobResult)(nil),        // 26: sentrel.v1.JobResult
-	(*Pong)(nil),             // 27: sentrel.v1.Pong
-	(*ServerMessage)(nil),    // 28: sentrel.v1.ServerMessage
-	(*Welcome)(nil),          // 29: sentrel.v1.Welcome
-	(*AgentConfig)(nil),      // 30: sentrel.v1.AgentConfig
-	(*SignedJob)(nil),        // 31: sentrel.v1.SignedJob
-	(*JobSpec)(nil),          // 32: sentrel.v1.JobSpec
-	(*Ping)(nil),             // 33: sentrel.v1.Ping
-	(*Goodbye)(nil),          // 34: sentrel.v1.Goodbye
-	nil,                      // 35: sentrel.v1.Sample.LabelsEntry
-	nil,                      // 36: sentrel.v1.JobSpec.ParamsEntry
+	(*DiskHealthReport)(nil), // 4: sentrel.v1.DiskHealthReport
+	(*Hello)(nil),            // 5: sentrel.v1.Hello
+	(*HostInfo)(nil),         // 6: sentrel.v1.HostInfo
+	(*Sample)(nil),           // 7: sentrel.v1.Sample
+	(*MetricBatch)(nil),      // 8: sentrel.v1.MetricBatch
+	(*HostState)(nil),        // 9: sentrel.v1.HostState
+	(*Disk)(nil),             // 10: sentrel.v1.Disk
+	(*NetInterface)(nil),     // 11: sentrel.v1.NetInterface
+	(*Service)(nil),          // 12: sentrel.v1.Service
+	(*ListeningPort)(nil),    // 13: sentrel.v1.ListeningPort
+	(*Process)(nil),          // 14: sentrel.v1.Process
+	(*Container)(nil),        // 15: sentrel.v1.Container
+	(*Temperature)(nil),      // 16: sentrel.v1.Temperature
+	(*BlockedIP)(nil),        // 17: sentrel.v1.BlockedIP
+	(*Inventory)(nil),        // 18: sentrel.v1.Inventory
+	(*Package)(nil),          // 19: sentrel.v1.Package
+	(*SecurityReport)(nil),   // 20: sentrel.v1.SecurityReport
+	(*PortScan)(nil),         // 21: sentrel.v1.PortScan
+	(*PortScanStatus)(nil),   // 22: sentrel.v1.PortScanStatus
+	(*FailedLogins)(nil),     // 23: sentrel.v1.FailedLogins
+	(*Fail2Ban)(nil),         // 24: sentrel.v1.Fail2Ban
+	(*Fail2BanJail)(nil),     // 25: sentrel.v1.Fail2BanJail
+	(*JobOutput)(nil),        // 26: sentrel.v1.JobOutput
+	(*JobResult)(nil),        // 27: sentrel.v1.JobResult
+	(*Pong)(nil),             // 28: sentrel.v1.Pong
+	(*ServerMessage)(nil),    // 29: sentrel.v1.ServerMessage
+	(*Welcome)(nil),          // 30: sentrel.v1.Welcome
+	(*AgentConfig)(nil),      // 31: sentrel.v1.AgentConfig
+	(*SignedJob)(nil),        // 32: sentrel.v1.SignedJob
+	(*JobSpec)(nil),          // 33: sentrel.v1.JobSpec
+	(*Ping)(nil),             // 34: sentrel.v1.Ping
+	(*Goodbye)(nil),          // 35: sentrel.v1.Goodbye
+	nil,                      // 36: sentrel.v1.Sample.LabelsEntry
+	nil,                      // 37: sentrel.v1.JobSpec.ParamsEntry
 }
 var file_sentrel_v1_agent_proto_depIdxs = []int32{
-	5,  // 0: sentrel.v1.RegisterRequest.host:type_name -> sentrel.v1.HostInfo
-	30, // 1: sentrel.v1.RegisterResponse.config:type_name -> sentrel.v1.AgentConfig
-	4,  // 2: sentrel.v1.AgentMessage.hello:type_name -> sentrel.v1.Hello
-	7,  // 3: sentrel.v1.AgentMessage.metrics:type_name -> sentrel.v1.MetricBatch
-	8,  // 4: sentrel.v1.AgentMessage.state:type_name -> sentrel.v1.HostState
-	17, // 5: sentrel.v1.AgentMessage.inventory:type_name -> sentrel.v1.Inventory
-	19, // 6: sentrel.v1.AgentMessage.security:type_name -> sentrel.v1.SecurityReport
-	25, // 7: sentrel.v1.AgentMessage.job_output:type_name -> sentrel.v1.JobOutput
-	26, // 8: sentrel.v1.AgentMessage.job_result:type_name -> sentrel.v1.JobResult
-	27, // 9: sentrel.v1.AgentMessage.pong:type_name -> sentrel.v1.Pong
-	5,  // 10: sentrel.v1.Hello.host:type_name -> sentrel.v1.HostInfo
-	35, // 11: sentrel.v1.Sample.labels:type_name -> sentrel.v1.Sample.LabelsEntry
-	6,  // 12: sentrel.v1.MetricBatch.samples:type_name -> sentrel.v1.Sample
-	9,  // 13: sentrel.v1.HostState.disks:type_name -> sentrel.v1.Disk
-	10, // 14: sentrel.v1.HostState.interfaces:type_name -> sentrel.v1.NetInterface
-	11, // 15: sentrel.v1.HostState.services:type_name -> sentrel.v1.Service
-	12, // 16: sentrel.v1.HostState.ports:type_name -> sentrel.v1.ListeningPort
-	13, // 17: sentrel.v1.HostState.top_processes:type_name -> sentrel.v1.Process
-	14, // 18: sentrel.v1.HostState.containers:type_name -> sentrel.v1.Container
-	15, // 19: sentrel.v1.HostState.temperatures:type_name -> sentrel.v1.Temperature
-	16, // 20: sentrel.v1.HostState.blocked_ips:type_name -> sentrel.v1.BlockedIP
-	18, // 21: sentrel.v1.Inventory.installed:type_name -> sentrel.v1.Package
-	18, // 22: sentrel.v1.Inventory.upgradable:type_name -> sentrel.v1.Package
-	22, // 23: sentrel.v1.SecurityReport.failed_logins:type_name -> sentrel.v1.FailedLogins
-	23, // 24: sentrel.v1.SecurityReport.fail2ban:type_name -> sentrel.v1.Fail2Ban
-	20, // 25: sentrel.v1.SecurityReport.portscans:type_name -> sentrel.v1.PortScan
-	21, // 26: sentrel.v1.SecurityReport.portscan_status:type_name -> sentrel.v1.PortScanStatus
-	24, // 27: sentrel.v1.Fail2Ban.jails:type_name -> sentrel.v1.Fail2BanJail
-	29, // 28: sentrel.v1.ServerMessage.welcome:type_name -> sentrel.v1.Welcome
-	30, // 29: sentrel.v1.ServerMessage.config:type_name -> sentrel.v1.AgentConfig
-	31, // 30: sentrel.v1.ServerMessage.job:type_name -> sentrel.v1.SignedJob
-	33, // 31: sentrel.v1.ServerMessage.ping:type_name -> sentrel.v1.Ping
-	34, // 32: sentrel.v1.ServerMessage.goodbye:type_name -> sentrel.v1.Goodbye
-	30, // 33: sentrel.v1.Welcome.config:type_name -> sentrel.v1.AgentConfig
-	36, // 34: sentrel.v1.JobSpec.params:type_name -> sentrel.v1.JobSpec.ParamsEntry
-	1,  // 35: sentrel.v1.AgentService.Register:input_type -> sentrel.v1.RegisterRequest
-	3,  // 36: sentrel.v1.AgentService.Connect:input_type -> sentrel.v1.AgentMessage
-	2,  // 37: sentrel.v1.AgentService.Register:output_type -> sentrel.v1.RegisterResponse
-	28, // 38: sentrel.v1.AgentService.Connect:output_type -> sentrel.v1.ServerMessage
-	37, // [37:39] is the sub-list for method output_type
-	35, // [35:37] is the sub-list for method input_type
-	35, // [35:35] is the sub-list for extension type_name
-	35, // [35:35] is the sub-list for extension extendee
-	0,  // [0:35] is the sub-list for field type_name
+	6,  // 0: sentrel.v1.RegisterRequest.host:type_name -> sentrel.v1.HostInfo
+	31, // 1: sentrel.v1.RegisterResponse.config:type_name -> sentrel.v1.AgentConfig
+	5,  // 2: sentrel.v1.AgentMessage.hello:type_name -> sentrel.v1.Hello
+	8,  // 3: sentrel.v1.AgentMessage.metrics:type_name -> sentrel.v1.MetricBatch
+	9,  // 4: sentrel.v1.AgentMessage.state:type_name -> sentrel.v1.HostState
+	18, // 5: sentrel.v1.AgentMessage.inventory:type_name -> sentrel.v1.Inventory
+	20, // 6: sentrel.v1.AgentMessage.security:type_name -> sentrel.v1.SecurityReport
+	26, // 7: sentrel.v1.AgentMessage.job_output:type_name -> sentrel.v1.JobOutput
+	27, // 8: sentrel.v1.AgentMessage.job_result:type_name -> sentrel.v1.JobResult
+	28, // 9: sentrel.v1.AgentMessage.pong:type_name -> sentrel.v1.Pong
+	4,  // 10: sentrel.v1.AgentMessage.disk_health:type_name -> sentrel.v1.DiskHealthReport
+	6,  // 11: sentrel.v1.Hello.host:type_name -> sentrel.v1.HostInfo
+	36, // 12: sentrel.v1.Sample.labels:type_name -> sentrel.v1.Sample.LabelsEntry
+	7,  // 13: sentrel.v1.MetricBatch.samples:type_name -> sentrel.v1.Sample
+	10, // 14: sentrel.v1.HostState.disks:type_name -> sentrel.v1.Disk
+	11, // 15: sentrel.v1.HostState.interfaces:type_name -> sentrel.v1.NetInterface
+	12, // 16: sentrel.v1.HostState.services:type_name -> sentrel.v1.Service
+	13, // 17: sentrel.v1.HostState.ports:type_name -> sentrel.v1.ListeningPort
+	14, // 18: sentrel.v1.HostState.top_processes:type_name -> sentrel.v1.Process
+	15, // 19: sentrel.v1.HostState.containers:type_name -> sentrel.v1.Container
+	16, // 20: sentrel.v1.HostState.temperatures:type_name -> sentrel.v1.Temperature
+	17, // 21: sentrel.v1.HostState.blocked_ips:type_name -> sentrel.v1.BlockedIP
+	19, // 22: sentrel.v1.Inventory.installed:type_name -> sentrel.v1.Package
+	19, // 23: sentrel.v1.Inventory.upgradable:type_name -> sentrel.v1.Package
+	23, // 24: sentrel.v1.SecurityReport.failed_logins:type_name -> sentrel.v1.FailedLogins
+	24, // 25: sentrel.v1.SecurityReport.fail2ban:type_name -> sentrel.v1.Fail2Ban
+	21, // 26: sentrel.v1.SecurityReport.portscans:type_name -> sentrel.v1.PortScan
+	22, // 27: sentrel.v1.SecurityReport.portscan_status:type_name -> sentrel.v1.PortScanStatus
+	25, // 28: sentrel.v1.Fail2Ban.jails:type_name -> sentrel.v1.Fail2BanJail
+	30, // 29: sentrel.v1.ServerMessage.welcome:type_name -> sentrel.v1.Welcome
+	31, // 30: sentrel.v1.ServerMessage.config:type_name -> sentrel.v1.AgentConfig
+	32, // 31: sentrel.v1.ServerMessage.job:type_name -> sentrel.v1.SignedJob
+	34, // 32: sentrel.v1.ServerMessage.ping:type_name -> sentrel.v1.Ping
+	35, // 33: sentrel.v1.ServerMessage.goodbye:type_name -> sentrel.v1.Goodbye
+	31, // 34: sentrel.v1.Welcome.config:type_name -> sentrel.v1.AgentConfig
+	37, // 35: sentrel.v1.JobSpec.params:type_name -> sentrel.v1.JobSpec.ParamsEntry
+	1,  // 36: sentrel.v1.AgentService.Register:input_type -> sentrel.v1.RegisterRequest
+	3,  // 37: sentrel.v1.AgentService.Connect:input_type -> sentrel.v1.AgentMessage
+	2,  // 38: sentrel.v1.AgentService.Register:output_type -> sentrel.v1.RegisterResponse
+	29, // 39: sentrel.v1.AgentService.Connect:output_type -> sentrel.v1.ServerMessage
+	38, // [38:40] is the sub-list for method output_type
+	36, // [36:38] is the sub-list for method input_type
+	36, // [36:36] is the sub-list for extension type_name
+	36, // [36:36] is the sub-list for extension extendee
+	0,  // [0:36] is the sub-list for field type_name
 }
 
 func init() { file_sentrel_v1_agent_proto_init() }
@@ -3552,8 +3629,9 @@ func file_sentrel_v1_agent_proto_init() {
 		(*AgentMessage_JobOutput)(nil),
 		(*AgentMessage_JobResult)(nil),
 		(*AgentMessage_Pong)(nil),
+		(*AgentMessage_DiskHealth)(nil),
 	}
-	file_sentrel_v1_agent_proto_msgTypes[27].OneofWrappers = []any{
+	file_sentrel_v1_agent_proto_msgTypes[28].OneofWrappers = []any{
 		(*ServerMessage_Welcome)(nil),
 		(*ServerMessage_Config)(nil),
 		(*ServerMessage_Job)(nil),
@@ -3566,7 +3644,7 @@ func file_sentrel_v1_agent_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_sentrel_v1_agent_proto_rawDesc), len(file_sentrel_v1_agent_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   36,
+			NumMessages:   37,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

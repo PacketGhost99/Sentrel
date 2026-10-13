@@ -60,7 +60,7 @@ if [ -z "$VERSION" ]; then
 fi
 COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo none)
 DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-LDFLAGS="-s -w -X $GO_MODULE/internal/version.Version=$VERSION -X $GO_MODULE/internal/version.Commit=$COMMIT -X $GO_MODULE/internal/version.Date=$DATE"
+LDFLAGS="-s -w -X $GO_MODULE/internal/version.Version=${VERSION#v} -X $GO_MODULE/internal/version.Commit=$COMMIT -X $GO_MODULE/internal/version.Date=$DATE"
 export CGO_ENABLED=0
 
 mkdir -p dist

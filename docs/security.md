@@ -46,7 +46,7 @@ Agent updates are signed over `OS, architecture, version, SHA-256`. The unprivil
 Jobs fall into two classes, defined in one shared package (`internal/jobpolicy`) that both server and agent use:
 
 - **SAFE**: `refresh_inventory`, `collect_now`, `disk_usage`, `unblock_ip`. They only read state or remove a block.
-- **WRITE**: everything else (`upgrade`, `script`, `block_ip`, `disk_cleanup`, `self_update`) and any job type the agent does not know.
+- **WRITE**: everything else (`upgrade`, `block_ip`, `disk_cleanup`, `self_update`) and any job type the agent does not know.
 
 Each agent enforces a **write policy** that is set only locally, at install or register time, and stored in the root-owned `agent.yaml` (`write_jobs`, `operator_keys`). Nothing the server sends (agent options, the pushed agent config, jobs) can change it: the pushed configuration message has no such fields, and tests assert this.
 
@@ -56,7 +56,7 @@ Each agent enforces a **write policy** that is set only locally, at install or r
 | `operator` | also need an Ed25519 signature over the exact same job bytes from one of the operator public keys in `operator_keys`; the server's own signature is still required |
 | `none` | refused with `rejected: agent is read-only` |
 
-Threat model: an attacker who fully controls the server (database, `pki/job.key`, the API) can issue SAFE jobs to every agent and nothing else on `operator` and `none` hosts. They cannot run scripts, upgrade packages, change firewall rules, clean disks or push an agent binary. The operator private key is never stored on, or sent to, the server; sign on a separate machine or in your browser. A self-update job is a WRITE job: the operator signature covers the download path, SHA-256 and version in the job, and the agent still verifies the binary signature.
+Threat model: an attacker who fully controls the server (database, `pki/job.key`, the API) can issue SAFE jobs to every agent and nothing else on `operator` and `none` hosts. They cannot upgrade packages, change firewall rules, clean disks or push an agent binary. The operator private key is never stored on, or sent to, the server; sign on a separate machine or in your browser. A self-update job is a WRITE job: the operator signature covers the download path, SHA-256 and version in the job, and the agent still verifies the binary signature.
 
 The agent reports its policy and the fingerprints of its operator keys to the server in its hello. This is only used to show badges, refuse impossible requests early (a `none` host gets `403`) and to verify signatures before queueing; the agent re-checks everything itself. Hosts that are not on the `server` policy are skipped by automatic agent updates and automatic IP blocking. Jobs waiting for a signature (`awaiting_signature`) expire like queued jobs, after 24 hours by default.
 
@@ -64,14 +64,22 @@ The agent reports its policy and the fingerprints of its operator keys to the se
 
 Linux agents run unprivileged. The only sudo rule allows `sentrel-agent priv *`; each verb validates its arguments (see [agents.md](agents.md)). Because the helper trusts nothing from the caller, a compromised agent process can at worst run the limited verbs: refresh or upgrade packages, add or remove an IP block, read fail2ban status, install or refresh the port-scan detection rules (counting only, never dropping traffic), install a validly signed agent update.
 
-Remote actions are denied unless enabled per host:
+Remote actions are controlled by permission settings. Each has a global default under **Settings, Agents, Host defaults**, and every host inherits it unless the host overrides it. A host shows the value in effect, where it comes from ("Inherited from global" or "Overridden") and a "Reset to global" link:
 
-| Host flag | Enables | Notes |
-|---|---|---|
-| `allow_upgrades` | package upgrades | a dry run is always permitted |
-| `allow_ip_block` | manual and automatic IP blocks | loopback and unspecified addresses are refused |
-| `allow_scripts` | script jobs | only users with the `scripts` permission (admin); max 64 KiB; run as the agent user (SYSTEM on Windows) |
-| `auto_block` | automatic blocks from brute-force detection and port scans | needs `allow_ip_block`; threshold and whitelist are in agent defaults (port-scan sources are blocked for the same duration and respect the same whitelist) |
+| Setting | Default | Where it is set on a host | Enables |
+|---|---|---|---|
+| `allow_upgrades` | off | Packages tab | package upgrades and kernel removal; a dry run is always permitted |
+| `allow_cleanup` | on | Storage breakdown (Overview tab), next to Clean up | disk cleanup; a dry run needs it too |
+| `allow_ip_block` | on | Security tab, Blocking | manual and automatic IP blocks |
+| `auto_block` | off | Security tab, Blocking | automatic blocks from brute-force detection and port scans; needs `allow_ip_block` |
+
+The detection and blocking numbers inherit the same way: `bruteforce_threshold` (default 10 failed attempts), `bruteforce_window_minutes` (5), `auto_block_threshold` (20), `auto_block_minutes` (60), `portscan_enabled` (on) and `portscan_threshold_per_min` (20).
+
+`GET /hosts/{id}` returns a `settings` object with one entry per setting: `{effective, override, global, inherited}`. `override` is `null` when the host inherits. The flat fields (`allow_upgrades`, `allow_cleanup`, `allow_ip_block`, `auto_block`) are the effective values. `PUT /hosts/{id}` accepts `{"settings": {"allow_cleanup": false, "auto_block_minutes": null}}`: a value sets an override, `null` clears it. Job validation, auto-block, the agent configuration and the failed-login alert threshold all use the effective value.
+
+### Never-block list
+
+`never_block` is a list of IPs and CIDR ranges that are never blocked, neither manually nor automatically. The global list (Settings, Agents) applies to every host; a host can add entries (they are added, not substituted). The Sentrel server's own addresses, including the host of the configured server URL, are always protected. A manual block of a listed address returns `400` ("address is on the never-block list"), automatic blocking skips it, and the agent-side port-scan detector also ignores it.
 
 State-changing jobs also need an explicit `confirm`, are recorded in the audit log with the requesting user and (truncated) parameters, and can be scheduled for a maintenance window. Agent self-update needs only `confirm` and the `jobs` permission.
 
@@ -89,7 +97,6 @@ On Linux hosts with nftables the agent installs a detection-only chain in the `i
 | hosts (enrol, delete, SNMP/target hosts, agent install) | x | x | | | |
 | host_settings (per-host options and opt-ins) | x | x | | x | |
 | jobs (upgrades, IP blocks, scans, agent update) | x | x | | x | |
-| scripts | x | | | | |
 | users | x | | | x (own tenant) | |
 | tenants | x | | | | |
 | settings | x | | | | |
@@ -144,7 +151,7 @@ Unauthenticated endpoints: `/healthz`, `/api/v1/public/info`, `/api/v1/public/st
 1. Use TLS (`selfsigned` or `acme`, or a proxy with `trust_proxy`); do not expose plain HTTP.
 2. Enable 2FA for admins; set `Require 2FA` to `admins` or `all`.
 3. Enable `metrics_auth` unless `/metrics` is only reachable from a trusted network.
-4. Leave remote actions off for hosts that do not need them; avoid `allow_scripts` on production hosts.
+4. Leave remote actions off for hosts that do not need them.
 5. Docker group membership is root-equivalent, so the installer leaves it off by default; pass `--docker` only on hosts where container metrics are worth that risk.
 6. Protect and encrypt backups; keep `pki/` out of shared storage.
 7. Keep the server and (via self-update) the agents current.

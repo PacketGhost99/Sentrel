@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, ArrowUpCircle, RefreshCw, Terminal } from 'lucide-react'
+import { ArrowLeft, ArrowUpCircle, RefreshCw } from 'lucide-react'
 import { errorMessage, get, post } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { ago, bits, bytes, dateTime, duration, num, osLabel, pct } from '@/lib/format'
 import type { Alert, HostDetail as HD, Series } from '@/lib/types'
 import { Chart, RangePicker, rangeSeconds, type RangeId, type Unit } from '@/components/Chart'
+import { ExportChartsButton, ExportDataButton } from '@/components/MetricsExport'
 import { WritePolicyBadge } from '@/components/OperatorSign'
 import { Badge, Button, Card, Empty, ErrorBox, Input, KV, Loading, Meter, MutedBadge, Note, PageHeader, SeverityBadge, StatusDot, StatusPill, Table, Tabs, Td, Th, UptimePill, useConfirm, useToast } from '@/components/ui'
 import { BeatBar, averageUptime, hostBeatsToBeats, useHostBeats } from '@/components/BeatBar'
@@ -14,12 +15,12 @@ import { hostStatusLabel } from './Hosts'
 import { ChecksTable } from './Checks'
 import { AlertsTable } from './Alerts'
 import { JobsTable } from './Jobs'
+import { critHigh, critHighLabel, critHighTitle } from '@/lib/vulns'
 import { FindingsTable } from './Vulnerabilities'
 import { HostThresholds } from './Thresholds'
 import { HostPackages } from './host/Packages'
 import { HostSecurity } from './host/Security'
 import { HostSettings } from './host/Settings'
-import { RunScript } from './host/RunScript'
 import { StoragePanel } from './host/DiskUsage'
 
 type Tab = 'overview' | 'metrics' | 'system' | 'interfaces' | 'packages' | 'vulns' | 'security' | 'checks' | 'alerts' | 'jobs' | 'thresholds' | 'settings'
@@ -54,6 +55,7 @@ export function HostDetail() {
             {host.group_name && <Badge>{host.group_name}</Badge>}
             {(host.tags || []).map((t) => <Badge key={t} tone="info">{t}</Badge>)}
             {host.reboot_required && <Badge tone="warn">reboot required</Badge>}
+            {agent && host.vuln_enabled && critHigh(host.vuln_counts) > 0 && <Badge tone={host.vuln_counts!.critical > 0 ? 'crit' : 'warn'} title={critHighTitle(host.vuln_counts)}>{critHighLabel(host.vuln_counts)}</Badge>}
             {host.revoked && <Badge tone="crit">revoked</Badge>}
             {agent && <WritePolicyBadge host={host} />}
           </span>
@@ -66,7 +68,7 @@ export function HostDetail() {
         { id: 'system', label: 'System', hidden: !agent },
         { id: 'interfaces', label: 'Interfaces', hidden: !snmp },
         { id: 'packages', label: 'Packages', hidden: !agent, count: host.upgrade_count },
-        { id: 'vulns', label: 'CVEs', hidden: !agent || !host.vuln_enabled, count: (host.open_findings?.critical || 0) + (host.open_findings?.high || 0) },
+        { id: 'vulns', label: 'CVEs', hidden: !agent || !host.vuln_enabled, count: critHigh(host.vuln_counts ?? host.open_findings), countTitle: critHighTitle(host.vuln_counts) },
         { id: 'security', label: 'Security', hidden: !agent },
         { id: 'checks', label: 'Checks', count: host.check_count },
         { id: 'alerts', label: 'Alerts', count: firing },
@@ -95,7 +97,6 @@ function HostActions({ host }: { host: HD }) {
   const toast = useToast()
   const confirm = useConfirm()
   const qc = useQueryClient()
-  const [script, setScript] = useState(false)
   const outdated = host.latest_agent_version && host.agent_version && host.latest_agent_version !== host.agent_version
   return (
     <>
@@ -109,8 +110,6 @@ function HostActions({ host }: { host: HD }) {
           try { const j = await post<{ status?: string }>(`/hosts/${host.id}/update-agent`, { confirm: true }); toast(j?.status === 'awaiting_signature' ? 'Agent update is waiting for your operator signature (see Jobs)' : 'Agent update queued'); qc.invalidateQueries({ queryKey: ['jobs'] }) } catch (e) { toast(errorMessage(e), 'crit') }
         }}>Update agent</Button>
       )}
-      {can('scripts') && host.allow_scripts && host.write_policy !== 'none' && <Button size="sm" icon={<Terminal className="size-3.5" />} onClick={() => setScript(true)}>Run script</Button>}
-      {script && <RunScript host={host} onClose={() => setScript(false)} />}
     </>
   )
 }
@@ -275,8 +274,8 @@ function QuickCharts({ host }: { host: HD }) {
   const mem = useSeries(host.id, 'memory', '6h')
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <Card title="CPU (6h)"><Chart series={(cpu.data?.series || []).filter((s) => s.metric === 'cpu_usage_percent')} unit="percent" height={160} max={100} /></Card>
-      <Card title="Memory (6h)"><Chart series={mem.data?.series || []} unit="percent" height={160} max={100} /></Card>
+      <Card title="CPU (6h)"><Chart series={(cpu.data?.series || []).filter((s) => s.metric === 'cpu_usage_percent')} unit="percent" height={160} max={100} title="CPU" host={host.name} rangeLabel="Last 6h" /></Card>
+      <Card title="Memory (6h)"><Chart series={mem.data?.series || []} unit="percent" height={160} max={100} title="Memory" host={host.name} rangeLabel="Last 6h" /></Card>
     </div>
   )
 }
@@ -317,9 +316,17 @@ function Metrics({ host }: { host: HD }) {
       refetchInterval: range === '1h' ? 30_000 : 120_000,
     })),
   })
+  const exportPanels = panels.map((p, i) => {
+    const series = results[i].data?.series || []
+    return { title: p.title, unit: p.id === 'agent' ? 'percent' as Unit : p.unit, max: p.max, series: p.id === 'agent' ? series.filter((x) => x.metric === 'agent_cpu_percent') : series }
+  })
   return (
     <div>
-      <div className="mb-3 flex justify-end"><RangePicker value={range} onChange={setRange} /></div>
+      <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+        <ExportDataButton hostId={host.id} hostName={host.name} />
+        <ExportChartsButton hostName={host.name} rangeLabel={`Last ${range}`} panels={exportPanels} />
+        <RangePicker value={range} onChange={setRange} />
+      </div>
       <div className="grid gap-4 lg:grid-cols-2">
         {panels.map((p, i) => {
           const series = results[i].data?.series || []
@@ -327,7 +334,7 @@ function Metrics({ host }: { host: HD }) {
           const s = p.id === 'agent' ? series.filter((x) => x.metric === 'agent_cpu_percent') : series
           return (
             <Card key={p.id} title={p.title}>
-              {results[i].isLoading ? <Loading /> : <Chart series={s} unit={p.id === 'agent' ? 'percent' : p.unit} max={p.max} height={200} />}
+              {results[i].isLoading ? <Loading /> : <Chart series={s} unit={p.id === 'agent' ? 'percent' : p.unit} max={p.max} height={200} title={p.title} host={host.name} rangeLabel={`Last ${range}`} />}
               {p.id === 'agent' && series.find((x) => x.metric === 'agent_rss_bytes') && (
                 <p className="mt-2 text-xs text-muted">Agent memory: {bytes(series.find((x) => x.metric === 'agent_rss_bytes')!.points?.slice(-1)[0]?.[1])}</p>
               )}

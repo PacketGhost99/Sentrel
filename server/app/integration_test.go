@@ -435,9 +435,9 @@ func TestJobsAreSignedAndGated(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("job not dispatched")
 	}
-	// Scripts need the per-host opt-in even for admins.
-	if code, _, _ := admin.do("POST", "/jobs", map[string]any{"host_id": hostID, "type": "script", "confirm": true, "params": map[string]string{"script": "id"}}); code != 403 {
-		t.Fatalf("script without opt-in: %d", code)
+	// The removed script job type is rejected as unknown.
+	if code, _, _ := admin.do("POST", "/jobs", map[string]any{"host_id": hostID, "type": "script", "confirm": true, "params": map[string]string{"script": "id"}}); code != 400 {
+		t.Fatalf("script job type: %d", code)
 	}
 }
 

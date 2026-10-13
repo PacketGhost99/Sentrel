@@ -6,6 +6,7 @@ import { errorMessage, get, post } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { ago, osLabel, plural } from '@/lib/format'
 import type { Host, HostBeat, HostGroup } from '@/lib/types'
+import { critHighLabel, critHighTitle } from '@/lib/vulns'
 import { BeatBar, averageUptime, hostBeatsToBeats, useHostBeats } from '@/components/BeatBar'
 import { useTenantFilter } from '@/components/Layout'
 import { Badge, Button, Card, Checkbox, Empty, Input, Loading, PageHeader, Select, StatusPill, UptimePill, cx, useConfirm, useToast } from '@/components/ui'
@@ -209,8 +210,8 @@ function HostRow({ h, selected, onToggle, days }: { h: Host; selected: boolean; 
         {h.kind === 'agent' && h.upgrade_count > 0 && <Badge tone="warn">{plural(h.upgrade_count, 'update')}</Badge>}
         {h.kind === 'agent' && h.reboot_required && <Badge tone="warn">reboot</Badge>}
         {h.vuln_critical + h.vuln_high > 0 && (
-          <Badge tone={h.vuln_critical > 0 ? 'crit' : 'warn'} title={`${h.vuln_critical} critical, ${h.vuln_high} high`}>
-            {plural(h.vuln_critical + h.vuln_high, 'CVE')}
+          <Badge tone={h.vuln_critical > 0 ? 'crit' : 'warn'} title={critHighTitle({ critical: h.vuln_critical, high: h.vuln_high })}>
+            {critHighLabel({ critical: h.vuln_critical, high: h.vuln_high })}
           </Badge>
         )}
       </div>

@@ -219,8 +219,6 @@ func (a *Agent) runJob(ctx context.Context, sj *pb.SignedJob) {
 		resJSON, err = a.jobDiskUsage(jctx, timeout, spec.Params, w)
 	case "disk_cleanup":
 		err = a.jobDiskCleanup(jctx, timeout, spec.DryRun, spec.Params, w)
-	case "script":
-		err = runScript(jctx, spec.Params["interpreter"], spec.Params["script"], w)
 	case "self_update":
 		err = a.selfUpdate(jctx, spec, w)
 		if err == nil {
@@ -312,37 +310,6 @@ func dryRunSummary(w *jobWriter) []byte {
 		return nil
 	}
 	return jsonMarshal(map[string]any{"changes": out})
-}
-
-func runScript(ctx context.Context, interpreter, script string, w io.Writer) error {
-	var cmd *exec.Cmd
-	switch {
-	case runtime.GOOS == "windows" && (interpreter == "" || interpreter == "powershell"):
-		cmd = exec.CommandContext(ctx, "powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", "-")
-	case runtime.GOOS == "windows" && interpreter == "cmd":
-		f, err := os.CreateTemp("", "sentrel-*.cmd")
-		if err != nil {
-			return err
-		}
-		defer os.Remove(f.Name())
-		f.WriteString(script)
-		f.Close()
-		cmd = exec.CommandContext(ctx, "cmd.exe", "/C", f.Name())
-		script = ""
-	case interpreter == "bash":
-		cmd = exec.CommandContext(ctx, "bash", "-s")
-	case interpreter == "python3":
-		cmd = exec.CommandContext(ctx, "python3", "-")
-	default:
-		cmd = exec.CommandContext(ctx, "/bin/sh", "-s")
-	}
-	if script != "" {
-		cmd.Stdin = strings.NewReader(script)
-	}
-	cmd.Stdout = w
-	cmd.Stderr = w
-	cmd.WaitDelay = 5 * time.Second
-	return cmd.Run()
 }
 
 // selfUpdate downloads, verifies and installs a new agent binary.

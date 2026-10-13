@@ -95,7 +95,7 @@ func (a *App) decorateHosts(ctx context.Context, hosts []Host) {
 	}
 	var vcs []vc
 	if a.vuln.Enabled() {
-		_ = a.db.SelectContext(ctx, &vcs, `SELECT host_id, severity, COUNT(DISTINCT vuln_id) AS n FROM vuln_findings WHERE status='open' AND severity IN ('Critical','High') GROUP BY host_id, severity`)
+		_ = a.db.SelectContext(ctx, &vcs, `SELECT host_id, severity, COUNT(*) AS n FROM (SELECT f.host_id, f.vuln_id, `+sevAggSQL+` AS severity FROM vuln_findings f WHERE f.status='open' GROUP BY f.host_id, f.vuln_id) WHERE severity IN ('Critical','High') GROUP BY host_id, severity`)
 	}
 	vmap := map[int64][2]int{}
 	for _, v := range vcs {
@@ -115,6 +115,7 @@ func (a *App) decorateHosts(ctx context.Context, hosts []Host) {
 	}
 	for i := range hosts {
 		h := &hosts[i]
+		a.resolveHost(h)
 		if h.GroupID != nil {
 			h.GroupName = groups[*h.GroupID]
 		}
@@ -145,7 +146,13 @@ type HostDetail struct {
 	CheckCount       int              `json:"check_count"`
 	OpenFindings     map[string]int   `json:"open_findings"`
 	InactiveFindings int              `json:"inactive_findings"`
+	VulnCounts       vulnCounts       `json:"vuln_counts"`
 	VulnEnabled      bool             `json:"vuln_enabled"`
+	// Settings reports each inheritable security and permission setting as
+	// {effective, override, global, inherited}.
+	Settings map[string]HostSetting `json:"settings"`
+	// NeverBlockSystem lists addresses that are always protected (the server's own).
+	NeverBlockSystem []string `json:"never_block_system"`
 }
 
 func (a *App) apiGetHost(c *Ctx) (any, error) {
@@ -156,6 +163,8 @@ func (a *App) apiGetHost(c *Ctx) (any, error) {
 	hs := []Host{*h}
 	a.decorateHosts(c.ctx(), hs)
 	d := HostDetail{Host: hs[0], OpenFindings: map[string]int{}}
+	d.Settings = a.hostSettingsView(h)
+	d.NeverBlockSystem = a.serverAddrs()
 	d.State = h.State
 	var inv InventoryStatus
 	if err := a.db.GetContext(c.ctx(), &inv, `SELECT * FROM inventory_status WHERE host_id=?`, h.ID); err == nil {
@@ -175,20 +184,13 @@ func (a *App) apiGetHost(c *Ctx) (any, error) {
 		d.SNMPConfig = redact(h.SNMPConfig, snmp.SecretFields)
 	}
 	_ = a.db.GetContext(c.ctx(), &d.CheckCount, `SELECT COUNT(*) FROM checks WHERE host_id=?`, h.ID)
-	type sc struct {
-		Severity string `db:"severity"`
-		N        int    `db:"n"`
-	}
-	var scs []sc
 	d.VulnEnabled = a.vuln.Enabled()
 	if d.VulnEnabled {
-		_ = a.db.SelectContext(c.ctx(), &scs, `SELECT severity, COUNT(DISTINCT vuln_id) AS n FROM vuln_findings WHERE host_id=? AND status='open' GROUP BY severity`, h.ID)
-	}
-	for _, s := range scs {
-		d.OpenFindings[strings.ToLower(s.Severity)] = s.N
-	}
-	if d.VulnEnabled {
-		d.InactiveFindings = a.inactiveCount(c.ctx(), h)
+		d.VulnCounts = a.hostVulnCounts(c.ctx(), h)
+		for k, v := range d.VulnCounts.bySeverity() {
+			d.OpenFindings[k] = v
+		}
+		d.InactiveFindings = d.VulnCounts.Inactive
 	}
 	return d, nil
 }
@@ -236,13 +238,14 @@ type hostUpdate struct {
 	AgentOptions         *AgentOptions `json:"agent_options"`
 	AllowUpgrades        *bool         `json:"allow_upgrades"`
 	AllowIPBlock         *bool         `json:"allow_ip_block"`
-	AllowScripts         *bool         `json:"allow_scripts"`
 	AllowCleanup         *bool         `json:"allow_cleanup"`
 	AutoRemoveOldKernels *bool         `json:"auto_remove_old_kernels"`
 	AutoBlock            *bool         `json:"auto_block"`
-	TenantID             *int64        `json:"tenant_id"`
-	ClearInterval        bool          `json:"clear_interval"`
-	ClearRetention       bool          `json:"clear_retention"`
+	// Settings sets or clears inheritable overrides: {"allow_cleanup": true, "auto_block_minutes": null}.
+	Settings       map[string]json.RawMessage `json:"settings"`
+	TenantID       *int64                     `json:"tenant_id"`
+	ClearInterval  bool                       `json:"clear_interval"`
+	ClearRetention bool                       `json:"clear_retention"`
 }
 
 func (a *App) apiUpdateHost(c *Ctx) (any, error) {
@@ -258,6 +261,12 @@ func (a *App) apiUpdateHost(c *Ctx) (any, error) {
 	sets := []string{}
 	args := []any{}
 	set := func(col string, v any) {
+		for i, s := range sets {
+			if s == col+"=?" {
+				args[i] = v
+				return
+			}
+		}
 		sets = append(sets, col+"=?")
 		args = append(args, v)
 	}
@@ -317,6 +326,8 @@ func (a *App) apiUpdateHost(c *Ctx) (any, error) {
 	} else if req.ClearRetention {
 		set("retention_days", nil)
 	}
+	opts := hostOptions(h)
+	optsChanged := false
 	if req.AgentOptions != nil {
 		if t := req.AgentOptions.PortscanThresholdPerMin; t != nil && (*t < 1 || *t > 100000) {
 			return nil, badRequest("port-scan threshold must be 1-100000 per minute")
@@ -326,8 +337,31 @@ func (a *App) apiUpdateHost(c *Ctx) (any, error) {
 			return nil, err
 		}
 		req.AgentOptions.PortscanAllowlist = pl
-		set("agent_options", mustJSON(req.AgentOptions))
+		// Security overrides are managed through "settings"; keep them.
+		req.AgentOptions.BruteforceThreshold, req.AgentOptions.BruteforceWindowMin = opts.BruteforceThreshold, opts.BruteforceWindowMin
+		req.AgentOptions.AutoBlockThreshold, req.AgentOptions.AutoBlockMinutes = opts.AutoBlockThreshold, opts.AutoBlockMinutes
+		req.AgentOptions.NeverBlock = opts.NeverBlock
+		if req.AgentOptions.BruteforceEnabled == nil {
+			req.AgentOptions.BruteforceEnabled = opts.BruteforceEnabled
+		}
+		if req.AgentOptions.PortscanEnabled == nil {
+			req.AgentOptions.PortscanEnabled = opts.PortscanEnabled
+		}
+		if req.AgentOptions.PortscanThresholdPerMin == nil {
+			req.AgentOptions.PortscanThresholdPerMin = opts.PortscanThresholdPerMin
+		}
+		opts = *req.AgentOptions
+		optsChanged = true
 		changes["agent_options"] = req.AgentOptions
+	}
+	if len(req.Settings) > 0 {
+		if err := a.applyHostSettings(h, &opts, req.Settings, set, changes); err != nil {
+			return nil, err
+		}
+		optsChanged = true
+	}
+	if optsChanged {
+		set("agent_options", mustJSON(opts))
 	}
 	if req.AllowUpgrades != nil {
 		set("allow_upgrades", *req.AllowUpgrades)
@@ -340,13 +374,6 @@ func (a *App) apiUpdateHost(c *Ctx) (any, error) {
 	if req.AutoBlock != nil {
 		set("auto_block", *req.AutoBlock)
 		changes["auto_block"] = *req.AutoBlock
-	}
-	if req.AllowScripts != nil {
-		if !c.P.Has(PermScripts) {
-			return nil, forbidden("only administrators can enable remote scripts")
-		}
-		set("allow_scripts", *req.AllowScripts)
-		changes["allow_scripts"] = *req.AllowScripts
 	}
 	if req.AllowCleanup != nil {
 		set("allow_cleanup", *req.AllowCleanup)
@@ -383,7 +410,11 @@ func (a *App) apiUpdateHost(c *Ctx) (any, error) {
 	}
 	c.auditT(h.TenantID, "host.updated", "host", itoa(h.ID), changes)
 	a.events.publish(Event{Type: "host.updated", TenantID: h.TenantID, HostID: h.ID})
-	return a.getHost(ctx, h.ID)
+	nh, err := a.getHost(ctx, h.ID)
+	if err != nil {
+		return nil, err
+	}
+	return HostDetail{Host: *nh, OpenFindings: map[string]int{}, Settings: a.hostSettingsView(nh), NeverBlockSystem: a.serverAddrs()}, nil
 }
 
 func cleanTags(tags []string) []string {
@@ -695,9 +726,9 @@ func (a *App) apiHostSecurity(c *Ctx) (any, error) {
 		UpdatedAt int64  `db:"updated_at" json:"updated_at"`
 	}{}
 	ps.Known = a.db.GetContext(ctx, &ps, `SELECT supported, active, reason, updated_at FROM portscan_status WHERE host_id=?`, h.ID) == nil
-	d := a.settings.Agent()
+	d := a.hostSecurity(h)
 	return map[string]any{"failed_logins": rows, "total": total, "blocks": blocks, "fail2ban": f2b, "hours": hours,
-		"allow_ip_block": h.AllowIPBlock, "auto_block": h.AutoBlock, "notify_failed_logins": a.hostNotifies(h, "bruteforce"), "auto_block_threshold": d.AutoBlockThreshold, "window_minutes": d.BruteforceWindowMin,
+		"allow_ip_block": h.AllowIPBlock, "auto_block": h.AutoBlock, "notify_failed_logins": a.hostNotifies(h, "bruteforce"), "auto_block_threshold": d.AutoBlockThreshold, "window_minutes": d.BruteforceWindowMin, "auto_block_minutes": d.AutoBlockMinutes,
 		"portscans": scans, "portscan_status": ps, "notify_portscan": a.hostNotifies(h, "portscan")}, nil
 }
 
@@ -724,8 +755,8 @@ func (a *App) apiBlockIP(c *Ctx) (any, error) {
 	if !req.Confirm {
 		return nil, ErrConfirmation
 	}
-	if ipWhitelisted(ip.String(), a.settings.Agent().AutoBlockWhitelist) {
-		return nil, badRequest("that address is whitelisted")
+	if a.neverBlocked(h, ip.String()) {
+		return nil, errNeverBlock
 	}
 	if !h.AllowIPBlock {
 		return nil, forbidden("IP blocking is not enabled for this host")

@@ -6,7 +6,7 @@ Five steps from nothing to a monitored host with an alert.
 
 ```sh
 docker run -d --name sentrel --cap-add NET_RAW -p 8080:8080 -v sentrel-data:/data \
-  ghcr.io/notspark1999/sentrel:latest
+  ghcr.io/packetghost99/sentrel:latest
 ```
 
 On a Linux host without Docker, use the install script or a `.deb`/`.rpm` package instead. All options, TLS and upgrades are in [install](install.md).
@@ -22,6 +22,8 @@ Go to **Agents**, choose Linux or Windows and copy the one-line install command 
 ![Hosts](screenshots/hosts-light.png)
 
 Click a host for graphs, services, packages and more. More options (packages, MSI, write policy) are in [agents](agents.md).
+
+Per-host settings live next to the feature: security, brute-force, port-scan and blocking on **Security**, remote upgrades on **Packages**, disk cleanup in the storage breakdown on **Overview**. Each shows the value inherited from **Settings, Agents, Host defaults** and lets you override it for that host or reset it. See [security](security.md#privilege-boundary-and-opt-in-remote-actions).
 
 ![Host detail](screenshots/host-light.png)
 

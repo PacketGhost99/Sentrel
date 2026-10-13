@@ -30,7 +30,7 @@ A key acts as its owner, narrowed by its scopes. A key can never do more than it
 | `read` | view hosts, alerts, checks, metrics, vulnerabilities |
 | `write` | read + acknowledge alerts, manage checks, thresholds, maintenance windows, channels, groups, status pages, vulnerability ignore, and host settings |
 | `jobs` | read + create jobs (upgrades, IP blocks, vulnerability scans) |
-| `admin` | everything the owner's role has, including users, tenants, settings, scripts and audit |
+| `admin` | everything the owner's role has, including users, tenants, settings and audit |
 
 Scopes combine (`["read","jobs"]`). Optional `expires_days`. API-key requests do not need CSRF tokens. Revoke with `DELETE /api/v1/api-keys/{id}` or in the UI.
 
@@ -97,7 +97,7 @@ curl -s -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' -X P
 
 Overview bars: `GET /api/v1/hosts/beats?days=30` returns daily uptime per host (`{"<host_id>":[{"day":"2026-10-01","uptime":99.5}]}`, `uptime` is `null` without data, up to 90 days) and `GET /api/v1/checks/beats?limit=40` returns the latest results per check (`{"<check_id>":[{"t":1760000000,"ok":true,"latency_ms":12.3}]}`, oldest first, up to 100). Both accept `tenant_id` as provider users.
 
-Job parameters: `upgrade` takes `params.packages` (comma separated) and `params.security_only`; `block_ip` and `unblock_ip` take `params.ip` (and `params.minutes` for blocks; the dedicated `POST /hosts/{id}/block` is simpler); `script` takes `params.script` and `params.interpreter` (`sh`, `bash`, `python3`, `powershell`, `cmd`). Jobs return `queued`, `scheduled`, `sent`, `running`, `succeeded`, `failed`, `cancelled`, `expired` or `rejected`; poll `GET /jobs/{id}`.
+Job parameters: `upgrade` takes `params.packages` (comma separated) and `params.security_only`; `block_ip` and `unblock_ip` take `params.ip` (and `params.minutes` for blocks; the dedicated `POST /hosts/{id}/block` is simpler). Jobs return `queued`, `scheduled`, `sent`, `running`, `succeeded`, `failed`, `cancelled`, `expired` or `rejected`; poll `GET /jobs/{id}`.
 
 ## Live events
 
@@ -135,6 +135,22 @@ curl -s -H "Authorization: Bearer $KEY" -G $HB/api/v1/metrics/query \
 ```
 
 `GET /api/v1/metrics/names` lists available metric names; `GET /api/v1/hosts/{id}/metrics?panel=cpu|memory|load|disk|network|...` returns the series the host page graphs use.
+
+### Metric export: `GET /api/v1/hosts/{id}/metrics/export`
+
+Returns every standard graph series for one host (CPU, memory, swap, load, disk per mount, network per interface, temperatures and so on) as a file. Needs `read` scope and the host must be in your tenant (otherwise 404).
+
+| Parameter | Meaning |
+|---|---|
+| `format` | `csv` (default) or `json` |
+| `range` | Seconds back from now, for example `86400`. Alternatively give `start` and `end` (unix seconds) |
+| `step` | Resolution as seconds or a duration (`60`, `5m`). Default is chosen from the range |
+
+CSV has one row per timestamp: `timestamp` (ISO 8601 UTC), `unix`, then one column per series named `metric{label=value}`. JSON is `{host, start, end, step, series:[{name, labels, unit, points:[[unix, value]]}]}`. Both are sent as attachments. A request that would produce more than 50,000 rows is rejected with 400 and a suggested coarser `step`.
+
+```sh
+curl -s -H "Authorization: Bearer $KEY" "$HB/api/v1/hosts/12/metrics/export?format=csv&range=86400&step=300" -o web1.csv
+```
 
 ### Public status pages
 

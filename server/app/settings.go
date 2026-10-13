@@ -147,10 +147,17 @@ type AgentDefaults struct {
 	AutoBlockMinutes     int      `json:"auto_block_minutes"`
 	AutoBlockThreshold   int      `json:"auto_block_threshold"`
 	AutoBlockWhitelist   []string `json:"auto_block_whitelist"`
+	// Host defaults: hosts inherit these unless overridden on the host.
+	AllowIPBlock            bool     `json:"allow_ip_block"`
+	AutoBlock               bool     `json:"auto_block"`
+	AllowCleanup            bool     `json:"allow_cleanup"`
+	AllowUpgrades           bool     `json:"allow_upgrades"`
+	BruteforceThreshold     int      `json:"bruteforce_threshold"`
+	NeverBlock              []string `json:"never_block"`
 	PortscanEnabled         bool     `json:"portscan_enabled"`
 	PortscanThresholdPerMin int      `json:"portscan_threshold_per_min"`
 	PortscanAllowlist       []string `json:"portscan_allowlist"`
-	AutoUpdate           bool     `json:"auto_update"` // push agent updates automatically
+	AutoUpdate              bool     `json:"auto_update"` // push agent updates automatically
 }
 
 type AlertingSettings struct {
@@ -222,6 +229,7 @@ func defaultFor(key string) any {
 		return &AgentDefaults{IntervalSeconds: 30, InventoryIntervalSec: 3600, TopProcesses: 10, CollectServices: true, CollectPorts: true,
 			CollectDocker: true, CollectTemperatures: true, BruteforceEnabled: true, SecurityIntervalSec: 60, Fail2banEnabled: true,
 			BruteforceWindowMin: 5, AutoBlockMinutes: 60, AutoBlockThreshold: 20,
+			AllowIPBlock: true, AllowCleanup: true, BruteforceThreshold: 10,
 			PortscanEnabled: true, PortscanThresholdPerMin: 20}
 	case keyAlerting:
 		return &AlertingSettings{GroupWaitSeconds: 30, DefaultRepeatMinutes: 240, FlapWindowMinutes: 30, FlapThreshold: 6, ResolveCount: 1}
@@ -319,9 +327,19 @@ func (s *SettingsStore) OIDC() OIDCSettings           { return get[OIDCSettings]
 func (s *SettingsStore) ProxyAuth() ProxyAuthSettings { return get[ProxyAuthSettings](s, keyProxyAuth) }
 func (s *SettingsStore) Security() SecuritySettings   { return get[SecuritySettings](s, keySecurity) }
 func (s *SettingsStore) Retention() RetentionSettings { return get[RetentionSettings](s, keyRetention) }
-func (s *SettingsStore) Agent() AgentDefaults         { return get[AgentDefaults](s, keyAgent) }
-func (s *SettingsStore) Alerting() AlertingSettings   { return get[AlertingSettings](s, keyAlerting) }
-func (s *SettingsStore) Vuln() VulnSettings           { return get[VulnSettings](s, keyVuln) }
+
+// Agent returns the agent and host defaults. The legacy auto_block_whitelist
+// is folded into never_block.
+func (s *SettingsStore) Agent() AgentDefaults {
+	d := get[AgentDefaults](s, keyAgent)
+	if len(d.AutoBlockWhitelist) > 0 {
+		d.NeverBlock = append(append([]string{}, d.NeverBlock...), d.AutoBlockWhitelist...)
+		d.AutoBlockWhitelist = nil
+	}
+	return d
+}
+func (s *SettingsStore) Alerting() AlertingSettings { return get[AlertingSettings](s, keyAlerting) }
+func (s *SettingsStore) Vuln() VulnSettings         { return get[VulnSettings](s, keyVuln) }
 
 // Branding returns the effective branding for a tenant: tenant fields
 // override the global (tenant 0) values when set.

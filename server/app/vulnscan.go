@@ -26,6 +26,9 @@ type VulnService struct {
 	wake    chan struct{}
 	syncing bool
 
+	// Progress of "update database and scan all" (see Refresh).
+	refresh refreshState
+
 	// Hooks for tests; default to the real scanner.
 	updateFn func(url string) error
 	loadFn   func() error
@@ -128,6 +131,37 @@ func (v *VulnService) QueueLength() int {
 	return len(v.queue)
 }
 
+// LookupCVE returns local DB metadata for one CVE id.
+func (v *VulnService) LookupCVE(id string) (vuln.Finding, bool) { return v.scanner.LookupCVE(id) }
+
+// refreshState is the progress of a server-side "update database and scan all".
+type refreshState struct {
+	Pending    bool   `json:"refresh_pending"`
+	Phase      string `json:"refresh_phase"` // updating, scanning, done, failed
+	Error      string `json:"refresh_error,omitempty"`
+	ScanTotal  int    `json:"refresh_scan_total"`
+	StartedAt  int64  `json:"refresh_started_at,omitempty"`
+	FinishedAt int64  `json:"refresh_finished_at,omitempty"`
+}
+
+// RefreshStatus reports the progress of the last or running refresh. While
+// scanning, ScanRemaining counts the hosts still queued or being scanned.
+func (v *VulnService) RefreshStatus() map[string]any {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	r := v.refresh
+	remaining := 0
+	if r.Phase == "scanning" {
+		remaining = len(v.queued)
+		if remaining == 0 {
+			v.refresh.Pending, v.refresh.Phase, v.refresh.FinishedAt = false, "done", db.Now()
+			r = v.refresh
+		}
+	}
+	return map[string]any{"refresh_pending": r.Pending, "refresh_phase": r.Phase, "refresh_error": r.Error,
+		"refresh_scan_total": r.ScanTotal, "refresh_scan_remaining": remaining, "refresh_started_at": r.StartedAt, "refresh_finished_at": r.FinishedAt}
+}
+
 // SyncNow starts a DB update in the background.
 func (v *VulnService) SyncNow() error {
 	if !v.Enabled() {
@@ -146,19 +180,66 @@ func (v *VulnService) SyncNow() error {
 			v.syncing = false
 			v.mu.Unlock()
 		}()
-		v.app.log.Info("vulnerability DB update starting")
-		start := time.Now()
-		err := v.updateFn(v.app.settings.Vuln().DBURL)
-		ctx := context.Background()
+		_ = v.updateDB()
+	}()
+	return nil
+}
+
+// updateDB runs one DB update (a no-op when already current).
+func (v *VulnService) updateDB() error {
+	v.app.log.Info("vulnerability DB update starting")
+	start := time.Now()
+	err := v.updateFn(v.app.settings.Vuln().DBURL)
+	ctx := context.Background()
+	if err != nil {
+		v.app.log.Error("vulnerability DB update failed", "err", err)
+		v.app.alerts.systemCondition(ctx, "vulndb", "warning", "Vulnerability database update failed", err.Error())
+		return err
+	}
+	v.app.alerts.systemCondition(ctx, "vulndb", "ok", "", "")
+	st := v.scanner.Status()
+	v.app.log.Info("vulnerability DB ready", "built", st.Built, "took", time.Since(start).Round(time.Second))
+	v.app.audit(ctx, auditEntry{Actor: "system", Action: "vulndb.updated", Details: map[string]any{"built": st.Built, "schema": st.SchemaVersion}})
+	return nil
+}
+
+// Refresh updates the DB and then queues a scan of every host that hostIDs
+// returns. It runs on the server, so it carries on when the browser closes.
+// Progress is exposed through RefreshStatus.
+func (v *VulnService) Refresh(hostIDs func() []int64) error {
+	if !v.Enabled() {
+		return errors.New(msgVulnDisabled)
+	}
+	v.mu.Lock()
+	if v.syncing || v.refresh.Pending {
+		v.mu.Unlock()
+		return errors.New("a database update is already running")
+	}
+	v.syncing = true
+	v.refresh = refreshState{Pending: true, Phase: "updating", StartedAt: db.Now()}
+	v.mu.Unlock()
+	go func() {
+		err := v.updateDB()
+		v.mu.Lock()
+		v.syncing = false
+		v.mu.Unlock()
 		if err != nil {
-			v.app.log.Error("vulnerability DB update failed", "err", err)
-			v.app.alerts.systemCondition(ctx, "vulndb", "warning", "Vulnerability database update failed", err.Error())
+			v.mu.Lock()
+			v.refresh.Pending, v.refresh.Phase, v.refresh.Error, v.refresh.FinishedAt = false, "failed", err.Error(), db.Now()
+			v.mu.Unlock()
 			return
 		}
-		v.app.alerts.systemCondition(ctx, "vulndb", "ok", "", "")
-		st := v.scanner.Status()
-		v.app.log.Info("vulnerability DB ready", "built", st.Built, "took", time.Since(start).Round(time.Second))
-		v.app.audit(ctx, auditEntry{Actor: "system", Action: "vulndb.updated", Details: map[string]any{"built": st.Built, "schema": st.SchemaVersion}})
+		ids := hostIDs()
+		for _, id := range ids {
+			v.enqueue(id, "refresh")
+		}
+		n := len(ids)
+		v.mu.Lock()
+		v.refresh.Phase, v.refresh.ScanTotal = "scanning", n
+		if n == 0 {
+			v.refresh.Pending, v.refresh.Phase, v.refresh.FinishedAt = false, "done", db.Now()
+		}
+		v.mu.Unlock()
 	}()
 	return nil
 }
@@ -265,7 +346,11 @@ func (v *VulnService) ScanHost(ctx context.Context, hostID int64, trigger string
 		return finish("skipped", "only agent hosts have a package inventory", nil)
 	}
 	if hi.Os == "windows" {
-		return finish("skipped", "Windows package vulnerability matching is not supported; installed updates are tracked in Packages", nil)
+		// Windows findings come from the CVEs of pending Windows Updates (see
+		// winvuln.go); a scan only refreshes their DB metadata.
+		a.enrichWindowsFindings(ctx, h.ID)
+		c := a.hostVulnCounts(ctx, h)
+		return finish("completed", "", &VulnScan{Findings: c.Total, Critical: c.Critical, High: c.High, Medium: c.Medium, Low: c.Low, DBBuilt: v.scanner.Status().Built.UTC().Format(time.RFC3339)})
 	}
 	if !vuln.SupportedOS(hi.OsId) {
 		return finish("skipped", fmt.Sprintf("distribution %q is not covered by the vulnerability database", hi.OsId), nil)
@@ -338,7 +423,7 @@ func (v *VulnService) evaluate(ctx context.Context, h *Host) {
 		N        int    `db:"n"`
 	}
 	var counts []cnt
-	_ = a.db.SelectContext(ctx, &counts, `SELECT severity, COUNT(DISTINCT vuln_id) AS n FROM vuln_findings WHERE host_id=? AND status='open' GROUP BY severity`, h.ID)
+	_ = a.db.SelectContext(ctx, &counts, `SELECT severity, COUNT(*) AS n FROM (SELECT `+sevAggSQL+` AS severity FROM vuln_findings f WHERE f.host_id=? AND f.status='open' GROUP BY f.vuln_id) GROUP BY severity`, h.ID)
 	var samples []metrics.Sample
 	bySev := map[string]int{}
 	for _, c := range counts {

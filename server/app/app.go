@@ -271,6 +271,7 @@ func (a *App) getHost(ctx context.Context, id int64) (*Host, error) {
 	if err != nil {
 		return nil, err
 	}
+	a.resolveHost(&h)
 	return &h, nil
 }
 
@@ -280,6 +281,7 @@ func (a *App) getHostByAgentID(ctx context.Context, agentID string) (*Host, erro
 	if err != nil {
 		return nil, err
 	}
+	a.resolveHost(&h)
 	return &h, nil
 }
 
@@ -304,6 +306,7 @@ func (a *App) agentConfig(h *Host) *pb.AgentConfig {
 		PortscanAllowlist:        d.PortscanAllowlist,
 	}
 	if h == nil {
+		cfg.PortscanAllowlist = mergeLists(cfg.PortscanAllowlist, a.neverBlockList(nil))
 		return cfg
 	}
 	if h.IntervalSeconds != nil && *h.IntervalSeconds >= 5 {
@@ -338,6 +341,9 @@ func (a *App) agentConfig(h *Host) *pb.AgentConfig {
 	if len(o.PortscanAllowlist) > 0 {
 		cfg.PortscanAllowlist = append(append([]string{}, cfg.PortscanAllowlist...), o.PortscanAllowlist...)
 	}
+	// The never-block list (global, host and the server's own addresses) is
+	// never flagged as a port scanner.
+	cfg.PortscanAllowlist = mergeLists(cfg.PortscanAllowlist, a.neverBlockList(h))
 	if len(o.WatchedServices) > 0 {
 		cfg.WatchedServices = append(append([]string{}, cfg.WatchedServices...), o.WatchedServices...)
 	}

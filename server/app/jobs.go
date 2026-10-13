@@ -53,7 +53,7 @@ type JobRequest struct {
 
 var (
 	pkgNameRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9.+_:~-]{0,127}$`)
-	jobTypes  = map[string]bool{"upgrade": true, "refresh_inventory": true, "block_ip": true, "unblock_ip": true, "self_update": true, "script": true, "collect_now": true,
+	jobTypes  = map[string]bool{"upgrade": true, "refresh_inventory": true, "block_ip": true, "unblock_ip": true, "self_update": true, "collect_now": true,
 		"disk_usage": true, "disk_cleanup": true, "remove_kernel": true}
 )
 
@@ -101,7 +101,7 @@ func (m *JobManager) Create(ctx context.Context, p *Principal, req JobRequest) (
 	switch req.Type {
 	case "upgrade":
 		if !h.AllowUpgrades && !req.DryRun {
-			return nil, forbidden("remote upgrades are not enabled for this host (host settings → allow upgrades)")
+			return nil, forbidden("remote upgrades are not enabled for this host (see Packages, Allow remote upgrades)")
 		}
 		if !req.DryRun && !req.Confirm {
 			return nil, ErrConfirmation
@@ -126,7 +126,7 @@ func (m *JobManager) Create(ctx context.Context, p *Principal, req JobRequest) (
 		}
 		req.Params = map[string]string{"abi": abi}
 		if !h.AllowUpgrades && !req.DryRun {
-			return nil, forbidden("remote upgrades are not enabled for this host (host settings → allow upgrades)")
+			return nil, forbidden("remote upgrades are not enabled for this host (see Packages, Allow remote upgrades)")
 		}
 		if !req.DryRun && !req.Confirm {
 			return nil, ErrConfirmation
@@ -146,32 +146,16 @@ func (m *JobManager) Create(ctx context.Context, p *Principal, req JobRequest) (
 		}
 	case "block_ip", "unblock_ip":
 		if !h.AllowIPBlock {
-			return nil, forbidden("IP blocking is not enabled for this host (host settings → allow IP blocking)")
+			return nil, forbidden("IP blocking is not enabled for this host (see Security, Blocking)")
 		}
 		if net.ParseIP(req.Params["ip"]) == nil {
 			return nil, badRequest("a valid ip is required")
 		}
+		if req.Type == "block_ip" && a.neverBlocked(h, req.Params["ip"]) {
+			return nil, errNeverBlock
+		}
 		if req.Type == "block_ip" && !req.Confirm {
 			return nil, ErrConfirmation
-		}
-	case "script":
-		if !p.Has(PermScripts) {
-			return nil, forbidden("only administrators can run scripts")
-		}
-		if !h.AllowScripts {
-			return nil, forbidden("remote scripts are not enabled for this host (host settings → allow scripts)")
-		}
-		if strings.TrimSpace(req.Params["script"]) == "" {
-			return nil, badRequest("script is required")
-		}
-		if len(req.Params["script"]) > 64*1024 {
-			return nil, badRequest("script too large (64 KiB max)")
-		}
-		if !req.Confirm {
-			return nil, ErrConfirmation
-		}
-		if timeout == 0 {
-			timeout = 600
 		}
 	case "self_update":
 		if !req.Confirm {
@@ -186,7 +170,7 @@ func (m *JobManager) Create(ctx context.Context, p *Principal, req JobRequest) (
 		}
 	case "disk_cleanup":
 		if !h.AllowCleanup {
-			return nil, forbidden("disk cleanup is not enabled for this host (host settings → allow cleanup)")
+			return nil, forbidden("disk cleanup is not enabled for this host (see Disk, Allow disk cleanup)")
 		}
 		tasks, err := validateCleanupTasks(hostInfo(h).Os, req.Params["tasks"])
 		if err != nil {
@@ -249,9 +233,6 @@ func (m *JobManager) Create(ctx context.Context, p *Principal, req JobRequest) (
 	}
 	details := map[string]any{"type": j.Type, "dry_run": j.DryRun, "schedule": j.Schedule, "host": h.Name, "status": j.Status}
 	for k, v := range req.Params {
-		if k == "script" {
-			v = truncateStr(v, 500)
-		}
 		details[k] = v
 	}
 	a.audit(ctx, auditEntry{TenantID: h.TenantID, UserID: p.UserID, Actor: p.Name, Action: "job.created", TargetType: "job", TargetID: j.ID, Details: details, IP: p.IP})
@@ -288,9 +269,6 @@ func (m *JobManager) JobSpecFor(ctx context.Context, p *Principal, id string) (*
 	j, err := m.app.getJob(ctx, id)
 	if err != nil || !p.CanTenant(j.TenantID) {
 		return nil, errNotFound
-	}
-	if j.Type == "script" && !p.Has(PermScripts) {
-		return nil, forbidden("only administrators can view script jobs")
 	}
 	var spec []byte
 	if err := m.app.db.GetContext(ctx, &spec, `SELECT COALESCE(spec, x'') FROM jobs WHERE id=?`, id); err != nil || len(spec) == 0 {

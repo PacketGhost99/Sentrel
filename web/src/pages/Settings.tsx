@@ -297,25 +297,39 @@ function Agents({ data }: { data: any }) {
           <Field label="Always-watched services" className="sm:col-span-2"><TagInput value={v.watched_services || []} onChange={(x) => set({ watched_services: x })} placeholder="sshd" /></Field>
         </div>
       </Card>
-      <Card title="Port-scan detection">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="sm:col-span-2"><Toggle checked={!!v.portscan_enabled} onChange={(x) => set({ portscan_enabled: x })} label="Detect port scans (Linux, nftables)" hint="A kernel rule counts SYNs to closed ports per source. It never drops traffic; the agent only reads the result every 30 s. Not available on Windows yet." /></div>
-          <Field label="Threshold (closed-port SYNs per minute per source)"><Input type="number" value={v.portscan_threshold_per_min} onChange={(e) => set({ portscan_threshold_per_min: num(e.target.value) })} /></Field>
-          <div />
-          <Field label="Allowlist" className="sm:col-span-2" hint="IPs or CIDRs never flagged as scanners. The Sentrel server's own address is always excluded."><TagInput value={v.portscan_allowlist || []} onChange={(x) => set({ portscan_allowlist: x })} placeholder="198.51.100.0/24" /></Field>
+      <Card title="Host defaults" className="xl:col-span-2" subtitle="Hosts inherit these unless a setting is overridden on the host. Each host shows which values it inherits on its Security, Packages and Storage views.">
+        <div className="grid gap-x-8 gap-y-5 lg:grid-cols-2">
+          <div className="space-y-3">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted">Permissions</h4>
+            <Toggle checked={!!v.allow_upgrades} onChange={(x) => set({ allow_upgrades: x })} label="Allow remote upgrades" hint="Lets administrators install updates and remove old kernels. Off by default." />
+            <Toggle checked={!!v.allow_cleanup} onChange={(x) => set({ allow_cleanup: x })} label="Allow disk cleanup" hint="Lets administrators remove caches, old logs and temporary files. Each run still needs a dry run and confirmation." />
+            <Toggle checked={!!v.allow_ip_block} onChange={(x) => set({ allow_ip_block: x })} label="Allow firewall IP blocking" hint="Lets Sentrel add and remove firewall blocks. Blocks always expire." />
+            <Toggle checked={!!v.auto_block} onChange={(x) => set({ auto_block: x })} label="Automatically block attackers" hint="Blocks sources that reach the brute-force or port-scan thresholds. Needs IP blocking. Off by default." />
+          </div>
+          <div className="space-y-3">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted">Brute-force detection</h4>
+            <Toggle checked={!!v.bruteforce_enabled} onChange={(x) => set({ bruteforce_enabled: x })} label="Detect failed logins" hint="Reads the auth logs (Linux) and the Security log (Windows)." />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Alert threshold (attempts)" hint="Failed attempts from one address within the window before an alert."><Input type="number" min={1} value={v.bruteforce_threshold} onChange={(e) => set({ bruteforce_threshold: num(e.target.value) })} /></Field>
+              <Field label="Detection window (minutes)"><Input type="number" min={1} value={v.bruteforce_window_minutes} onChange={(e) => set({ bruteforce_window_minutes: num(e.target.value) })} /></Field>
+            </div>
+          </div>
+          <div className="space-y-3">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted">Port-scan detection</h4>
+            <Toggle checked={!!v.portscan_enabled} onChange={(x) => set({ portscan_enabled: x })} label="Detect port scans" hint="Linux with nftables. A kernel rule counts connection attempts to closed ports per source; it never drops traffic. Not available on Windows." />
+            <Field label="Alert threshold (attempts per minute)" hint="Closed-port connection attempts per minute from one source."><Input type="number" min={1} value={v.portscan_threshold_per_min} onChange={(e) => set({ portscan_threshold_per_min: num(e.target.value) })} /></Field>
+            <Field label="Port-scan allowlist" hint="Sources never flagged as scanners. Addresses on the never-block list are excluded as well."><TagInput value={v.portscan_allowlist || []} onChange={(x) => set({ portscan_allowlist: x })} placeholder="198.51.100.0/24" /></Field>
+          </div>
+          <div className="space-y-3">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted">Blocking</h4>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Auto-block threshold (attempts)" hint="Failed logins from one address within the window before it is blocked."><Input type="number" min={1} value={v.auto_block_threshold} onChange={(e) => set({ auto_block_threshold: num(e.target.value) })} /></Field>
+              <Field label="Block duration (minutes)"><Input type="number" min={1} value={v.auto_block_minutes} onChange={(e) => set({ auto_block_minutes: num(e.target.value) })} /></Field>
+            </div>
+            <Field label="Never block" hint="IPs or CIDR ranges that are never blocked, manually or automatically (your office, VPN, monitoring). The Sentrel server's own addresses are always protected."><TagInput value={v.never_block || []} onChange={(x) => set({ never_block: x, auto_block_whitelist: [] })} placeholder="203.0.113.0/24" /></Field>
+          </div>
         </div>
-        <Note className="mt-3">Alert levels are set under Thresholds, "Port scans". Hosts with auto-block enabled block scanners for the auto-block duration below.</Note>
-      </Card>
-      <Card title="Brute-force detection">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="sm:col-span-2"><Toggle checked={!!v.bruteforce_enabled} onChange={(x) => set({ bruteforce_enabled: x })} label="Watch auth logs and the Windows Security log" /></div>
-          <Field label="Detection window (minutes)"><Input type="number" value={v.bruteforce_window_minutes} onChange={(e) => set({ bruteforce_window_minutes: num(e.target.value) })} /></Field>
-          <div />
-          <Field label="Auto-block threshold (failures)" hint="Only on hosts with auto-block enabled"><Input type="number" value={v.auto_block_threshold} onChange={(e) => set({ auto_block_threshold: num(e.target.value) })} /></Field>
-          <Field label="Auto-block duration (minutes)"><Input type="number" value={v.auto_block_minutes} onChange={(e) => set({ auto_block_minutes: num(e.target.value) })} /></Field>
-          <Field label="Never block" className="sm:col-span-2" hint="IPs or CIDRs (your office, VPN, monitoring)"><TagInput value={v.auto_block_whitelist || []} onChange={(x) => set({ auto_block_whitelist: x })} placeholder="203.0.113.0/24" /></Field>
-        </div>
-        <Note className="mt-3">Alert levels for failed logins are set under Thresholds → “Failed logins”.</Note>
+        <Note className="mt-4">Alert levels for failed logins and port scans can also be set under Thresholds. The brute-force alert threshold above is used as the warning level.</Note>
       </Card>
       <div className="xl:col-span-2"><SaveBar busy={busy} err={err} onSave={() => save()} /></div>
     </div>

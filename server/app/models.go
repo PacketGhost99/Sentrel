@@ -143,36 +143,41 @@ type HostGroup struct {
 }
 
 type Host struct {
-	ID                   int64   `db:"id" json:"id"`
-	TenantID             int64   `db:"tenant_id" json:"tenant_id"`
-	Kind                 string  `db:"kind" json:"kind"`
-	Name                 string  `db:"name" json:"name"`
-	Address              string  `db:"address" json:"address"`
-	GroupID              *int64  `db:"group_id" json:"group_id"`
-	Tags                 StrList `db:"tags" json:"tags"`
-	Notes                string  `db:"notes" json:"notes"`
-	AgentID              *string `db:"agent_id" json:"agent_id"`
-	CertSerial           string  `db:"cert_serial" json:"-"`
-	CertExpiresAt        int64   `db:"cert_expires_at" json:"cert_expires_at"`
-	Revoked              bool    `db:"revoked" json:"revoked"`
-	AgentVersion         string  `db:"agent_version" json:"agent_version"`
-	HostInfo             JSON    `db:"host_info" json:"host_info"`
-	State                JSON    `db:"state" json:"state,omitempty"`
-	Status               string  `db:"status" json:"status"`
-	LastSeenAt           int64   `db:"last_seen_at" json:"last_seen_at"`
-	Connected            bool    `db:"connected" json:"connected"`
-	RebootRequired       bool    `db:"reboot_required" json:"reboot_required"`
-	IntervalSeconds      *int    `db:"interval_seconds" json:"interval_seconds"`
-	InventoryInterval    *int    `db:"inventory_interval" json:"inventory_interval"`
-	RetentionDays        *int    `db:"retention_days" json:"retention_days"`
-	AgentOptions         JSON    `db:"agent_options" json:"agent_options"`
-	AllowUpgrades        bool    `db:"allow_upgrades" json:"allow_upgrades"`
-	AllowIPBlock         bool    `db:"allow_ip_block" json:"allow_ip_block"`
-	AllowScripts         bool    `db:"allow_scripts" json:"allow_scripts"`
-	AllowCleanup         bool    `db:"allow_cleanup" json:"allow_cleanup"`
-	AutoBlock            bool    `db:"auto_block" json:"auto_block"`
-	AutoRemoveOldKernels bool    `db:"auto_remove_old_kernels" json:"auto_remove_old_kernels"`
-	LastAutoKernelAt     int64   `db:"last_auto_kernel_at" json:"last_auto_kernel_at"`
+	ID                int64   `db:"id" json:"id"`
+	TenantID          int64   `db:"tenant_id" json:"tenant_id"`
+	Kind              string  `db:"kind" json:"kind"`
+	Name              string  `db:"name" json:"name"`
+	Address           string  `db:"address" json:"address"`
+	GroupID           *int64  `db:"group_id" json:"group_id"`
+	Tags              StrList `db:"tags" json:"tags"`
+	Notes             string  `db:"notes" json:"notes"`
+	AgentID           *string `db:"agent_id" json:"agent_id"`
+	CertSerial        string  `db:"cert_serial" json:"-"`
+	CertExpiresAt     int64   `db:"cert_expires_at" json:"cert_expires_at"`
+	Revoked           bool    `db:"revoked" json:"revoked"`
+	AgentVersion      string  `db:"agent_version" json:"agent_version"`
+	HostInfo          JSON    `db:"host_info" json:"host_info"`
+	State             JSON    `db:"state" json:"state,omitempty"`
+	Status            string  `db:"status" json:"status"`
+	LastSeenAt        int64   `db:"last_seen_at" json:"last_seen_at"`
+	Connected         bool    `db:"connected" json:"connected"`
+	RebootRequired    bool    `db:"reboot_required" json:"reboot_required"`
+	IntervalSeconds   *int    `db:"interval_seconds" json:"interval_seconds"`
+	InventoryInterval *int    `db:"inventory_interval" json:"inventory_interval"`
+	RetentionDays     *int    `db:"retention_days" json:"retention_days"`
+	AgentOptions      JSON    `db:"agent_options" json:"agent_options"`
+	// Effective values (host override, else the global default). Filled by
+	// resolveHost after loading; the raw per-host overrides are the Ov* fields.
+	AllowUpgrades        bool  `db:"-" json:"allow_upgrades"`
+	AllowIPBlock         bool  `db:"-" json:"allow_ip_block"`
+	AllowCleanup         bool  `db:"-" json:"allow_cleanup"`
+	AutoBlock            bool  `db:"-" json:"auto_block"`
+	OvAllowUpgrades      *bool `db:"allow_upgrades" json:"-"`
+	OvAllowIPBlock       *bool `db:"allow_ip_block" json:"-"`
+	OvAllowCleanup       *bool `db:"allow_cleanup" json:"-"`
+	OvAutoBlock          *bool `db:"auto_block" json:"-"`
+	AutoRemoveOldKernels bool  `db:"auto_remove_old_kernels" json:"auto_remove_old_kernels"`
+	LastAutoKernelAt     int64 `db:"last_auto_kernel_at" json:"last_auto_kernel_at"`
 	// Reported by the agent from its local config; the server cannot change it.
 	WritePolicy       string  `db:"write_policy" json:"write_policy"`
 	OperatorKeys      StrList `db:"operator_keys" json:"-"`
@@ -209,20 +214,26 @@ type HostSummary struct {
 const hostCols = `h.id, h.tenant_id, h.kind, h.name, h.address, h.group_id, h.tags, h.notes, h.agent_id, h.cert_serial,
  h.cert_expires_at, h.revoked, h.agent_version, h.host_info, h.status, h.last_seen_at, h.connected, h.reboot_required,
  h.interval_seconds, h.inventory_interval, h.retention_days, h.agent_options, h.allow_upgrades, h.allow_ip_block,
- h.allow_scripts, h.allow_cleanup, h.auto_block, h.auto_remove_old_kernels, h.last_auto_kernel_at, h.write_policy, h.operator_keys, h.operator_key_ids, h.snmp_config, h.snmp_info, h.storage_bytes, h.storage_computed_at, h.created_at, h.updated_at`
+ h.allow_cleanup, h.auto_block, h.auto_remove_old_kernels, h.last_auto_kernel_at, h.write_policy, h.operator_keys, h.operator_key_ids, h.snmp_config, h.snmp_info, h.storage_bytes, h.storage_computed_at, h.created_at, h.updated_at`
 
 // AgentOptions are per-host overrides of AgentDefaults (nil = inherit).
 type AgentOptions struct {
-	TopProcesses        *int     `json:"top_processes,omitempty"`
-	CollectServices     *bool    `json:"collect_services,omitempty"`
-	CollectPorts        *bool    `json:"collect_ports,omitempty"`
-	CollectDocker       *bool    `json:"collect_docker,omitempty"`
-	CollectTemperatures *bool    `json:"collect_temperatures,omitempty"`
-	BruteforceEnabled   *bool    `json:"bruteforce_enabled,omitempty"`
-	Fail2banEnabled     *bool    `json:"fail2ban_enabled,omitempty"`
+	TopProcesses            *int     `json:"top_processes,omitempty"`
+	CollectServices         *bool    `json:"collect_services,omitempty"`
+	CollectPorts            *bool    `json:"collect_ports,omitempty"`
+	CollectDocker           *bool    `json:"collect_docker,omitempty"`
+	CollectTemperatures     *bool    `json:"collect_temperatures,omitempty"`
+	BruteforceEnabled       *bool    `json:"bruteforce_enabled,omitempty"`
+	Fail2banEnabled         *bool    `json:"fail2ban_enabled,omitempty"`
 	PortscanEnabled         *bool    `json:"portscan_enabled,omitempty"`
 	PortscanThresholdPerMin *int     `json:"portscan_threshold_per_min,omitempty"`
 	PortscanAllowlist       []string `json:"portscan_allowlist,omitempty"`
+	// Security overrides (nil = inherit the global default).
+	BruteforceThreshold *int     `json:"bruteforce_threshold,omitempty"`
+	BruteforceWindowMin *int     `json:"bruteforce_window_minutes,omitempty"`
+	AutoBlockThreshold  *int     `json:"auto_block_threshold,omitempty"`
+	AutoBlockMinutes    *int     `json:"auto_block_minutes,omitempty"`
+	NeverBlock          []string `json:"never_block,omitempty"`
 	RefreshPackageIndex *bool    `json:"refresh_package_index,omitempty"`
 	WatchedServices     []string `json:"watched_services,omitempty"`
 }

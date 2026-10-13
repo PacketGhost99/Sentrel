@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth'
 import { ago, dateTime, until } from '@/lib/format'
 import type { HostDetail, Series } from '@/lib/types'
 import { Chart } from '@/components/Chart'
+import { InheritableField, useHostSetting } from '@/components/InheritableField'
 import { Badge, Button, Card, Empty, Field, Input, Loading, Modal, Note, Segmented, Table, Td, Th, Toggle, useToast } from '@/components/ui'
 
 interface SecData {
@@ -23,19 +24,35 @@ interface SecData {
   portscan_status?: { known: boolean; supported: boolean; active: boolean; reason: string; updated_at: number }
 }
 
+const periodLabel = { '1': 'last hour', '24': 'last 24 hours', '168': 'last 7 days' } as const
+
+function StatCard({ label, value, tone, sub }: { label: string; value: string | number; tone?: 'warn' | 'crit'; sub?: string }) {
+  return (
+    <div className="rounded-2xl border border-line/70 bg-panel p-4 shadow-card">
+      <div className="text-xs font-medium text-muted">{label}</div>
+      <div className={tone === 'crit' ? 'mt-1 text-2xl font-semibold tabular-nums text-crit-ink' : tone === 'warn' ? 'mt-1 text-2xl font-semibold tabular-nums text-warn-ink' : 'mt-1 text-2xl font-semibold tabular-nums'}>{value}</div>
+      {sub && <div className="mt-0.5 truncate text-xs text-muted">{sub}</div>}
+    </div>
+  )
+}
+
 export function HostSecurity({ host }: { host: HostDetail }) {
   const [hours, setHours] = useState<'1' | '24' | '168'>('24')
   const { can } = useAuth()
   const qc = useQueryClient()
   const toast = useToast()
   const [blockIp, setBlockIp] = useState<string | null>(null)
+  const save = useHostSetting(host.id)
   const d = useQuery({ queryKey: ['security', host.id, hours], queryFn: () => get<SecData>(`/hosts/${host.id}/security`, { hours }), refetchInterval: 30_000 })
   const chart = useQuery({ queryKey: ['metrics', host.id, 'auth', hours], queryFn: () => get<{ series: Series[] }>(`/hosts/${host.id}/metrics`, { panel: 'auth', start: `${Number(hours) * 3600}s` }) })
   if (d.isLoading) return <Loading />
   const x = d.data!
+  const s = host.settings
+  const canEdit = can('host_settings') || can('hosts')
   const f2b = x.fail2ban?.data
   const scans = x.portscans || []
   const ps = x.portscan_status
+  const activeBlocks = x.blocks.filter((b) => b.status === 'active' || b.status === 'pending').length
   const psLine = !ps?.known ? 'Status not reported yet (the agent may need an update)'
     : !ps.supported ? `Not available on this host${ps.reason ? ': ' + ps.reason : ''}`
     : ps.active ? 'Detection active (kernel-side, nftables)' : `Detection off${ps.reason ? ': ' + ps.reason : ''}`
@@ -61,24 +78,48 @@ export function HostSecurity({ host }: { host: HostDetail }) {
   }
   return (
     <div className="space-y-4">
-      <Card bodyClass="p-5">
-        <Toggle checked={x.notify_failed_logins !== false} onChange={setNotify} disabled={!can('host_settings') && !can('hosts')}
-          label="Send notifications for failed-login alerts"
-          hint="When off, failed-login alerts still appear in Sentrel, but no emails or webhooks are sent for this host." />
-      </Card>
-      <Card bodyClass="p-5">
-        <Toggle checked={x.notify_portscan !== false} onChange={(v) => setNotify(v, 'portscan')} disabled={!can('host_settings') && !can('hosts')}
-          label="Send notifications for port-scan alerts"
-          hint="When off, port-scan alerts still appear in Sentrel, but no emails or webhooks are sent for this host." />
-      </Card>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-2 text-sm">
-          <Badge tone={x.allow_ip_block ? 'ok' : 'muted'}>IP blocking {x.allow_ip_block ? 'allowed' : 'disabled'}</Badge>
-          <Badge tone={x.auto_block ? 'warn' : 'muted'}>auto-block {x.auto_block ? `on (≥${x.auto_block_threshold} failures / ${x.window_minutes}m)` : 'off'}</Badge>
-          <Badge>source: {host.agent_config ? 'agent log watcher' : '–'}</Badge>
-        </div>
+        <p className="text-sm text-muted">Each setting shows the value in effect and whether it comes from the global defaults (Settings, Agents).</p>
         <Segmented value={hours} onChange={setHours} options={[{ id: '1', label: '1h' }, { id: '24', label: '24h' }, { id: '168', label: '7d' }]} />
       </div>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard label={`Failed logins (${periodLabel[hours]})`} value={x.total} tone={x.total > 0 ? 'warn' : undefined} sub={`${x.failed_logins.length} source${x.failed_logins.length === 1 ? '' : 's'}`} />
+        <StatCard label={`Port scans (${periodLabel[hours]})`} value={scans.length} tone={scans.length > 0 ? 'warn' : undefined} sub={ps?.known && ps.supported ? (ps.active ? 'Detection active' : 'Detection off') : 'Not available'} />
+        <StatCard label="Active blocks" value={activeBlocks} tone={activeBlocks > 0 ? 'crit' : undefined} sub={x.allow_ip_block ? (x.auto_block ? 'Auto-block on' : 'Manual blocking') : 'Blocking disabled'} />
+        <StatCard label="fail2ban" value={f2b?.available ? 'Active' : 'Not detected'} sub={f2b?.available ? `${(f2b.jails || []).length} jail${(f2b.jails || []).length === 1 ? '' : 's'}` : undefined} />
+      </div>
+
+      {s && (
+        <>
+          <Card title="Brute-force detection" subtitle="Failed logins are read from the host's authentication log">
+            <InheritableField label="Detect failed logins" description="Watch the auth log (Linux) or the Security log (Windows)." kind="bool" setting={s.bruteforce_enabled} disabled={!canEdit} onSave={save('bruteforce_enabled')} />
+            <InheritableField label="Alert threshold" description="Failed attempts from one address within the window before an alert is raised." kind="number" unit="attempts" setting={s.bruteforce_threshold} disabled={!canEdit} onSave={save('bruteforce_threshold')} />
+            <InheritableField label="Detection window" description="Attempts are counted over this period." kind="number" unit="minutes" max={1440} setting={s.bruteforce_window_minutes} disabled={!canEdit} onSave={save('bruteforce_window_minutes')} />
+            <div className="border-b border-line/60 py-3 last:border-0">
+              <Toggle checked={x.notify_failed_logins !== false} onChange={setNotify} disabled={!canEdit}
+                label="Send notifications for failed-login alerts"
+                hint="When off, alerts still appear in Sentrel but no emails or webhooks are sent for this host." />
+            </div>
+          </Card>
+          <Card title="Port-scan detection" subtitle={psLine}>
+            <InheritableField label="Detect port scans" description="Linux with nftables. The kernel counts closed-port connection attempts; the agent only reads the result." kind="bool" setting={s.portscan_enabled} disabled={!canEdit} onSave={save('portscan_enabled')} />
+            <InheritableField label="Alert threshold" description="Closed-port connection attempts per minute from one source." kind="number" unit="per minute" setting={s.portscan_threshold_per_min} disabled={!canEdit} onSave={save('portscan_threshold_per_min')} />
+            <div className="border-b border-line/60 py-3 last:border-0">
+              <Toggle checked={x.notify_portscan !== false} onChange={(v) => setNotify(v, 'portscan')} disabled={!canEdit}
+                label="Send notifications for port-scan alerts"
+                hint="When off, alerts still appear in Sentrel but no emails or webhooks are sent for this host." />
+            </div>
+          </Card>
+          <Card title="Blocking" subtitle="Firewall blocks use nftables or iptables on Linux and Windows Firewall on Windows. Blocks always expire.">
+            <InheritableField label="Allow firewall IP blocking" description="Lets Sentrel add and remove firewall blocks on this host." kind="bool" setting={s.allow_ip_block} disabled={!canEdit} onSave={save('allow_ip_block')} />
+            <InheritableField label="Automatically block attackers" description="Blocks sources that reach the brute-force or port-scan thresholds. Needs IP blocking." kind="bool" setting={s.auto_block} disabled={!canEdit} onSave={save('auto_block')} />
+            <InheritableField label="Block duration" description="How long automatic blocks last." kind="number" unit="minutes" max={129600} setting={s.auto_block_minutes} disabled={!canEdit} onSave={save('auto_block_minutes')} />
+            <InheritableField label="Auto-block threshold" description="Failed logins from one address within the detection window before it is blocked." kind="number" unit="attempts" setting={s.auto_block_threshold} disabled={!canEdit} onSave={save('auto_block_threshold')} />
+            <InheritableField label="Never block" description="Addresses and CIDR ranges that are never blocked, manually or automatically. Entries here are added to the global list." kind="list" placeholder="198.51.100.0/24" setting={s.never_block} disabled={!canEdit} onSave={save('never_block')} />
+            {!!host.never_block_system?.length && <p className="pt-2 text-xs text-muted">Always protected: the Sentrel server ({host.never_block_system.join(', ')}).</p>}
+          </Card>
+        </>
+      )}
       <Card title="Failed logins" subtitle="Most failures from a single IP within the detection window">
         <Chart series={chart.data?.series || []} unit="number" height={160} />
       </Card>
@@ -124,7 +165,7 @@ export function HostSecurity({ host }: { host: HostDetail }) {
         )}
       </Card>
       <Card title="Firewall blocks" bodyClass="p-0" actions={can('jobs') && x.allow_ip_block && <Button size="sm" icon={<Ban className="size-3.5" />} onClick={() => setBlockIp('')}>Block an IP</Button>}>
-        {!x.allow_ip_block && <div className="p-4"><Note>IP blocking is off for this host. Enable it under Settings, Remote actions. Blocks use nftables, iptables or Windows Firewall, and always expire.</Note></div>}
+        {!x.allow_ip_block && <div className="p-4"><Note>IP blocking is off for this host. Enable it under Blocking above. Blocks use nftables, iptables or Windows Firewall, and always expire.</Note></div>}
         {!x.blocks.length ? <Empty title="No blocks" /> : (
           <Table>
             <thead><tr><Th>IP</Th><Th>Status</Th><Th>Expires</Th><Th className="hidden md:table-cell">Reason</Th><Th className="hidden lg:table-cell">By</Th><Th /></tr></thead>

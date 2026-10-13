@@ -330,6 +330,43 @@ func (s *Scanner) toFindings(ms []match.Match) []Finding {
 	return out
 }
 
+// LookupCVE returns the NVD metadata of one CVE id (severity, CVSS, EPSS, KEV,
+// description, references) from the local database. ok is false when the DB is
+// not loaded or has no record for the id. Only the metadata fields of Finding
+// are filled.
+func (s *Scanner) LookupCVE(id string) (f Finding, ok bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.provider == nil {
+		return f, false
+	}
+	meta, err := s.provider.VulnerabilityMetadata(vulnerability.Reference{ID: id, Namespace: "nvd:cpe"})
+	if err != nil || meta == nil {
+		return f, false
+	}
+	f = Finding{VulnID: id, Namespace: meta.Namespace, Severity: normSeverity(meta.Severity), Description: meta.Description}
+	if meta.DataSource != "" {
+		f.URLs = append(f.URLs, meta.DataSource)
+	}
+	f.URLs = append(f.URLs, meta.URLs...)
+	if len(f.URLs) > 5 {
+		f.URLs = f.URLs[:5]
+	}
+	for _, c := range meta.Cvss {
+		if c.Metrics.BaseScore > f.CVSS {
+			f.CVSS, f.Vector = c.Metrics.BaseScore, c.Vector
+		}
+	}
+	for _, e := range meta.EPSS {
+		if e.EPSS > f.EPSS {
+			f.EPSS = e.EPSS
+		}
+	}
+	f.KEV = len(meta.KnownExploited) > 0
+	found := f.Severity != "Unknown" || f.CVSS > 0 || f.Description != ""
+	return f, found
+}
+
 func normSeverity(s string) string {
 	switch strings.ToLower(s) {
 	case "critical":

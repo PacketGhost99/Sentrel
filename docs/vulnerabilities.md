@@ -11,7 +11,36 @@ Sentrel matches each Linux host's package inventory against the [Grype](https://
 
 Supported distributions (`ID` in `/etc/os-release`): `ubuntu`, `debian`, `raspbian` (matched as Debian), `rhel`, `centos`, `rocky`, `almalinux`, `ol`, `amzn`, `fedora`, `alpine`, `sles`, `opensuse-leap`, `mariner`, `azurelinux`, `wolfi`, `chainguard`, `photon`. Other Linux distributions (for example Arch) are recorded as "skipped" with the reason.
 
-**Windows is not supported for package CVE matching.** Windows hosts get inventory and pending Windows Updates (and the `security_updates` threshold) but no CVE findings; scans for them are marked skipped. SNMP devices and agentless targets have no inventory and are skipped as well.
+Windows hosts are covered through Windows Update, see [Windows](#windows). SNMP devices and agentless targets have no inventory and are skipped.
+
+## How CVEs are counted
+
+Every count in the UI and the API uses one model:
+
+- **The unit is one open CVE on one host.** A CVE that hits several packages of a host (or is fixed by several Windows updates) counts once. A CVE on two hosts counts twice in fleet totals.
+- **Severity** is the highest severity among the packages that carry the CVE.
+- **Total** counts every severity. **Other** is Negligible plus Unknown. Counts are labelled with their scope, for example "645 critical/high" or "3,456 total".
+- **Badges** (hosts list, host header, the host's CVEs tab, the dashboard tile) show critical plus high, and say so in their tooltip.
+- **Fixable now** means the CVE can be acted on today: the remediation is `upgrade`, `upgrade_kernel`, `remove_old_kernel` or `reboot` (a Windows update counts as `upgrade`). CVEs whose fix is not published yet (`wait`) or unknown (`none`) are not fixable. The same number appears on the Vulnerabilities page, the By host table, the dashboard and `GET /hosts/{id}`, and the "Fixable now" filter (`GET /vulnerabilities?fixable=1`) lists exactly these.
+- Only agent hosts that are not revoked are counted. The findings list defaults to all severities and open findings on every page.
+
+`GET /vulnerabilities/summary` returns `hosts[]` and `totals`, each with `critical`, `high`, `medium`, `low`, `other`, `total`, `fixable`, `kev` and `inactive`. `GET /hosts/{id}` has the same object as `vuln_counts`; `GET /dashboard` has `vulnerabilities` (per severity), `vulnerabilities_total`, `vulnerabilities_fixable` and `vulnerabilities_inactive`.
+
+## Windows
+
+Windows hosts get CVE findings from Windows Update rather than from package matching:
+
+1. The agent searches for pending software updates through the Windows Update Agent and reports, for each one, its title, KB article, MSRC severity and the CVE ids Microsoft lists for it (`IUpdate.CveIDs`).
+2. The server creates one finding per host and CVE (package = the update title and KB, fixed version = the KB id). Severity maps from MSRC: Critical is Critical, Important is High, Moderate is Medium, Low is Low. Remediation is `upgrade`.
+3. When the local vulnerability database is available, the server looks each CVE up in it to add CVSS, EPSS, the CISA KEV flag, description and references. Without the database the findings carry the MSRC severity only; **Update database & scan all** (or any scan of the host) fills in the details later.
+4. A finding resolves automatically as soon as its update is no longer pending. A failed update search never resolves anything.
+5. Install an update from the host's CVEs tab (**Install update KBxxxxxxx**), which opens the upgrade dialog for that KB (`params.packages` of the `upgrade` job accepts KB ids on Windows).
+
+Notes: findings exist only while vulnerability scanning is enabled. Microsoft does not fill in the CVE list for every update, so some pending security updates show no CVEs. **Third-party applications on Windows are not matched to CVEs.**
+
+## Update database and scan all
+
+The **Update database & scan all** button (Vulnerabilities page) calls `POST /api/v1/vulnerabilities/refresh` (settings permission, 409 while scanning is disabled or a refresh is already running) and returns `{started: true}`. The server updates the database; when that finishes, whether it downloaded a newer build or was already current, it queues a scan for every visible, non-revoked agent host. It runs on the server, so it carries on if the browser is closed. Progress is in `GET /api/v1/vulnerabilities/db`: `refresh_pending`, `refresh_phase` (`updating`, `scanning`, `done` or `failed`), `refresh_error`, `refresh_scan_total` and `refresh_scan_remaining`. The page shows "Updating database…" and then "Scanning N hosts…". A small menu next to the button keeps **Scan all** and **Update database only**.
 
 ## Turning scanning on
 
@@ -30,7 +59,7 @@ Scanning is **off by default** for new installs, because the database is large (
 | Trigger | Notes |
 |---|---|
 | After inventory | when a host's package inventory changed and `scan_after_inventory` is on (default) |
-| Manual | host page, or **Scan all** (queues all visible hosts) |
+| Manual | host page, **Scan all** (queues all visible hosts) or **Update database & scan all** |
 | Schedules | **Vuln schedules**: scope `all`, `tenant`, `group` or `host`; `daily` or `weekly` (weekday 0 to 6, Sunday is 0); time of day in the timezone set under Settings, General |
 | After a server restart | scans that were running are marked failed and re-queued |
 
@@ -67,7 +96,7 @@ On Debian and Ubuntu the kernel ABI is part of the package name (`linux-image-7.
 | `wait` | the fix is not in the repositories yet | wait |
 | `none` | no fix is known | none |
 
-Findings also carry `kernel_abi` and `inactive` (true when every affected package belongs to a kernel that is not running). `remediation` is empty for Windows and non-agent hosts. `GET /vulnerabilities?inactive=0` leaves inactive findings out (the UI's "Include inactive kernels" filter, on by default). `GET /vulnerabilities/summary` and the dashboard add `inactive` counts next to the totals, which are unchanged.
+Findings also carry `kernel_abi` and `inactive` (true when every affected package belongs to a kernel that is not running). `remediation` is empty for non-agent hosts. `GET /vulnerabilities?inactive=0` leaves inactive findings out (the UI's "Include inactive kernels" filter, on by default). `GET /vulnerabilities/summary` and the dashboard add `inactive` counts next to the totals, which are unchanged.
 
 `GET /hosts/{id}/kernels` returns `{running, installed: [{abi, packages, running, newest, removable, cve_count, critical, high}], reboot_required, reboot_pending, allow_upgrades, write_policy, removable_cves, removable_critical}`. `cve_count` is the number of CVEs that exist only in that kernel, that is, the ones removing it resolves. `GET /vulnerabilities/kernels` returns the same fleet-wide (tenant scoped): `[{host_id, host_name, running, removable: [{abi, cve_count, critical}], reboot_pending, ...}]` for hosts with removable kernels or a pending reboot.
 

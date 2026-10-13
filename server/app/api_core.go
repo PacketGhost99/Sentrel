@@ -373,6 +373,8 @@ type dashboard struct {
 	RebootRequired  int            `json:"reboot_required"`
 	Vulns           map[string]int `json:"vulnerabilities"`
 	VulnsInactive   int            `json:"vulnerabilities_inactive"`
+	VulnsTotal      int            `json:"vulnerabilities_total"`
+	VulnsFixable    int            `json:"vulnerabilities_fixable"`
 	RecentEvents    []AlertEvent   `json:"recent_events"`
 	FiringAlerts    []Alert        `json:"firing_alerts"`
 }
@@ -443,24 +445,19 @@ func (a *App) apiDashboard(c *Ctx) (any, error) {
 	_ = a.db.GetContext(ctx, &d.Upgrades, `SELECT COALESCE(SUM(upgradable_count),0) FROM inventory_status WHERE `+tw, targs...)
 	_ = a.db.GetContext(ctx, &d.SecurityUpdates, `SELECT COALESCE(SUM(security_count),0) FROM inventory_status WHERE `+tw, targs...)
 	_ = a.db.GetContext(ctx, &d.RebootRequired, `SELECT COUNT(*) FROM hosts WHERE reboot_required=1 AND `+tw, targs...)
-	rows = nil
-	_ = a.db.SelectContext(ctx, &rows, `SELECT severity AS k, COUNT(DISTINCT host_id || ':' || vuln_id) AS n FROM vuln_findings WHERE status='open' AND `+tw+` GROUP BY severity`, targs...)
 	d.Vulns = map[string]int{}
 	d.VulnEnabled = a.vuln.Enabled()
-	for _, r := range rows {
-		if !d.VulnEnabled {
-			break
-		}
-		d.Vulns[strings.ToLower(r.K)] = r.N
-	}
 	if d.VulnEnabled {
 		var hids []int64
 		_ = a.db.SelectContext(ctx, &hids, `SELECT id FROM hosts WHERE kind='agent' AND revoked=0 AND `+tw, targs...)
+		var tot vulnCounts
 		for _, id := range hids {
 			if h, err := a.getHost(ctx, id); err == nil {
-				d.VulnsInactive += a.inactiveCount(ctx, h)
+				tot.add(a.hostVulnCounts(ctx, h))
 			}
 		}
+		d.Vulns = tot.bySeverity()
+		d.VulnsTotal, d.VulnsFixable, d.VulnsInactive = tot.Total, tot.Fixable, tot.Inactive
 	}
 	d.RecentEvents = []AlertEvent{}
 	ew, eargs := c.tenantWhere("e.tenant_id")

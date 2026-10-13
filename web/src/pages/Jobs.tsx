@@ -12,7 +12,7 @@ import { UpgradeDialog } from './host/Packages'
 import { OperatorSignPanel } from '@/components/OperatorSign'
 
 const jobLabel: Record<string, string> = {
-  upgrade: 'Package upgrade', refresh_inventory: 'Refresh inventory', block_ip: 'Block IP', unblock_ip: 'Unblock IP', self_update: 'Agent update', script: 'Script', collect_now: 'Collect now', disk_usage: 'Disk usage analysis', disk_cleanup: 'Disk cleanup',
+  upgrade: 'Package upgrade', refresh_inventory: 'Refresh inventory', block_ip: 'Block IP', unblock_ip: 'Unblock IP', self_update: 'Agent update', script: 'script (removed)', collect_now: 'Collect now', disk_usage: 'Disk usage analysis', disk_cleanup: 'Disk cleanup',
 }
 
 export function statusLabel(s: string): string {
@@ -30,8 +30,6 @@ export function jobSummary(j: Job): string {
       return p.ip
     case 'self_update':
       return p.version ? `to ${p.version}` : ''
-    case 'script':
-      return p.interpreter || 'sh'
     case 'disk_usage':
       return p.path || ''
     case 'disk_cleanup':
@@ -43,7 +41,7 @@ export function jobSummary(j: Job): string {
 export function Jobs() {
   return (
     <div>
-      <PageHeader title="Jobs" subtitle="Remote actions sent to agents: upgrades, disk cleanup, firewall blocks, scripts and agent updates. Every job is signed by the server and verified by the agent." />
+      <PageHeader title="Jobs" subtitle="Remote actions sent to agents: upgrades, disk cleanup, firewall blocks and agent updates. Every job is signed by the server and verified by the agent." />
       <JobsTable />
     </div>
   )
@@ -148,7 +146,6 @@ export function JobDetail() {
             ['Expires', dateTime(j.expires_at)],
             ...Object.entries(j.params || {}).filter(([k]) => k !== 'script').map(([k, v]) => [k, <span key={k} className="mono break-all text-xs">{v}</span>] as [string, React.ReactNode]),
           ]} />
-          {j.params?.script && <pre className="mono mt-3 max-h-60 overflow-auto rounded-xl bg-panel-2 p-3 text-xs">{j.params.script}</pre>}
         </Card>
       </div>
       {real && host.data && <UpgradeDialog host={host.data} packages={j.params?.packages ? j.params.packages.split(',') : []} onClose={() => { setReal(false); nav('/jobs') }} />}

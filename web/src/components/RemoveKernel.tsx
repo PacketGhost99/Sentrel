@@ -88,7 +88,7 @@ export function RemoveKernelDialog({ host, abi, onClose }: { host: HostDetail; a
           <Field label={<>After a successful dry run, type the host name <b className="mono text-fg">{host.name}</b> to enable removal</>}>
             <Input value={typed} onChange={(e) => setTyped(e.target.value)} disabled={!dryOk} />
           </Field>
-        ) : <Note>Remote upgrades are disabled for this host (Settings → Allow remote package upgrades). Only a dry run is possible.</Note>}
+        ) : <Note>Remote upgrades are disabled for this host (turn on Allow remote upgrades on the Packages tab). Only a dry run is possible.</Note>}
         <ErrorBox error={err} />
       </div>
     </Modal>

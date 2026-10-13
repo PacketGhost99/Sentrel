@@ -55,7 +55,7 @@ func TestPortscanDefaultRuleAndConfig(t *testing.T) {
 	}
 	h, _ := e.a.getHost(ctx, hostID)
 	cfg := e.a.agentConfig(h)
-	if !cfg.PortscanEnabled || cfg.PortscanThresholdPerMin != 50 || len(cfg.PortscanAllowlist) != 3 {
+	if !cfg.PortscanEnabled || cfg.PortscanThresholdPerMin != 50 || !hasAll(cfg.PortscanAllowlist, "198.51.100.0/24", "203.0.113.7", "10.0.0.0/8") {
 		t.Fatalf("config: %+v", cfg)
 	}
 	if code, _, _ := admin.do("PUT", "/hosts/"+itoa(hostID), map[string]any{"agent_options": map[string]any{"portscan_allowlist": []string{"not-an-ip"}}}); code != 400 {
@@ -188,4 +188,17 @@ func TestPortscanAutoBlock(t *testing.T) {
 	if min := time.Until(time.Unix(b.ExpiresAt, 0)); min < 29*time.Minute || min > 31*time.Minute {
 		t.Fatalf("block duration %v", min)
 	}
+}
+
+func hasAll(list []string, want ...string) bool {
+	have := map[string]bool{}
+	for _, e := range list {
+		have[e] = true
+	}
+	for _, w := range want {
+		if !have[w] {
+			return false
+		}
+	}
+	return true
 }

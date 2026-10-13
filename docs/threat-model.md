@@ -8,7 +8,7 @@ This page lists what Sentrel protects, where the trust boundaries are, who might
 |---|---|
 | `pki/ca.key` and `pki/job.key` | Whoever holds them can enrol agents and sign jobs for every agent |
 | `sentrel.db` | Users, password hashes, sessions, API key hashes, hosts, findings, audit log, and integration secrets in clear text (SMTP, LDAP bind, RADIUS, webhook and channel tokens, SNMP communities and v3 passwords, HTTP-check basic-auth passwords, TOTP secrets) |
-| Monitored hosts | The agent can install packages, change firewall rules and run scripts if enabled; on Windows it runs as SYSTEM |
+| Monitored hosts | The agent can install packages, change firewall rules if enabled; on Windows it runs as SYSTEM |
 | Operator signing key (optional) | Held off-server; gates write jobs on `operator` agents |
 | Tenant data | One tenant's hosts, metrics and alerts must not be visible to another |
 | Backups | Contain the database and `pki/` |
@@ -42,7 +42,7 @@ Can:
 
 Cannot:
 - Read or modify another tenant's data. Every table has a `tenant_id` and handlers check the caller's tenant (`CanTenant`). A test calls every `{id}` route with a user from another tenant, and a second test covers the live event stream. Tests reduce risk; they do not prove the absence of a missed route.
-- Exceed their role. A tenant viewer cannot write; a tenant admin cannot create scripts jobs (the `scripts` permission is admin-only), manage other tenants, settings or provider-level objects.
+- Exceed their role. A tenant viewer cannot write; a tenant admin cannot manage other tenants, settings or provider-level objects.
 - Use checks or notification channels as an SSRF probe against the server's network. For tenant-owned checks and channels, the guarded dialer refuses loopback, RFC 1918, ULA, link-local (including 169.254.169.254 cloud metadata), CGNAT, unspecified and multicast addresses. The check happens after DNS resolution and at connect time, so DNS rebinding and redirects do not bypass it, and environment proxies are not used. Setting `allow_private_targets_for_tenants` turns the protection off for tenants; it is off by default.
 - Use API keys beyond their owner: keys are limited to the owner's role intersected with key scopes and cannot create keys.
 - Perform a cross-site request with their session: state-changing cookie requests need the `X-CSRF-Token` header, the cookie is `SameSite=Lax`, and the UI has a strict Content-Security-Policy.
@@ -62,7 +62,7 @@ Can, always:
 - Send arbitrary notifications.
 
 Can, against agents on the default `server` write policy:
-- Everything the host-level opt-ins allow: package upgrades, IP blocks (loopback and unspecified refused), disk cleanup, scripts (as the agent user on Linux, SYSTEM on Windows), and agent self-update to a binary the server signs. The opt-in flags live in the server database, so a compromised server can set them. **On these agents the server is fully trusted.** This is the default.
+- Everything the host-level opt-ins allow: package upgrades, IP blocks (loopback and unspecified refused), disk cleanup, and agent self-update to a binary the server signs. The opt-in flags live in the server database, so a compromised server can set them. **On these agents the server is fully trusted.** This is the default.
 
 Cannot, against agents on `operator` or read-only policy:
 - Run any WRITE job. `operator` agents also require an Ed25519 signature from an operator key over the exact job bytes; the private key is never on the server, and the agent re-checks the signature itself. Read-only agents refuse WRITE jobs outright. The policy is stored in the root-owned `agent.yaml` and the pushed agent configuration has no field that can change it.
@@ -115,7 +115,6 @@ In self-signed mode the first agent connection pins the CA fingerprint given by 
 - **Proxy and header trust.** `trust_proxy` and forward-auth are only as good as the proxy: if it fails to strip client-supplied identity headers, anyone can sign in as any user. Sentrel cannot detect that.
 - **LDAP and RADIUS** use the server as the intermediary; compromise of the server exposes the bind credentials.
 - **Open `/metrics` by default.**
-- **Scripts.** `allow_scripts` is remote code execution by design for admins. Leave it off unless needed.
 - **Third-party code.** The vulnerability matcher embeds Grype and its dependency tree; the vulnerability database is downloaded from Anchore. Sentrel does not verify the data beyond what Grype does.
 - **Single-process design.** Everything runs in one process with one data directory; there is no separation between the web tier and the signing key holder.
 - **AI-assisted code.** Much of the code was written with an AI assistant. It has been reviewed and tested, but treat it as you would any young codebase.

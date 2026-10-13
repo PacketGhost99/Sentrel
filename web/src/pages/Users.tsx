@@ -9,7 +9,7 @@ import { useTenantFilter } from '@/components/Layout'
 import { Badge, Button, Card, Empty, ErrorBox, Field, Input, Loading, Modal, Note, PageHeader, Select, Table, Td, Th, Toggle, useConfirm, useToast } from '@/components/ui'
 
 export const roleInfo: Record<string, { label: string; desc: string }> = {
-  admin: { label: 'Administrator', desc: 'Everything, including settings, tenants, users and scripts' },
+  admin: { label: 'Administrator', desc: 'Everything, including settings, tenants and users' },
   operator: { label: 'Operator', desc: 'Manage hosts, checks, alerts and run upgrades/blocks' },
   viewer: { label: 'Viewer', desc: 'Read-only access to all tenants' },
   tenant_admin: { label: 'Tenant admin', desc: 'Manage their tenant: users, checks, alerts, upgrades, branding' },

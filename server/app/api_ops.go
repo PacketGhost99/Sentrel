@@ -1,9 +1,11 @@
 package app
 
 import (
+	"context"
 	"crypto/subtle"
 	"encoding/json"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -88,11 +90,13 @@ func (a *App) apiGetJob(c *Ctx) (any, error) {
 	if err != nil || !c.P.CanTenant(j.TenantID) {
 		return nil, errNotFound
 	}
-	if j.Type == "script" && !c.P.Has(PermScripts) {
+	if j.Type == "script" { // historical jobs from before the feature was removed
 		var p map[string]string
 		_ = json.Unmarshal(j.Params, &p)
-		p["script"] = "(hidden)"
-		j.Params = JSON(mustJSON(p))
+		if p != nil {
+			p["script"] = "(removed)"
+			j.Params = JSON(mustJSON(p))
+		}
 	}
 	if j.Type == "self_update" {
 		var p map[string]string
@@ -133,14 +137,15 @@ func (a *App) apiListFindings(c *Ctx) (any, error) {
 	// packages (linux-headers, linux-modules, ...) that share a CVE.
 	tw, args := c.tenantWhere("f.tenant_id")
 	q := `SELECT MIN(f.id) AS id, f.tenant_id, f.host_id, f.vuln_id, GROUP_CONCAT(f.package, ', ') AS package, MIN(f.version) AS version,
-		MAX(f.fixed_version) AS fixed_version, MAX(f.fix_state) AS fix_state, MIN(f.severity) AS severity, MAX(f.cvss) AS cvss,
+		MAX(f.fixed_version) AS fixed_version, MAX(f.fix_state) AS fix_state, ` + sevAggSQL + ` AS severity, MAX(f.cvss) AS cvss,
 		MAX(f.cvss_vector) AS cvss_vector, MAX(f.epss) AS epss, MAX(f.kev) AS kev, MAX(f.description) AS description, MIN(f.urls) AS urls,
 		MIN(f.namespace) AS namespace, MIN(f.status) AS status, MIN(f.first_seen_at) AS first_seen_at, MAX(f.last_seen_at) AS last_seen_at,
-		MAX(f.fixed_at) AS fixed_at, COALESCE(h.name,'') AS host_name FROM vuln_findings f LEFT JOIN hosts h ON h.id=f.host_id WHERE ` + tw
+		MAX(f.fixed_at) AS fixed_at, COALESCE(h.name,'') AS host_name FROM vuln_findings f LEFT JOIN hosts h ON h.id=f.host_id WHERE COALESCE(h.revoked,0)=0 AND ` + tw
 	if h := c.QInt("host_id", 0); h > 0 {
 		q += ` AND f.host_id=?`
 		args = append(args, h)
 	}
+	var hargs []any
 	status := c.Q("status")
 	if status == "" {
 		status = "open"
@@ -149,16 +154,16 @@ func (a *App) apiListFindings(c *Ctx) (any, error) {
 		q += ` AND f.status=?`
 		args = append(args, status)
 	}
+	var having string
 	if s := c.Q("severity"); s != "" {
+		// The filter applies to the CVE's highest severity, as in the counts.
 		sev := strings.Split(s, ",")
-		q += ` AND f.severity IN (` + strings.TrimRight(strings.Repeat("?,", len(sev)), ",") + `)`
+		having = ` HAVING ` + sevAggSQL + ` IN (` + strings.TrimRight(strings.Repeat("?,", len(sev)), ",") + `)`
 		for _, x := range sev {
-			args = append(args, x)
+			hargs = append(hargs, x)
 		}
 	}
-	if c.Q("fixable") == "1" {
-		q += ` AND f.fixed_version<>''`
-	}
+	fixableOnly := c.Q("fixable") == "1"
 	if c.Q("kev") == "1" {
 		q += ` AND f.kev=1`
 	}
@@ -170,13 +175,14 @@ func (a *App) apiListFindings(c *Ctx) (any, error) {
 	if limit > 5000 {
 		limit = 5000
 	}
-	q += ` GROUP BY f.host_id, f.vuln_id ORDER BY CASE MIN(f.severity) WHEN 'Critical' THEN 5 WHEN 'High' THEN 4 WHEN 'Medium' THEN 3 WHEN 'Low' THEN 2 ELSE 1 END DESC,
+	q += ` GROUP BY f.host_id, f.vuln_id` + having + ` ORDER BY MAX(` + sevRank("f.severity") + `) DESC,
 		MAX(f.kev) DESC, MAX(f.cvss) DESC, f.vuln_id LIMIT ?`
 	skipInactive := c.Q("inactive") == "0"
 	sqlLimit := limit
-	if skipInactive {
-		sqlLimit = 5000 // inactive findings are only known after decoration
+	if skipInactive || fixableOnly {
+		sqlLimit = 5000 // inactive and fixable are only known after decoration
 	}
+	args = append(args, hargs...)
 	args = append(args, sqlLimit)
 	out := []VulnFinding{}
 	err := a.db.SelectContext(c.ctx(), &out, q, args...)
@@ -184,12 +190,16 @@ func (a *App) apiListFindings(c *Ctx) (any, error) {
 		return nil, err
 	}
 	a.decorateFindings(c, out)
-	if skipInactive {
+	if skipInactive || fixableOnly {
 		kept := out[:0]
 		for _, f := range out {
-			if !f.Inactive {
-				kept = append(kept, f)
+			if skipInactive && f.Inactive {
+				continue
 			}
+			if fixableOnly && !actionable(&f) {
+				continue
+			}
+			kept = append(kept, f)
 		}
 		out = kept
 		if int64(len(out)) > int64(limit) {
@@ -200,42 +210,43 @@ func (a *App) apiListFindings(c *Ctx) (any, error) {
 }
 
 func (a *App) apiVulnSummary(c *Ctx) (any, error) {
-	tw, args := c.tenantWhere("h.tenant_id")
 	type row struct {
-		HostID     int64  `db:"host_id" json:"host_id"`
-		HostName   string `db:"host_name" json:"host_name"`
-		Critical   int    `db:"critical" json:"critical"`
-		High       int    `db:"high" json:"high"`
-		Medium     int    `db:"medium" json:"medium"`
-		Low        int    `db:"low" json:"low"`
-		Fixable    int    `db:"fixable" json:"fixable"`
-		Inactive   int    `db:"-" json:"inactive"`
-		KEV        int    `db:"kev" json:"kev"`
-		LastScan   int64  `db:"last_scan" json:"last_scan"`
-		LastStatus string `db:"last_status" json:"last_status"`
-		LastError  string `db:"last_error" json:"last_error"`
+		HostID   int64  `json:"host_id"`
+		HostName string `json:"host_name"`
+		vulnCounts
+		LastScan   int64  `json:"last_scan"`
+		LastStatus string `json:"last_status"`
+		LastError  string `json:"last_error"`
 	}
 	out := []row{}
-	// Count distinct CVEs per host (not per package).
-	err := a.db.SelectContext(c.ctx(), &out, `SELECT h.id AS host_id, h.name AS host_name,
-		COALESCE(SUM(f.severity='Critical'),0) AS critical, COALESCE(SUM(f.severity='High'),0) AS high,
-		COALESCE(SUM(f.severity='Medium'),0) AS medium, COALESCE(SUM(f.severity='Low'),0) AS low,
-		COALESCE(SUM(f.fixable),0) AS fixable, COALESCE(SUM(f.kev),0) AS kev,
-		COALESCE((SELECT MAX(started_at) FROM vuln_scans s WHERE s.host_id=h.id),0) AS last_scan,
-		COALESCE((SELECT status FROM vuln_scans s WHERE s.host_id=h.id ORDER BY id DESC LIMIT 1),'') AS last_status,
-		COALESCE((SELECT error FROM vuln_scans s WHERE s.host_id=h.id ORDER BY id DESC LIMIT 1),'') AS last_error
-		FROM hosts h LEFT JOIN (SELECT host_id, vuln_id, MIN(severity) AS severity, MAX(fixed_version<>'') AS fixable, MAX(kev) AS kev
-			FROM vuln_findings WHERE status='open' GROUP BY host_id, vuln_id) f ON f.host_id=h.id
-		WHERE h.kind='agent' AND `+tw+` GROUP BY h.id ORDER BY critical DESC, high DESC, h.name`, args...)
-	if err != nil {
-		return nil, err
-	}
-	for i := range out {
-		if h, err := a.getHost(c.ctx(), out[i].HostID); err == nil && out[i].Critical+out[i].High+out[i].Medium+out[i].Low > 0 {
-			out[i].Inactive = a.inactiveCount(c.ctx(), h)
+	var total vulnCounts
+	enabled := a.settings.Vuln().Enabled
+	for _, h := range a.visibleAgentHosts(c) {
+		r := row{HostID: h.ID, HostName: h.Name}
+		if enabled {
+			r.vulnCounts = a.hostVulnCounts(c.ctx(), h)
 		}
+		total.add(r.vulnCounts)
+		_ = a.db.GetContext(c.ctx(), &r.LastScan, `SELECT COALESCE(MAX(started_at),0) FROM vuln_scans WHERE host_id=?`, h.ID)
+		var last struct {
+			Status string `db:"status"`
+			Error  string `db:"error"`
+		}
+		if err := a.db.GetContext(c.ctx(), &last, `SELECT status, error FROM vuln_scans WHERE host_id=? ORDER BY id DESC LIMIT 1`, h.ID); err == nil {
+			r.LastStatus, r.LastError = last.Status, last.Error
+		}
+		out = append(out, r)
 	}
-	return map[string]any{"hosts": out, "db": a.vuln.Status(), "queue": a.vuln.QueueLength(), "enabled": a.settings.Vuln().Enabled}, nil
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Critical != out[j].Critical {
+			return out[i].Critical > out[j].Critical
+		}
+		if out[i].High != out[j].High {
+			return out[i].High > out[j].High
+		}
+		return out[i].HostName < out[j].HostName
+	})
+	return map[string]any{"hosts": out, "totals": total, "db": a.vuln.Status(), "queue": a.vuln.QueueLength(), "enabled": enabled}, nil
 }
 
 type findingUpdate struct {
@@ -265,17 +276,21 @@ func (a *App) apiUpdateFinding(c *Ctx) (any, error) {
 	return nil, nil
 }
 
+// scanTargets returns the ids of the hosts a scan-all covers: the visible,
+// non-revoked agent hosts.
+func (a *App) scanTargets(ctx context.Context, tw string, args []any) []int64 {
+	var ids []int64
+	_ = a.db.SelectContext(ctx, &ids, `SELECT id FROM hosts WHERE kind='agent' AND revoked=0 AND `+tw, args...)
+	return ids
+}
+
 func (a *App) apiScanAll(c *Ctx) (any, error) {
 	if !a.vuln.Enabled() {
 		return nil, conflict(msgVulnDisabled)
 	}
 	tw, args := c.tenantWhere("tenant_id")
-	var ids []int64
-	if err := a.db.SelectContext(c.ctx(), &ids, `SELECT id FROM hosts WHERE kind='agent' AND revoked=0 AND `+tw, args...); err != nil {
-		return nil, err
-	}
 	n := 0
-	for _, id := range ids {
+	for _, id := range a.scanTargets(c.ctx(), tw, args) {
 		if a.vuln.enqueue(id, "manual") {
 			n++
 		}
@@ -285,7 +300,9 @@ func (a *App) apiScanAll(c *Ctx) (any, error) {
 }
 
 func (a *App) apiVulnDBStatus(c *Ctx) (any, error) {
-	return map[string]any{"enabled": a.vuln.Enabled(), "db": a.vuln.Status(), "queue": a.vuln.QueueLength(), "settings": a.settings.Vuln()}, nil
+	out := a.vuln.RefreshStatus()
+	out["enabled"], out["db"], out["queue"], out["settings"] = a.vuln.Enabled(), a.vuln.Status(), a.vuln.QueueLength(), a.settings.Vuln()
+	return out, nil
 }
 
 func (a *App) apiVulnDBSync(c *Ctx) (any, error) {
@@ -296,6 +313,19 @@ func (a *App) apiVulnDBSync(c *Ctx) (any, error) {
 		return nil, conflict(err.Error())
 	}
 	c.audit("vulndb.sync_requested", "", "", nil)
+	return map[string]bool{"started": true}, nil
+}
+
+// apiVulnRefresh updates the DB and then scans every visible host, on the server.
+func (a *App) apiVulnRefresh(c *Ctx) (any, error) {
+	if !a.vuln.Enabled() {
+		return nil, conflict(msgVulnDisabled)
+	}
+	tw, args := c.tenantWhere("tenant_id")
+	if err := a.vuln.Refresh(func() []int64 { return a.scanTargets(context.Background(), tw, args) }); err != nil {
+		return nil, conflict(err.Error())
+	}
+	c.audit("vulndb.refresh_requested", "", "", nil)
 	return map[string]bool{"started": true}, nil
 }
 

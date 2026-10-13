@@ -26,7 +26,6 @@ const (
 	PermHosts                    // enrol, delete, SNMP devices
 	PermHostSettings             // per-host options and remote-action opt-ins
 	PermJobs                     // upgrades, IP blocks, vulnerability scans
-	PermScripts                  // arbitrary scripts on hosts
 	PermUsers                    // manage users (own tenant for tenant admins)
 	PermTenants                  // manage tenants
 	PermSettings                 // global settings
@@ -36,7 +35,7 @@ const (
 
 var permNames = map[Perm]string{
 	PermNone: "authenticated", PermRead: "read", PermAck: "ack", PermMonitoring: "monitoring", PermHosts: "hosts",
-	PermHostSettings: "host_settings", PermJobs: "jobs", PermScripts: "scripts", PermUsers: "users", PermTenants: "tenants",
+	PermHostSettings: "host_settings", PermJobs: "jobs", PermUsers: "users", PermTenants: "tenants",
 	PermSettings: "settings", PermBranding: "branding", PermAudit: "audit",
 }
 
@@ -50,7 +49,7 @@ const (
 )
 
 var rolePerms = map[string][]Perm{
-	RoleAdmin:        {PermRead, PermAck, PermMonitoring, PermHosts, PermHostSettings, PermJobs, PermScripts, PermUsers, PermTenants, PermSettings, PermBranding, PermAudit},
+	RoleAdmin:        {PermRead, PermAck, PermMonitoring, PermHosts, PermHostSettings, PermJobs, PermUsers, PermTenants, PermSettings, PermBranding, PermAudit},
 	RoleOperator:     {PermRead, PermAck, PermMonitoring, PermHosts, PermHostSettings, PermJobs},
 	RoleViewer:       {PermRead},
 	RoleTenantAdmin:  {PermRead, PermAck, PermMonitoring, PermHostSettings, PermJobs, PermUsers, PermBranding, PermAudit},
@@ -70,7 +69,7 @@ var scopePerms = map[string][]Perm{
 	"read":  {PermRead},
 	"write": {PermRead, PermAck, PermMonitoring, PermHostSettings},
 	"jobs":  {PermRead, PermJobs},
-	"admin": {PermRead, PermAck, PermMonitoring, PermHosts, PermHostSettings, PermJobs, PermScripts, PermUsers, PermTenants, PermSettings, PermBranding, PermAudit},
+	"admin": {PermRead, PermAck, PermMonitoring, PermHosts, PermHostSettings, PermJobs, PermUsers, PermTenants, PermSettings, PermBranding, PermAudit},
 }
 
 // Principal is the authenticated caller.

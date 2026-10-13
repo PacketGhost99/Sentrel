@@ -70,18 +70,18 @@ Build the packages yourself with `scripts/build.sh --packages` (needs Go; nfpm i
 
 ### APT and YUM repositories
 
-TODO: there is no hosted repository yet; install the packages from the release page. A signed repository (for example on GitHub Pages) would let `apt upgrade` and `dnf upgrade` keep hosts current.
+There is no hosted package repository yet; install the packages from the release page. A signed repository (for example on GitHub Pages) would let `apt upgrade` and `dnf upgrade` keep hosts current.
 
 ## Container image (GHCR)
 
-Images are published for linux/amd64 and linux/arm64 as `ghcr.io/notspark1999/sentrel` (the repository name in lower case) with tags `edge` (latest main), the release tag (for example `v1.2.0`) and `latest` (latest release).
+Images are published for linux/amd64 and linux/arm64 as `ghcr.io/packetghost99/sentrel` (the repository name in lower case) with tags `edge` (latest main), the release tag (for example `v1.2.0`) and `latest` (latest release).
 
 ```sh
 docker run -d --name sentrel --cap-add NET_RAW -p 8080:8080 -v sentrel-data:/data \
-  ghcr.io/notspark1999/sentrel:latest
+  ghcr.io/packetghost99/sentrel:latest
 ```
 
-In the compose file, replace the `build:` section with `image: ghcr.io/notspark1999/sentrel:latest`.
+In the compose file, replace the `build:` section with `image: ghcr.io/packetghost99/sentrel:latest`.
 
 ## Verifying downloads
 
@@ -94,7 +94,7 @@ Releases carry several independent checks:
 ```sh
 cosign verify-blob \
   --bundle SHA256SUMS.cosign.bundle \
-  --certificate-identity-regexp '^https://github.com/notspark1999/Sentrel/\.github/workflows/ci\.yml@refs/tags/v' \
+  --certificate-identity-regexp '^https://github.com/PacketGhost99/Sentrel/\.github/workflows/ci\.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   SHA256SUMS
 sha256sum -c SHA256SUMS --ignore-missing
@@ -104,12 +104,12 @@ sha256sum -c SHA256SUMS --ignore-missing
 - The container image is signed keyless as well:
 
 ```sh
-cosign verify ghcr.io/notspark1999/sentrel:<tag> \
-  --certificate-identity-regexp '^https://github.com/notspark1999/Sentrel/\.github/workflows/ci\.yml@' \
+cosign verify ghcr.io/packetghost99/sentrel:<tag> \
+  --certificate-identity-regexp '^https://github.com/PacketGhost99/Sentrel/\.github/workflows/ci\.yml@' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
-Replace `notspark1999/Sentrel` with the GitHub repository (case-sensitive in the certificate identity).
+Replace `PacketGhost99/Sentrel` with the GitHub repository (case-sensitive in the certificate identity).
 
 ## Docker
 

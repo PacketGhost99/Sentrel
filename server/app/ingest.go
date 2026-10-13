@@ -224,6 +224,7 @@ func (a *App) ingestInventory(ctx context.Context, hostID int64, inv *pb.Invento
 	a.alerts.evaluateSamples(ctx, hostID, []metrics.Sample{
 		{Name: "packages_security_updates", Value: float64(security)},
 	})
+	a.ingestWindowsFindings(ctx, hostID, inv)
 	a.events.publish(Event{Type: "host.inventory", TenantID: tenant, HostID: hostID})
 	a.afterInventory(ctx, hostID)
 	if newHash != prevHash && len(inv.Installed) > 0 && a.settings.Vuln().ScanAfterInventory {
@@ -282,11 +283,12 @@ func (a *App) ingestSecurity(ctx context.Context, hostID int64, r *pb.SecurityRe
 // evaluateBruteforce sums failures per IP over the configured window, raises
 // an alert and optionally auto-blocks.
 func (a *App) evaluateBruteforce(ctx context.Context, hostID int64) {
-	d := a.settings.Agent()
-	window := d.BruteforceWindowMin
-	if window <= 0 {
-		window = 5
+	host, err := a.getHost(ctx, hostID)
+	if err != nil {
+		return
 	}
+	d := a.hostSecurity(host)
+	window := d.BruteforceWindowMin
 	since := time.Now().Add(-time.Duration(window) * time.Minute).Unix()
 	type row struct {
 		IP    string `db:"ip"`
@@ -305,12 +307,11 @@ func (a *App) evaluateBruteforce(ctx context.Context, hostID int64) {
 	_ = a.ts.Append(hostID, tenant, []metrics.Sample{{Name: "auth_failures_window_max", Value: top}})
 	a.alerts.evaluateSamples(ctx, hostID, []metrics.Sample{{Name: "auth_failures_window_max", Value: top, Labels: map[string]string{"ip": topIP}}})
 
-	host, err := a.getHost(ctx, hostID)
-	if err != nil || !host.AutoBlock || !host.AllowIPBlock || d.AutoBlockThreshold <= 0 {
+	if !d.AutoBlock || !d.AllowIPBlock || d.AutoBlockThreshold <= 0 {
 		return
 	}
 	for _, r := range rows {
-		if r.Total < d.AutoBlockThreshold || ipWhitelisted(r.IP, d.AutoBlockWhitelist) {
+		if r.Total < d.AutoBlockThreshold || a.neverBlocked(host, r.IP) {
 			continue
 		}
 		var n int
@@ -403,13 +404,16 @@ func (a *App) evaluatePortscan(ctx context.Context, hostID int64) {
 	if len(rows) == 0 {
 		return
 	}
-	d := a.settings.Agent()
 	host, err := a.getHost(ctx, hostID)
-	if err != nil || !host.AutoBlock || !host.AllowIPBlock {
+	if err != nil {
+		return
+	}
+	d := a.hostSecurity(host)
+	if !d.AutoBlock || !d.AllowIPBlock {
 		return
 	}
 	for _, r := range rows {
-		if ipWhitelisted(r.IP, d.AutoBlockWhitelist) || ipWhitelisted(r.IP, d.PortscanAllowlist) {
+		if a.neverBlocked(host, r.IP) || ipWhitelisted(r.IP, a.settings.Agent().PortscanAllowlist) || ipWhitelisted(r.IP, hostOptions(host).PortscanAllowlist) {
 			continue
 		}
 		var n int

@@ -48,6 +48,7 @@ func (a *App) registerRoutes(r *apiRouter) {
 	r.add(routeDef{Method: DELETE, Path: "/hosts/{id}", Summary: "Delete host and its data", Tag: "hosts", Perm: PermHosts}, a.apiDeleteHost)
 	r.add(routeDef{Method: POST, Path: "/hosts/{id}/revoke", Summary: "Revoke the agent certificate", Tag: "hosts", Perm: PermHosts}, a.apiRevokeHost)
 	r.add(routeDef{Method: GET, Path: "/hosts/{id}/metrics", Summary: "Standard metric series for graphs", Tag: "hosts", Perm: PermRead, Query: []string{"panel", "start", "end", "step"}}, a.apiHostMetrics)
+	r.add(routeDef{Method: GET, Path: "/hosts/{id}/metrics/export", Summary: "Export all standard metric series as CSV or JSON", Tag: "hosts", Perm: PermRead, Query: []string{"format", "range", "start", "end", "step"}}, a.apiHostMetricsExport)
 	r.add(routeDef{Method: GET, Path: "/hosts/{id}/packages", Summary: "Installed / upgradable packages", Tag: "hosts", Perm: PermRead, Resp: []Package{}, Query: []string{"upgradable", "q"}}, a.apiHostPackages)
 	r.add(routeDef{Method: GET, Path: "/hosts/{id}/kernels", Summary: "Installed kernels, the running one and removable old kernels", Tag: "hosts", Perm: PermRead, Resp: kernelsResp{}}, a.apiHostKernels)
 	r.add(routeDef{Method: PUT, Path: "/hosts/{id}/notify", Summary: "Mute or unmute notifications for one metric on a host", Tag: "hosts", Perm: PermHostSettings, Req: hostNotifyReq{}}, a.apiHostNotify)
@@ -126,7 +127,7 @@ func (a *App) registerRoutes(r *apiRouter) {
 
 	// Jobs.
 	r.add(routeDef{Method: GET, Path: "/jobs", Summary: "List jobs", Tag: "jobs", Perm: PermRead, Resp: []Job{}, Query: []string{"host_id", "status", "type", "limit"}}, a.apiListJobs)
-	r.add(routeDef{Method: POST, Path: "/jobs", Summary: "Create a job (upgrade, block_ip, script...)", Tag: "jobs", Perm: PermJobs, Req: JobRequest{}, Resp: Job{}}, a.apiCreateJob)
+	r.add(routeDef{Method: POST, Path: "/jobs", Summary: "Create a job (upgrade, block_ip...)", Tag: "jobs", Perm: PermJobs, Req: JobRequest{}, Resp: Job{}}, a.apiCreateJob)
 	r.add(routeDef{Method: POST, Path: "/jobs/bulk", Summary: "Create the same job on several hosts", Tag: "jobs", Perm: PermJobs, Req: bulkJobReq{}}, a.apiBulkJobs)
 	r.add(routeDef{Method: GET, Path: "/jobs/{id}", Summary: "Job detail with output", Tag: "jobs", Perm: PermRead, Resp: Job{}}, a.apiGetJob)
 	r.add(routeDef{Method: GET, Path: "/jobs/{id}/spec", Summary: "Exact job spec bytes (base64) for offline operator signing", Tag: "jobs", Perm: PermJobs, Resp: JobSpecInfo{}}, a.apiJobSpec)
@@ -141,6 +142,7 @@ func (a *App) registerRoutes(r *apiRouter) {
 	r.add(routeDef{Method: POST, Path: "/vulnerabilities/scan-all", Summary: "Queue scans for all visible hosts", Tag: "vulnerabilities", Perm: PermJobs}, a.apiScanAll)
 	r.add(routeDef{Method: GET, Path: "/vulnerabilities/db", Summary: "Vulnerability DB status", Tag: "vulnerabilities", Perm: PermRead}, a.apiVulnDBStatus)
 	r.add(routeDef{Method: POST, Path: "/vulnerabilities/db/sync", Summary: "Update the vulnerability DB now", Tag: "vulnerabilities", Perm: PermSettings}, a.apiVulnDBSync)
+	r.add(routeDef{Method: POST, Path: "/vulnerabilities/refresh", Summary: "Update the vulnerability DB, then scan all visible hosts", Tag: "vulnerabilities", Perm: PermSettings}, a.apiVulnRefresh)
 	r.add(routeDef{Method: GET, Path: "/vulnerabilities/scans", Summary: "Scan history", Tag: "vulnerabilities", Perm: PermRead, Resp: []VulnScan{}, Query: []string{"host_id"}}, a.apiListScans)
 	r.add(routeDef{Method: GET, Path: "/vuln-schedules", Summary: "List scan schedules", Tag: "vulnerabilities", Perm: PermRead, Resp: []VulnSchedule{}}, a.apiListVulnSchedules)
 	r.add(routeDef{Method: POST, Path: "/vuln-schedules", Summary: "Create a scan schedule", Tag: "vulnerabilities", Perm: PermJobs, Req: vulnScheduleReq{}, Resp: VulnSchedule{}}, a.apiCreateVulnSchedule)

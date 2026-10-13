@@ -19,7 +19,6 @@ export function HostSettings({ host }: { host: HostDetail }) {
   const [f, setF] = useState({
     name: host.name, address: host.address, group_id: host.group_id ?? 0, tags: host.tags || [], notes: host.notes,
     interval_seconds: host.interval_seconds ?? '', inventory_interval: host.inventory_interval ?? '', retention_days: host.retention_days ?? '',
-    allow_upgrades: host.allow_upgrades, allow_cleanup: !!host.allow_cleanup, auto_remove_old_kernels: !!host.auto_remove_old_kernels, allow_ip_block: host.allow_ip_block, allow_scripts: host.allow_scripts, auto_block: host.auto_block,
     tenant_id: host.tenant_id,
   })
   const [opts, setOpts] = useState<AgentOptions>(host.agent_options || {})
@@ -35,9 +34,7 @@ export function HostSettings({ host }: { host: HostDetail }) {
     try {
       const body: Record<string, unknown> = {
         name: f.name, address: f.address, group_id: Number(f.group_id), tags: f.tags, notes: f.notes,
-        allow_upgrades: f.allow_upgrades, allow_cleanup: f.allow_cleanup, allow_ip_block: f.allow_ip_block, auto_block: f.auto_block, auto_remove_old_kernels: f.auto_remove_old_kernels,
       }
-      if (can('scripts')) body.allow_scripts = f.allow_scripts
       if (f.interval_seconds === '' || f.interval_seconds === null) body.clear_interval = true
       else body.interval_seconds = Number(f.interval_seconds)
       if (f.inventory_interval !== '' && f.inventory_interval !== null) body.inventory_interval = Number(f.inventory_interval)
@@ -62,6 +59,7 @@ export function HostSettings({ host }: { host: HostDetail }) {
 
   return (
     <div className="grid gap-4 xl:grid-cols-2">
+      <p className="text-sm text-muted xl:col-span-2">Security, update and cleanup permissions are set on their own tabs.</p>
       <Card title="General">
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Display name"><Input value={f.name} onChange={(e) => set('name', e.target.value)} /></Field>
@@ -96,31 +94,12 @@ export function HostSettings({ host }: { host: HostDetail }) {
             <Toggle checked={opt('collect_ports')} onChange={(v) => setOpt('collect_ports', v)} label="Listening ports" />
             <Toggle checked={opt('collect_docker')} onChange={(v) => setOpt('collect_docker', v)} label="Docker containers" />
             <Toggle checked={opt('collect_temperatures')} onChange={(v) => setOpt('collect_temperatures', v)} label="Temperatures" />
-            <Toggle checked={opt('bruteforce_enabled')} onChange={(v) => setOpt('bruteforce_enabled', v)} label="Brute-force detection" hint="Watch auth logs / Security log" />
             <Toggle checked={opt('fail2ban_enabled')} onChange={(v) => setOpt('fail2ban_enabled', v)} label="Read fail2ban status" />
-            <Toggle checked={opt('portscan_enabled')} onChange={(v) => setOpt('portscan_enabled', v)} label="Port-scan detection" hint="Linux with nftables; the kernel counts, the agent only polls" />
             <Toggle checked={opt('refresh_package_index')} onChange={(v) => setOpt('refresh_package_index', v)} label="Refresh package index" hint="apt-get update / dnf makecache before inventory" />
           </div>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <Field label="Top processes reported"><Input type="number" min={0} max={50} value={opts.top_processes ?? (eff.top_processes as number) ?? 10} onChange={(e) => setOpt('top_processes', Number(e.target.value))} /></Field>
             <Field label="Watched services" hint="Always reported (in addition to service checks)"><TagInput value={opts.watched_services || []} onChange={(v) => setOpt('watched_services', v)} placeholder="nginx, postgresql" /></Field>
-          </div>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <Field label="Port-scan threshold (closed-port SYNs per minute per source)" hint={`Default ${(eff.portscan_threshold_per_min as number) ?? 20}`}><Input type="number" min={1} placeholder="inherit" value={(opts.portscan_threshold_per_min ?? '') as any} onChange={(e) => setOpt('portscan_threshold_per_min', e.target.value === '' ? undefined : Number(e.target.value))} /></Field>
-            <Field label="Port-scan allowlist" hint="IPs or CIDRs never flagged on this host (added to the global list)"><TagInput value={opts.portscan_allowlist || []} onChange={(v) => setOpt('portscan_allowlist', v)} placeholder="198.51.100.0/24" /></Field>
-          </div>
-        </Card>
-      )}
-
-      {host.kind === 'agent' && (
-        <Card title="Remote actions" subtitle="Turned on per host. Every job is signed, confirmed and audited.">
-          <div className="space-y-3">
-            <Toggle checked={f.allow_upgrades} onChange={(v) => set('allow_upgrades', v)} label="Allow remote package upgrades" hint="Upgrades still need explicit confirmation or a maintenance-window schedule" />
-            <Toggle checked={f.auto_remove_old_kernels && f.allow_upgrades && host.write_policy !== 'operator' && host.write_policy !== 'none'} onChange={(v) => set('auto_remove_old_kernels', v)} disabled={!f.allow_upgrades || host.write_policy === 'operator' || host.write_policy === 'none'} label="Automatically remove old kernels" hint={host.write_policy === 'operator' || host.write_policy === 'none' ? 'Not available: this agent is read-only or needs operator-signed jobs, so a signature would be required each time' : 'Needs remote upgrades. Removes every kernel except the running and the newest during the next maintenance window that allows jobs, at most once a day'} />
-            <Toggle checked={f.allow_cleanup} onChange={(v) => set('allow_cleanup', v)} label="Allow disk cleanup" hint="Lets administrators remove caches, old logs and temporary files from the Storage breakdown on the Overview tab" />
-            <Toggle checked={f.allow_ip_block} onChange={(v) => set('allow_ip_block', v)} label="Allow firewall IP blocking" hint="nftables/iptables on Linux, Windows Firewall on Windows; blocks always expire" />
-            <Toggle checked={f.auto_block} onChange={(v) => set('auto_block', v)} disabled={!f.allow_ip_block} label="Automatically block brute-force sources" hint="Uses the threshold and duration from Settings → Agents" />
-            <Toggle checked={f.allow_scripts} onChange={(v) => set('allow_scripts', v)} disabled={!can('scripts')} label="Allow administrators to run scripts" hint="Scripts run as the unprivileged agent user on Linux (SYSTEM on Windows)" />
           </div>
         </Card>
       )}

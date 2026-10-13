@@ -448,6 +448,9 @@ func (a *App) apiGetSettings(c *Ctx) (any, error) {
 	for _, k := range editableSections {
 		v := defaultFor(k)
 		_ = a.settings.Load(0, k, v)
+		if ad, ok := v.(*AgentDefaults); ok {
+			foldLegacyNeverBlock(ad)
+		}
 		b, _ := json.Marshal(v)
 		if sec, ok := settingSecrets[k]; ok {
 			out[k] = redact(b, sec)
@@ -556,6 +559,24 @@ func (a *App) apiPutSettings(c *Ctx) (any, error) {
 			return nil, err
 		}
 		s.PortscanAllowlist = pl
+		foldLegacyNeverBlock(s)
+		if s.BruteforceThreshold < 1 {
+			s.BruteforceThreshold = 10
+		}
+		if s.BruteforceWindowMin < 1 || s.BruteforceWindowMin > 1440 {
+			return nil, badRequest("brute-force window must be 1-1440 minutes")
+		}
+		if s.AutoBlockThreshold < 1 {
+			return nil, badRequest("auto-block threshold must be at least 1")
+		}
+		if s.AutoBlockMinutes < 1 || s.AutoBlockMinutes > 60*24*90 {
+			return nil, badRequest("block duration must be 1-129600 minutes")
+		}
+		nb, err := normalizeAllowlist(s.NeverBlock)
+		if err != nil {
+			return nil, err
+		}
+		s.NeverBlock = nb
 	case *AlertingSettings:
 		if s.GroupWaitSeconds < 0 || s.GroupWaitSeconds > 3600 {
 			return nil, badRequest("group wait must be 0-3600 seconds")

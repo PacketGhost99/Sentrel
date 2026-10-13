@@ -428,7 +428,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
 // ---------- Tabs ----------
 
-export function Tabs<T extends string>({ tabs, value, onChange, className }: { tabs: { id: T; label: ReactNode; count?: number; hidden?: boolean }[]; value: T; onChange: (v: T) => void; className?: string }) {
+export function Tabs<T extends string>({ tabs, value, onChange, className }: { tabs: { id: T; label: ReactNode; count?: number; hidden?: boolean; countTitle?: string }[]; value: T; onChange: (v: T) => void; className?: string }) {
   return (
     <div className={cx('scrollbar-thin -mx-1 flex gap-1 overflow-x-auto border-b border-line px-1', className)}>
       {tabs.filter((t) => !t.hidden).map((t) => (
@@ -436,7 +436,7 @@ export function Tabs<T extends string>({ tabs, value, onChange, className }: { t
           className={cx('-mb-px flex items-center gap-1.5 whitespace-nowrap rounded-t-lg border-b-2 px-3.5 py-2.5 text-sm',
             value === t.id ? 'border-accent font-semibold text-fg' : 'border-transparent text-muted hover:bg-panel-2/70 hover:text-fg')}>
           {t.label}
-          {t.count !== undefined && t.count > 0 && <span className={cx('rounded-full px-1.5 text-[11px] font-medium', value === t.id ? 'bg-accent/12 text-accent' : 'bg-panel-2 text-muted')}>{t.count}</span>}
+          {t.count !== undefined && t.count > 0 && <span title={t.countTitle} className={cx('rounded-full px-1.5 text-[11px] font-medium', value === t.id ? 'bg-accent/12 text-accent' : 'bg-panel-2 text-muted')}>{t.count}</span>}
         </button>
       ))}
     </div>

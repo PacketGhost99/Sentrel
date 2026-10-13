@@ -141,6 +141,9 @@ func (e *AlertEngine) evaluateSamples(ctx context.Context, hostID int64, samples
 		}
 		c := condition{Key: key, TenantID: h.TenantID, HostID: &hostID, Source: "threshold", Metric: def.Key, Labels: lv, Severity: "ok"}
 		r := e.rules.resolve(h, def.Key, lv)
+		if def.Key == "bruteforce" && r != nil {
+			r = e.app.bruteforceRule(ctx, hostID, r)
+		}
 		if r != nil && r.Rule.Enabled {
 			sev, thr := severityFor(def, r.Rule, s.Value)
 			v := s.Value

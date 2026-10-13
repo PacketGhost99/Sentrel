@@ -54,7 +54,12 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           SENTREL_RELEASE_KEY: ${{ secrets.SENTREL_RELEASE_KEY }}
-        run: go run ./cmd/sentrel-sign sign -key env:SENTREL_RELEASE_KEY dist/SHA256SUMS
+        run: |
+          if [ -z "$SENTREL_RELEASE_KEY" ]; then
+            echo "SENTREL_RELEASE_KEY is not set; skipping the Ed25519 checksum signature (cosign still signs SHA256SUMS)"
+            exit 0
+          fi
+          go run ./cmd/sentrel-sign sign -key env:SENTREL_RELEASE_KEY dist/SHA256SUMS
       - name: Install cosign
         if: startsWith(github.ref, 'refs/tags/v')
         uses: sigstore/cosign-installer@v3
@@ -85,7 +90,10 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes dist/*
+        run: |
+          PRE=""
+          case "$GITHUB_REF_NAME" in v0.*|*-*) PRE="--prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" --title "Sentrel $GITHUB_REF_NAME" --generate-notes $PRE dist/*
 
   docker:
     runs-on: ubuntu-latest

@@ -19,7 +19,7 @@ It can also be run as a plain job: `{"type":"disk_usage","host_id":7,"params":{"
 
 ## Disk cleanup
 
-Cleanup is off for every host until `allow_cleanup` is enabled in the host settings. A cleanup job needs `confirm`; a dry run (`dry_run: true`) only estimates what would be freed. The task list is fixed (`GET /hosts/{id}/disk-cleanup/tasks`); anything else is rejected by both the server and the agent helper, and no task passes user input to a shell.
+Cleanup is controlled by `allow_cleanup`, which is on by default (Settings, Agents, Host defaults) and can be overridden per host. On a host it is the **Allow disk cleanup** switch in the storage breakdown on the Overview tab, next to the Clean up button; it shows whether the value is inherited from the global default or overridden. A cleanup job needs `confirm`; a dry run (`dry_run: true`) only estimates what would be freed. The task list is fixed (`GET /hosts/{id}/disk-cleanup/tasks`); anything else is rejected by both the server and the agent helper, and no task passes user input to a shell.
 
 | Linux task | What it does |
 |---|---|

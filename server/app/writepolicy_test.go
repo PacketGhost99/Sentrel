@@ -150,9 +150,9 @@ func TestReadOnlyHostRefusesWriteJobs(t *testing.T) {
 	admin := e.setupAdmin()
 	hostID, _ := e.enrol(admin)
 	e.setPolicy(t, hostID, "none")
-	for _, typ := range []string{"upgrade", "self_update", "script", "block_ip", "disk_cleanup"} {
+	for _, typ := range []string{"upgrade", "self_update", "block_ip", "disk_cleanup"} {
 		code, m, raw := admin.do("POST", "/jobs", map[string]any{"host_id": hostID, "type": typ, "dry_run": true, "confirm": true,
-			"params": map[string]string{"ip": "192.0.2.1", "script": "id", "tasks": "tmp"}})
+			"params": map[string]string{"ip": "192.0.2.1", "tasks": "tmp"}})
 		if code != 403 || !strings.Contains(m["error"].(string), "read-only") {
 			t.Errorf("%s: %d %s", typ, code, raw)
 		}

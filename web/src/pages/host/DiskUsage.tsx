@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Eraser, FlaskConical, HardDrive, ScanSearch } from 'lucide-react'
 import { errorMessage, get, post } from '@/lib/api'
@@ -7,6 +6,7 @@ import { useAuth } from '@/lib/auth'
 import { ago, bytes } from '@/lib/format'
 import type { Alert, CleanupTask, DiskUsageReport, HostDetail, Job } from '@/lib/types'
 import { OperatorSignPanel, WritePolicyNote } from '@/components/OperatorSign'
+import { InheritableField, useHostSetting } from '@/components/InheritableField'
 import { Badge, Button, Card, Checkbox, ErrorBox, Field, Input, Modal, Note, Select, Spinner, useToast } from '@/components/ui'
 
 export const DISK_ALERT_METRICS = ['disk', 'inodes', 'disk_fill_hours']
@@ -38,6 +38,8 @@ export function StorageReport({ host, mount }: { host: HostDetail; mount: string
   const toast = useToast()
   const qc = useQueryClient()
   const [cleanup, setCleanup] = useState(false)
+  const saveSetting = useHostSetting(host.id)
+  const canEdit = can('host_settings') || can('hosts')
   const key = ['disk-usage', host.id, mount]
   const report = useQuery({
     queryKey: key,
@@ -74,6 +76,11 @@ export function StorageReport({ host, mount }: { host: HostDetail; mount: string
         {can('jobs') && <Button size="sm" icon={<ScanSearch className="size-3.5" />} loading={running} onClick={analyse}>{r?.status === 'done' ? 'Analyse again' : 'Analyse'}</Button>}
         {can('jobs') && <Button size="sm" icon={<Eraser className="size-3.5" />} onClick={() => setCleanup(true)}>Clean up…</Button>}
       </div>
+      {host.settings && (
+        <div className="rounded-xl border border-line/70 px-4">
+          <InheritableField label="Allow disk cleanup" description="Lets administrators remove caches, old logs and temporary files with Clean up. Every run needs a dry run and confirmation first." kind="bool" setting={host.settings.allow_cleanup} disabled={!canEdit} onSave={saveSetting('allow_cleanup')} />
+        </div>
+      )}
       {report.error ? <ErrorBox error={report.error} /> : null}
       {r?.status === 'failed' && <ErrorBox error={r.error || 'The analysis failed.'} />}
       {r?.status === 'done' && (
@@ -208,13 +215,18 @@ export function CleanupDialog({ host, onClose }: { host: HostDetail; onClose: ()
       <div className="space-y-4">
         <WritePolicyNote host={host} />
         {!host.allow_cleanup && (
-          <Note tone="warn">
-            Disk cleanup is turned off for this host. Enable <b>Allow disk cleanup</b> in the host's{' '}
-            <Link to={`/hosts/${host.id}?tab=settings`} onClick={onClose} className="font-medium text-accent hover:underline">Settings</Link> tab, then come back here.
-          </Note>
+          <Note tone="warn">Disk cleanup is turned off for this host. Turn on <b>Allow disk cleanup</b> in the Storage breakdown on the Overview tab, then come back here.</Note>
         )}
         <div>
-          <div className="mb-2 text-xs font-medium text-muted">Choose what to clean</div>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <div className="text-xs font-medium text-muted">Choose what to clean</div>
+            {list.length > 0 && (
+              <div className="flex gap-1">
+                <Button size="sm" variant="ghost" onClick={() => { setSel(new Set(list.map((t) => t.id))); setDryDone(null) }}>Select all</Button>
+                <Button size="sm" variant="ghost" disabled={sel.size === 0} onClick={() => { setSel(new Set()); setDryDone(null) }}>Clear</Button>
+              </div>
+            )}
+          </div>
           {tasks.isLoading ? <Spinner /> : list.length === 0 ? <p className="text-sm text-muted">No cleanup tasks are available for this host.</p> : (
             <ul className="divide-y divide-line/60 rounded-xl border border-line/70">
               {list.map((t) => (

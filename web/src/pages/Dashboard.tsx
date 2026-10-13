@@ -5,6 +5,7 @@ import { get, post } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { ago, plural } from '@/lib/format'
 import type { Alert, AlertEvent, Check, Host } from '@/lib/types'
+import { FIXABLE_TITLE, nf } from '@/lib/vulns'
 import { BeatBar, checkBeatsToBeats, hostBeatsToBeats, useCheckBeats, useHostBeats } from '@/components/BeatBar'
 import { useTenantFilter } from '@/components/Layout'
 import { AllClear, Badge, Button, Card, Empty, Loading, MutedBadge, PageHeader, SeverityBadge, Stat, StatusDot, StatusPill, cx, useToast } from '@/components/ui'
@@ -19,6 +20,8 @@ interface Dash {
   reboot_required: number
   vulnerabilities: Record<string, number>
   vulnerabilities_inactive?: number
+  vulnerabilities_total?: number
+  vulnerabilities_fixable?: number
   vuln_enabled?: boolean
   recent_events: AlertEvent[]
   firing_alerts: Alert[]
@@ -98,7 +101,7 @@ export function Dashboard() {
         <Stat label="Active alerts" icon={<Bell />} value={x.alerts.critical + x.alerts.warning} tone={x.alerts.critical ? 'crit' : x.alerts.warning ? 'warn' : 'muted'}
           sub={`${x.alerts.critical} critical · ${x.alerts.warning} warning${x.alerts.acked ? ` · ${x.alerts.acked} acknowledged` : ''}`} onClick={() => nav('/alerts')} />
         <Stat label="Updates pending" icon={<Wrench />} value={x.upgrades_pending} tone={x.security_updates ? 'warn' : 'muted'} sub={`${x.security_updates} security${x.reboot_required ? ` · ${x.reboot_required} need a reboot` : ''}`} onClick={() => nav('/hosts')} />
-        {x.vuln_enabled && <Stat label="Critical CVEs" icon={<ShieldAlert />} value={v.critical ?? 0} tone={v.critical ? 'crit' : v.high ? 'warn' : 'muted'} sub={`${v.high ?? 0} high${x.vulnerabilities_inactive ? ` · ${x.vulnerabilities_inactive} in inactive kernels` : ''}`} onClick={() => nav('/vulnerabilities')} />}
+        {x.vuln_enabled && <Stat label="Critical CVEs" icon={<ShieldAlert />} value={nf(v.critical ?? 0)} tone={v.critical ? 'crit' : v.high ? 'warn' : 'muted'} sub={<span title={FIXABLE_TITLE}>{nf(v.high ?? 0)} high · {nf(x.vulnerabilities_fixable ?? 0)} of {nf(x.vulnerabilities_total ?? 0)} total fixable{x.vulnerabilities_inactive ? ` · ${nf(x.vulnerabilities_inactive)} in inactive kernels` : ''}</span>} onClick={() => nav('/vulnerabilities')} />}
         <Stat label="Monitored" icon={<Server />} value={x.hosts.total} tone="muted" sub={`${plural(x.checks.total, 'check')}${x.hosts.pending ? ` · ${x.hosts.pending} pending` : ''}`} onClick={() => nav('/hosts')} />
       </div>
 

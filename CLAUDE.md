@@ -49,8 +49,8 @@ Use the VPS (`HeartbeatSandbox`) only for Linux-only tests (e.g. priv/symlink te
 ## Conventions
 - Every table has `tenant_id`; tenant 0 is the provider.
   - Check `p.CanTenant(...)` in handlers.
-  - Permissions: read, write, jobs, host_settings, scripts, admin.
-- Destructive jobs need a host opt-in flag (`allow_upgrades`, `allow_cleanup`, `allow_scripts`, `allow_ip_block`) plus `confirm`.
+  - Permissions: read, write, jobs, host_settings, admin.
+- Destructive jobs need a permission setting (`allow_upgrades`, `allow_cleanup`, `allow_ip_block`) plus `confirm`. These settings inherit: global defaults live in `AgentDefaults`, a host stores a nullable override (NULL = inherit), and enforcement must use the effective value (`a.hostSecurity(h)` / the resolved `h.AllowX` from `getHost`), never the raw `Ov*` columns. The same applies to the brute-force, auto-block, port-scan and `never_block` settings. In the UI use `<InheritableField>` so each shows "Inherited from global" or "Overridden".
 - JSON is snake_case; times are unix seconds.
 - User-facing text is neutral product copy: no notes to self, no personal deployment details.
-- Commit only when asked. The repo is github.com/notspark1999/Sentrel, branch main.
+- Commit only when asked. The repo is github.com/PacketGhost99/Sentrel, branch main.

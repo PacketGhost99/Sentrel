@@ -177,7 +177,7 @@ say "installing systemd unit"
 cat > "$UNIT" <<EOF
 [Unit]
 Description=Sentrel monitoring agent
-Documentation=https://github.com/notspark1999/Sentrel
+Documentation=https://github.com/PacketGhost99/Sentrel
 After=network-online.target
 Wants=network-online.target
 

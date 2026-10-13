@@ -53,7 +53,10 @@ func TestDiskCleanupGatingAndUsageReport(t *testing.T) {
 	ctx := context.Background()
 	hp := "/hosts/" + itoa(hostID)
 
-	// Cleanup is opt-in per host, even for a dry run.
+	// Cleanup is allowed by the global default; a host can switch it off, even for a dry run.
+	if code, m, _ := admin.do("PUT", hp, map[string]any{"allow_cleanup": false}); code != 200 {
+		t.Fatalf("disable: %d %v", code, m)
+	}
 	cleanup := map[string]any{"host_id": hostID, "type": "disk_cleanup", "confirm": true, "params": map[string]string{"tasks": "journal"}}
 	if code, _, _ := admin.do("POST", "/jobs", cleanup); code != 403 {
 		t.Fatalf("cleanup without allow_cleanup: %d", code)

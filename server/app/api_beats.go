@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -195,7 +196,9 @@ func (a *App) hostNotifies(h *Host, metric string) bool {
 // decorateFindings fills available_version, upgradable and os on findings.
 // A finding is upgradable when an agent host running Linux has a pending
 // package update at or beyond the version that fixes the vulnerability.
-func (a *App) decorateFindings(c *Ctx, list []VulnFinding) {
+func (a *App) decorateFindings(c *Ctx, list []VulnFinding) { a.decorateFindingsCtx(c.ctx(), list) }
+
+func (a *App) decorateFindingsCtx(ctx context.Context, list []VulnFinding) {
 	type pkgUpdate struct{ newVer, typ string }
 	type hostData struct {
 		os      string
@@ -212,7 +215,7 @@ func (a *App) decorateFindings(c *Ctx, list []VulnFinding) {
 		}
 		d := &hostData{os: "linux", updates: map[string]pkgUpdate{}, fixed: map[string]string{}}
 		hosts[id] = d
-		h, err := a.getHost(c.ctx(), id)
+		h, err := a.getHost(ctx, id)
 		if err != nil {
 			return d
 		}
@@ -223,10 +226,10 @@ func (a *App) decorateFindings(c *Ctx, list []VulnFinding) {
 		if !d.linux {
 			return d
 		}
-		d.ks = a.loadKernels(c.ctx(), h)
+		d.ks = a.loadKernels(ctx, h)
 		if len(d.ks.Groups) > 0 {
 			d.cves = map[string]*cveSummary{}
-			for _, s := range a.hostCVEs(c.ctx(), h, d.ks) {
+			for _, s := range a.hostCVEs(ctx, h, d.ks) {
 				d.cves[s.VulnID] = s
 			}
 		}
@@ -235,7 +238,7 @@ func (a *App) decorateFindings(c *Ctx, list []VulnFinding) {
 			Type       string `db:"type"`
 			NewVersion string `db:"new_version"`
 		}
-		_ = a.db.SelectContext(c.ctx(), &pk, `SELECT name, type, new_version FROM packages WHERE host_id=? AND new_version<>''`, id)
+		_ = a.db.SelectContext(ctx, &pk, `SELECT name, type, new_version FROM packages WHERE host_id=? AND new_version<>''`, id)
 		for _, p := range pk {
 			if _, dup := d.updates[p.Name]; !dup {
 				d.updates[p.Name] = pkgUpdate{p.NewVersion, p.Type}
@@ -246,7 +249,7 @@ func (a *App) decorateFindings(c *Ctx, list []VulnFinding) {
 			Package string `db:"package"`
 			Fixed   string `db:"fixed_version"`
 		}
-		_ = a.db.SelectContext(c.ctx(), &fx, `SELECT vuln_id, package, fixed_version FROM vuln_findings WHERE host_id=? AND fixed_version<>'' AND status<>'fixed'`, id)
+		_ = a.db.SelectContext(ctx, &fx, `SELECT vuln_id, package, fixed_version FROM vuln_findings WHERE host_id=? AND fixed_version<>'' AND status<>'fixed'`, id)
 		for _, f := range fx {
 			d.fixed[f.VulnID+"|"+f.Package] = f.Fixed
 		}
@@ -257,6 +260,10 @@ func (a *App) decorateFindings(c *Ctx, list []VulnFinding) {
 		d := load(f.HostID)
 		f.OS = d.os
 		if !d.linux {
+			if d.os == "windows" && f.Namespace == nsWindowsUpdate {
+				// The pending update is the fix; it installs through the upgrade job.
+				f.Upgradable, f.AvailableVersion, f.Remediation = true, f.FixedVersion, remUpgrade
+			}
 			continue
 		}
 		for _, name := range strings.Split(f.Package, ", ") {

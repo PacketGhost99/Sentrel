@@ -1,5 +1,7 @@
 // Types mirroring the server's JSON (snake_case as served).
 
+import type { HostSettingsMap } from './inherit'
+
 export type Severity = 'warning' | 'critical'
 
 export interface Branding {
@@ -105,7 +107,6 @@ export interface Host {
   allow_cleanup?: boolean
   auto_remove_old_kernels?: boolean
   allow_ip_block: boolean
-  allow_scripts: boolean
   auto_block: boolean
   /** How the agent treats jobs that change the host (set locally on the agent). */
   write_policy?: 'server' | 'operator' | 'none'
@@ -148,8 +149,14 @@ export interface HostDetail extends Host {
   latest_agent_version: string
   check_count: number
   open_findings: Record<string, number>
+  /** Distinct open CVEs of this host: per severity, total and fixable-now. */
+  vuln_counts?: import('./vulns').VulnCounts
   vuln_enabled?: boolean
   inactive_findings?: number
+  /** Inheritable security and permission settings with their global defaults. */
+  settings?: HostSettingsMap
+  /** Addresses that are never blocked (the server itself). */
+  never_block_system?: string[]
 }
 
 export interface InventoryStatus {

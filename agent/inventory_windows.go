@@ -185,44 +185,49 @@ func search(session *ole.IDispatch, criteria string) ([]wuUpdate, error) {
 		if err != nil {
 			continue
 		}
-		p := &pb.Package{Type: "windows-update", Version: "-"}
+		info := wuInfo{}
 		if v, err := prop(item, "Title"); err == nil {
-			p.Name = v.ToString()
+			info.Title = v.ToString()
 		}
-		if kbs, err := dispatch(prop(item, "KBArticleIDs")); err == nil {
-			if c, err := prop(kbs, "Count"); err == nil && c.Val > 0 {
-				if k, err := prop(kbs, "Item", 0); err == nil {
-					p.Kb = "KB" + k.ToString()
-				}
-			}
-		}
+		info.KBs = strCollection(item, "KBArticleIDs")
+		info.CVEs = strCollection(item, "CveIDs")
 		if v, err := prop(item, "MsrcSeverity"); err == nil && v.Value() != nil {
-			p.Source = v.ToString()
+			info.MsrcSev = v.ToString()
 		}
 		if cats, err := dispatch(prop(item, "Categories")); err == nil {
 			if c, err := prop(cats, "Count"); err == nil {
 				for j := 0; j < int(c.Val); j++ {
 					if cat, err := dispatch(prop(cats, "Item", j)); err == nil {
 						if nm, err := prop(cat, "Name"); err == nil {
-							n := nm.ToString()
-							if n == "Security Updates" || n == "Critical Updates" {
-								p.Security = true
-							}
-							if p.Publisher == "" {
-								p.Publisher = n
-							}
+							info.Categories = append(info.Categories, nm.ToString())
 						}
 					}
 				}
 			}
 		}
-		p.NewVersion = p.Kb
-		if p.NewVersion == "" {
-			p.NewVersion = "available"
-		}
+		p := packageFromUpdate(info)
 		out = append(out, wuUpdate{pkg: p, d: item})
 	}
 	return out, nil
+}
+
+// strCollection reads an IStringCollection property (KBArticleIDs, CveIDs).
+func strCollection(d *ole.IDispatch, name string) []string {
+	coll, err := dispatch(prop(d, name))
+	if err != nil {
+		return nil
+	}
+	c, err := prop(coll, "Count")
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for i := 0; i < int(c.Val); i++ {
+		if v, err := prop(coll, "Item", i); err == nil {
+			out = append(out, v.ToString())
+		}
+	}
+	return out
 }
 
 func searchUpdates(ctx context.Context, timeout time.Duration) ([]*pb.Package, error) {

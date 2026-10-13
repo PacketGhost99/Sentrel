@@ -75,7 +75,7 @@ Run `sentrel-agent register SERVER_URL TOKEN [--ca-fingerprint FP] [--name NAME]
 
 ## Collected data
 
-Intervals and switches come from **Settings, Agents**, overridable per host (host settings). Defaults: collect every 30 s; inventory hourly; top 10 processes; services, listening ports, Docker and temperatures on; security scan every 60 s.
+Intervals and switches come from **Settings, Agents**, overridable per host (Settings tab for collection, Security and Packages tabs for the rest). Defaults: collect every 30 s; inventory hourly; top 10 processes; services, listening ports, Docker and temperatures on; security scan every 60 s.
 
 | Data | Details |
 |---|---|
@@ -106,14 +106,14 @@ The same `inet sentrel` table also holds the port-scan detector. The kernel does
 - `priv scan-sync PORTS [--threshold N] [--allow IP,CIDR,...]` creates (idempotently, in one atomic nft transaction) the sets `open_tcp`, `scanners4`/`scanners6` (timeout 10 minutes), `probe4`/`probe6` (per-source meters, 1 minute), `allow4`/`allow6` and the chain `scan`, and replaces `open_tcp` and the allowlist. `PORTS` is `-` or a comma-separated list of ports 1-65535; every argument is validated strictly and nothing goes through a shell. `priv scan-list` prints the flagged sources and their remaining timeout as JSON. `priv scan-off` removes the chain and sets (the block lists are never touched).
 - The chain hooks `input` at priority -5 (after the block list at -10, so blocked sources are not counted, and before the usual firewall priority 0) with policy `accept`. It only counts: it contains no `drop`, `reject`, NAT or mangle statement, so it can never change traffic. For TCP SYNs that are not from loopback, not to a port in `open_tcp` and not from an allowlisted address, a per-source meter (`limit rate over N/minute`, burst N) adds the source to `scanners4`/`scanners6`; every further probe refreshes its 10-minute timeout. It does not use conntrack. UDP is not tracked.
 - The agent reads `/proc/net/tcp` and `/proc/net/tcp6` every 30 seconds and calls `scan-sync` when the set of listening ports (or the threshold or allowlist) changed, at most once a minute (a service started in the last minute can be counted as closed until then). It calls `scan-list` every 30 seconds and reports a source when first seen and again every 5 minutes while it keeps scanning. The Sentrel server's address, loopback and the allowlist are excluded.
-- Settings: `portscan_enabled` (default on), `portscan_threshold_per_min` (default 20) and `portscan_allowlist` (CIDRs) in agent defaults, overridable per host under Settings, Collection. Disabling removes the rules.
+- Settings: `portscan_enabled` (default on), `portscan_threshold_per_min` (default 20) and `portscan_allowlist` (CIDRs) in agent defaults. A host inherits them and can override the first two on its Security tab, Port-scan detection. Addresses on the never-block list are also passed to the agent and never flagged. Disabling removes the rules.
 - Requirements: `nft` installed and a kernel with nftables dynamic sets and meters (Linux 4.x or newer with nf_tables). Otherwise the host reports `portscan_supported=false` with the reason and the UI shows "not available on this host". There is no iptables fallback. Windows hosts report "not yet supported on Windows".
 
-Script jobs run as the unprivileged agent user. Note that membership of the `docker` group is equivalent to root on the host; for that reason the installer does not add the agent to it unless you pass `--docker`. Without it container monitoring is unavailable; to enable it later run `sudo usermod -aG docker sentrel-agent && sudo systemctl restart sentrel-agent`.
+Note that membership of the `docker` group is equivalent to root on the host; for that reason the installer does not add the agent to it unless you pass `--docker`. Without it container monitoring is unavailable; to enable it later run `sudo usermod -aG docker sentrel-agent && sudo systemctl restart sentrel-agent`.
 
-**Windows.** The service runs as LocalSystem (the default for a service without an account), so there is no privilege boundary: upgrades install Windows Updates through the Windows Update API, blocks are Windows Firewall rules named `Sentrel block <ip>`, and scripts run as SYSTEM in PowerShell (or cmd).
+**Windows.** The service runs as LocalSystem (the default for a service without an account), so there is no privilege boundary: upgrades install Windows Updates through the Windows Update API, blocks are Windows Firewall rules named `Sentrel block <ip>`.
 
-Remote actions (upgrade, IP block, scripts, disk cleanup) are disabled for every host until an operator enables them in the host settings; see [security.md](security.md).
+Remote actions (upgrade, IP block, disk cleanup) are governed by permission settings with global defaults (upgrades off, cleanup and IP blocking on) that each host inherits or overrides on its Packages, Storage and Security views; see [security.md](security.md#privilege-boundary-and-opt-in-remote-actions).
 
 ## Write policy: read-only and operator-signed agents
 
@@ -128,7 +128,7 @@ Linux: `curl -fsSL https://SERVER/install/agent.sh | sudo sh -s -- --server http
 
 1. On a trusted machine (not the server): `sentrel-sign keygen-operator -out operator.key`. This writes the private key (PKCS#8 PEM, mode 0600) and `operator.key.pub`, and prints the public key and its 16-character key id. Keep the private key safe and offline.
 2. Install agents with `--write-jobs operator --operator-key <public key>`. The host page shows an "Operator-signed jobs" badge and lists the key ids the agent reported.
-3. Start any WRITE action (upgrade, script, disk cleanup, IP block, agent update) as usual. The job is created with status `awaiting_signature` and is not sent. On a read-only host the server answers `403`.
+3. Start any WRITE action (upgrade, disk cleanup, IP block, agent update) as usual. The job is created with status `awaiting_signature` and is not sent. On a read-only host the server answers `403`.
 4. Sign it, either:
    - on the command line: `sentrel-sign sign-job --key operator.key --spec <base64 spec>` (the spec is shown on the job page and returned by `GET /api/v1/jobs/{id}/spec`; `--spec` also accepts a file containing it), then paste the printed signature on the job page or `POST /api/v1/jobs/{id}/operator-signature` with `{"signature": "...", "key_id": ""}`; or
    - in the browser: on the job page choose "Sign in browser" and pick `operator.key`. The file is read locally and the job bytes are signed with WebCrypto (Ed25519, needs a current browser); only the signature is sent.

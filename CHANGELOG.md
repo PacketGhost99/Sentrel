@@ -13,7 +13,7 @@ First public release (0.9.x). Nothing has been tagged yet; the entries below sum
 - Alerting: inherited thresholds, flap detection, grouping, acknowledgements, maintenance windows, and notification channels (webhook, Discord, Slack, Teams, Telegram, ntfy, Gotify, Pushover, email).
 - Public and token-protected status pages, Prometheus `/metrics`, tenant-scoped PromQL API, REST API with API keys and OpenAPI document.
 - Multi-tenancy with roles, per-tenant branding, LDAP and RADIUS sign-in, TOTP and passkeys, audit log.
-- Signed remote jobs (package upgrades, IP blocks, scripts, agent self-update with rollback), each off by default per host.
+- Signed remote jobs (package upgrades, IP blocks, agent self-update with rollback), each off by default per host.
 - Backup and restore CLI and UI.
 - Documentation, CONTRIBUTING with DCO, GitHub Actions CI and signed releases.
 - Windows agent fixes (read-only service enumeration, per-user installed applications, clearer message when the Security log is unreadable) and an MSI installer built from `deploy/windows/agent.wxs` when `wixl` is available.
@@ -39,6 +39,7 @@ First public release (0.9.x). Nothing has been tagged yet; the entries below sum
 
 ### Removed
 
+- Remote script execution: the `script` job type, the `scripts` permission, the per-host `allow_scripts` option (column dropped by migration 00009) and the Run script UI. Agents now reject `script` jobs as an unknown job type. Package upgrades, IP blocking, disk cleanup, kernel removal and agent updates are unchanged.
 - Push install over SSH and WinRM, including the `/push/*` API routes, the `push_installs` table (dropped by migration 00006) and the SSH and WinRM libraries. Install agents with the one-liner or a package from the Agents page instead. `--insecure-download` / `-InsecureDownload` still work for old scripts but are no longer generated.
 
 ### Security
@@ -54,4 +55,4 @@ Fixes from an internal security review:
 - Disk usage analysis is limited to mount points; logout cookie flags corrected; job-cancel events carry tenant tags; hardened systemd unit for the server.
 - Added a test that calls every `{id}` route as a user from another tenant, and a live-event tenancy test.
 
-[Unreleased]: https://github.com/notspark1999/Sentrel/commits/main
+[Unreleased]: https://github.com/PacketGhost99/Sentrel/commits/main

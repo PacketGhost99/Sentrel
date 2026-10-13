@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowUpCircle, FlaskConical } from 'lucide-react'
-import { errorMessage, get, post } from '@/lib/api'
+import { errorMessage, get, post, put } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { ago } from '@/lib/format'
 import type { HostDetail, Job, Package } from '@/lib/types'
 import { WritePolicyNote } from '@/components/OperatorSign'
-import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, Input, Loading, Modal, Note, Segmented, Select, Table, Td, Th, useToast } from '@/components/ui'
+import { InheritableField, useHostSetting } from '@/components/InheritableField'
+import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, Input, Loading, Modal, Note, Segmented, Select, Table, Td, Th, Toggle, useToast } from '@/components/ui'
 
 export function HostPackages({ host }: { host: HostDetail }) {
   const [view, setView] = useState<'upgradable' | 'installed'>('upgradable')
@@ -15,6 +16,11 @@ export function HostPackages({ host }: { host: HostDetail }) {
   const [sel, setSel] = useState<Set<string>>(new Set())
   const [dialog, setDialog] = useState(false)
   const { can } = useAuth()
+  const qc = useQueryClient()
+  const toast = useToast()
+  const saveSetting = useHostSetting(host.id)
+  const canEdit = can('host_settings') || can('hosts')
+  const kernelAuto = host.write_policy !== 'operator' && host.write_policy !== 'none'
   const pk = useQuery({ queryKey: ['packages', String(host.id), view, q], queryFn: () => get<Package[]>(`/hosts/${host.id}/packages`, { upgradable: view === 'upgradable' ? 1 : '', q }) })
   const inv = host.inventory
   const win = inv?.package_manager === 'windows'
@@ -22,7 +28,19 @@ export function HostPackages({ host }: { host: HostDetail }) {
   return (
     <div className="space-y-4">
       {inv?.error && <Note tone="warn">Inventory warning: {inv.error}</Note>}
-      {!host.allow_upgrades && can('jobs') && <Note>Remote upgrades are off for this host. Dry runs still work; enable “Allow remote upgrades” in Settings to install updates from here.</Note>}
+      {host.settings && host.kind === 'agent' && (
+        <Card title="Remote upgrades" subtitle="Upgrades are always confirmed, signed and audited.">
+          <InheritableField label="Allow remote upgrades" description="Lets administrators install updates and remove old kernels from Sentrel. Dry runs work either way." kind="bool" setting={host.settings.allow_upgrades} disabled={!canEdit} onSave={saveSetting('allow_upgrades')} />
+          {!win && (
+            <div className="py-3">
+              <Toggle checked={!!host.auto_remove_old_kernels && host.allow_upgrades && kernelAuto} disabled={!canEdit || !host.allow_upgrades || !kernelAuto}
+                onChange={async (v) => { try { await put(`/hosts/${host.id}`, { auto_remove_old_kernels: v }); qc.invalidateQueries({ queryKey: ['host', String(host.id)] }) } catch (e) { toast(errorMessage(e), 'crit') } }}
+                label="Automatically remove old kernels"
+                hint={kernelAuto ? 'Needs remote upgrades. Removes every kernel except the running and the newest during the next maintenance window that allows jobs, at most once a day.' : 'Not available: this agent is read-only or needs operator-signed jobs.'} />
+            </div>
+          )}
+        </Card>
+      )}
       <Card bodyClass="p-0"
         title={<span>{inv ? `${inv.upgradable_count} upgradable · ${inv.installed_count} installed` : 'Packages'}</span>}
         subtitle={inv ? `${inv.package_manager} · checked ${ago(inv.updated_at)}` : 'No inventory received yet'}

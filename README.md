@@ -8,10 +8,10 @@
 **Self-hosted monitoring for your servers, sites and network.**<br>
 Agents, uptime checks, security, patching and CVEs in one place.
 
-[![CI](https://github.com/notspark1999/Sentrel/actions/workflows/ci.yml/badge.svg)](https://github.com/notspark1999/Sentrel/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/notspark1999/Sentrel)](https://github.com/notspark1999/Sentrel/releases/latest)
-[![Licence](https://img.shields.io/github/license/notspark1999/Sentrel)](LICENSE)
-[![Container image](https://img.shields.io/badge/ghcr.io-notspark1999%2Fsentrel-blue?logo=docker&logoColor=white)](https://github.com/notspark1999/Sentrel/pkgs/container/sentrel)
+[![CI](https://github.com/PacketGhost99/Sentrel/actions/workflows/ci.yml/badge.svg)](https://github.com/PacketGhost99/Sentrel/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/PacketGhost99/Sentrel)](https://github.com/PacketGhost99/Sentrel/releases/latest)
+[![Licence](https://img.shields.io/github/license/PacketGhost99/Sentrel)](LICENSE)
+[![Container image](https://img.shields.io/badge/ghcr.io-packetghost99%2Fsentrel-blue?logo=docker&logoColor=white)](https://github.com/PacketGhost99/Sentrel/pkgs/container/sentrel)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dashboard-dark.png">
@@ -39,14 +39,14 @@ Agents, uptime checks, security, patching and CVEs in one place.
 
 ```sh
 docker run -d --name sentrel --cap-add NET_RAW -p 8080:8080 -v sentrel-data:/data \
-  ghcr.io/notspark1999/sentrel:latest
+  ghcr.io/packetghost99/sentrel:latest
 ```
 
 **Or on Linux** (systemd)
 
 ```sh
-curl -fsSLO https://github.com/notspark1999/Sentrel/releases/latest/download/install-server.sh
-sudo sh install-server.sh --url https://github.com/notspark1999/Sentrel/releases/latest/download/sentrel-server-linux-amd64
+curl -fsSLO https://github.com/PacketGhost99/Sentrel/releases/latest/download/install-server.sh
+sudo sh install-server.sh --url https://github.com/PacketGhost99/Sentrel/releases/latest/download/sentrel-server-linux-amd64
 ```
 
 Open `http://your-server:8080`, follow the setup wizard, then go to **Agents** to add your first host.
@@ -76,8 +76,8 @@ Packages (`.deb`, `.rpm`), Compose, TLS and upgrades are covered in [Installing]
 
 ## Community & support
 
-- Questions and ideas: [GitHub Discussions](https://github.com/notspark1999/Sentrel/discussions)
-- Bugs and feature requests: [Issues](https://github.com/notspark1999/Sentrel/issues)
+- Questions and ideas: [GitHub Discussions](https://github.com/PacketGhost99/Sentrel/discussions)
+- Bugs and feature requests: [Issues](https://github.com/PacketGhost99/Sentrel/issues)
 - Security reports: please follow [SECURITY.md](SECURITY.md) and do not open a public issue
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
 

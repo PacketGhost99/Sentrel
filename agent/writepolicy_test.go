@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/base64"
@@ -56,7 +57,7 @@ func (e *policyEnv) job(typ string, opSig func([]byte) ([]byte, string)) *pb.Sig
 	return sj
 }
 
-var writeTypes = []string{"upgrade", "script", "block_ip", "disk_cleanup", "self_update", "something_new"}
+var writeTypes = []string{"upgrade", "remove_kernel", "block_ip", "disk_cleanup", "self_update", "something_new"}
 var safeTypes = []string{"refresh_inventory", "collect_now", "disk_usage", "unblock_ip"}
 
 func TestReadOnlyAgent(t *testing.T) {
@@ -98,7 +99,7 @@ func TestOperatorAgent(t *testing.T) {
 		}
 	}
 	// A valid operator signature does not replace the server signature.
-	sj := e.job("script", good)
+	sj := e.job("remove_kernel", good)
 	sj.Signature = ed25519.Sign(stranger, sj.Spec)
 	if _, err := a.verifyJob(sj); err == nil {
 		t.Error("operator signature accepted without the server signature")
@@ -110,8 +111,35 @@ func TestOperatorAgent(t *testing.T) {
 	}
 	// No keys configured: every write job is refused.
 	b := e.agent(t, jobpolicy.PolicyOperator, false)
-	if _, err := b.verifyJob(e.job("script", good)); err == nil {
+	if _, err := b.verifyJob(e.job("remove_kernel", good)); err == nil {
 		t.Error("operator agent without keys accepted a write job")
+	}
+}
+
+// The removed "script" job type is an unknown type: a signed script job from
+// an old or compromised server is executed as nothing and fails.
+func TestScriptJobRejectedAsUnknown(t *testing.T) {
+	e := newPolicyEnv()
+	a := e.agent(t, jobpolicy.PolicyServer, false)
+	a.out = make(chan *pb.AgentMessage, 16)
+	a.jobSem = make(chan struct{}, 1)
+	marker := filepath.Join(t.TempDir(), "ran")
+	jobSeq++
+	now := time.Now().Unix()
+	b, _ := proto.Marshal(&pb.JobSpec{Id: fmt.Sprintf("j%d", jobSeq), AgentId: "agent-1", Type: "script", IssuedUnix: now, ExpiresUnix: now + 60,
+		Params: map[string]string{"interpreter": "sh", "script": "touch " + marker}})
+	a.runJob(context.Background(), &pb.SignedJob{Spec: b, Signature: ed25519.Sign(e.jobPriv, b)})
+	var res *pb.JobResult
+	for len(a.out) > 0 {
+		if m := <-a.out; m.GetJobResult() != nil {
+			res = m.GetJobResult()
+		}
+	}
+	if res == nil || res.Status != "failed" || !strings.Contains(res.Error, "unsupported job type") {
+		t.Fatalf("script job result: %+v", res)
+	}
+	if _, err := os.Stat(marker); err == nil {
+		t.Fatal("script was executed")
 	}
 }
 
@@ -135,7 +163,7 @@ func TestPushedConfigCannotChangePolicy(t *testing.T) {
 	if a.writePolicy != jobpolicy.PolicyNone || len(a.opKeys) != 1 || a.cfg.WriteJobs != jobpolicy.PolicyNone || len(a.cfg.OperatorKeys) != 1 {
 		t.Fatal("pushed config changed the write policy")
 	}
-	if _, err := a.verifyJob(e.job("script", nil)); err == nil {
+	if _, err := a.verifyJob(e.job("remove_kernel", nil)); err == nil {
 		t.Fatal("write job accepted after config push")
 	}
 	// Structural guard: the pushed config message has no policy-related field.

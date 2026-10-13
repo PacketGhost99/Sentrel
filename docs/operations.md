@@ -108,6 +108,16 @@ Vulnerability scanning is off by default. While it is off, the server never down
 - The audit log records who did what; application logs record agent connects and disconnects, rejected jobs, notification failures and listener changes.
 - To monitor Sentrel itself, scrape `/metrics` (`sentrel_server_agents_connected`, `sentrel_alerts_firing`) and add an external HTTP check on `/healthz`.
 
+## Exporting metrics
+
+On a host's Metrics tab:
+
+- **Export data** downloads every graph series for the chosen range (1h, 6h, 24h, 7d, 30d or a custom range) as CSV (one row per timestamp, one column per series) or JSON.
+- **Export all charts (PNG)** saves every panel as one tall image.
+- The menu in a chart's top-right corner has **Download PNG** and **Copy image**. Images include the title, host, time range and legend, use the current light or dark theme, and are named `<host>-<metric>-<YYYYMMDD-HHMM>.png`.
+
+Scripts can fetch the same data from `GET /api/v1/hosts/{id}/metrics/export` (see the API reference). Exports are limited to 50,000 rows; for long ranges pick a coarser step.
+
 ## Upgrading
 
 See [install.md](install.md#upgrading). In short: back up, replace the binary (or rebuild the image), let the server migrate the database at start, then upgrade agents from the UI. Check **Settings** and the host list afterwards; agents show their version.

@@ -26,7 +26,7 @@ const (
 // ReadOnlyMessage is the result error for a WRITE job sent to a read-only agent.
 const ReadOnlyMessage = "rejected: agent is read-only"
 
-// WRITE jobs (anything not listed below) include upgrade, script, block_ip,
+// WRITE jobs (anything not listed below) include upgrade, block_ip,
 // disk_cleanup, self_update and remove_kernel.
 var safe = map[string]bool{
 	"refresh_inventory": true,

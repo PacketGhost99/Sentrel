@@ -11,6 +11,11 @@
 #   --listen ADDR     listen address (default 0.0.0.0:8080)
 #   --data-dir DIR    data directory (default /var/lib/sentrel)
 #   --uninstall       stop and remove (keeps the data directory)
+#   --updater-units-only  (re)install only the one-click updater units
+#
+# Re-running the script on an existing install updates the server unit and
+# installs the updater units (sentrel-updater.path/.service) that let the
+# server apply a signed update from Settings -> Updates.
 set -eu
 
 BINARY=""
@@ -19,6 +24,7 @@ SHA=""
 LISTEN="0.0.0.0:8080"
 DATA=/var/lib/sentrel
 UNINSTALL=0
+UNITS_ONLY=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -28,21 +34,71 @@ while [ $# -gt 0 ]; do
     --listen) LISTEN="$2"; shift 2 ;;
     --data-dir) DATA="$2"; shift 2 ;;
     --uninstall) UNINSTALL=1; shift ;;
+    --updater-units-only) UNITS_ONLY=1; shift ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
 done
 
 BIN=/usr/local/bin/sentrel-server
 UNIT=/etc/systemd/system/sentrel.service
+UPD_PATH=/etc/systemd/system/sentrel-updater.path
+UPD_SVC=/etc/systemd/system/sentrel-updater.service
 say() { printf '==> %s\n' "$*"; }
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 
 [ "$(id -u)" = 0 ] || die "run as root (sudo)"
 command -v systemctl >/dev/null 2>&1 || die "systemd is required (or use the Docker image)"
 
+# The root updater: sentrel-updater.path watches <data>/update/request.json,
+# which the (unprivileged) server writes after it has downloaded and verified a
+# release. sentrel-updater.service then runs the installed binary, which
+# re-verifies the Ed25519 signature with its own embedded key before swapping
+# itself, and rolls back if the new version does not become healthy.
+install_updater_units() {
+  install -d -o sentrel -g sentrel -m 0750 "$DATA/update"
+  cat > "$UPD_SVC" <<EOF
+[Unit]
+Description=Sentrel server updater (applies a staged, signed update)
+ConditionPathExists=$DATA/update/request.json
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=$BIN self-update apply --data-dir $DATA
+TimeoutStartSec=420
+ProtectSystem=strict
+ReadWritePaths=/usr/local/bin $DATA
+ProtectHome=yes
+PrivateTmp=yes
+EOF
+  cat > "$UPD_PATH" <<EOF
+[Unit]
+Description=Watch for a staged Sentrel server update
+
+[Path]
+PathExists=$DATA/update/request.json
+PathChanged=$DATA/update/request.json
+Unit=sentrel-updater.service
+
+[Install]
+WantedBy=multi-user.target
+EOF
+  systemctl daemon-reload
+  systemctl enable --now sentrel-updater.path >/dev/null 2>&1
+}
+
+if [ "$UNITS_ONLY" = 1 ]; then
+  [ -x "$BIN" ] || die "$BIN is not installed"
+  id sentrel >/dev/null 2>&1 || die "user sentrel does not exist; run the full installer"
+  install_updater_units
+  say "updater units installed"
+  exit 0
+fi
+
 if [ "$UNINSTALL" = 1 ]; then
+  systemctl disable --now sentrel-updater.path 2>/dev/null || true
   systemctl disable --now sentrel 2>/dev/null || true
-  rm -f "$UNIT" "$BIN"
+  rm -f "$UNIT" "$UPD_PATH" "$UPD_SVC" "$BIN" "$BIN.old"
   systemctl daemon-reload
   say "removed; data kept in $DATA"
   exit 0
@@ -109,6 +165,7 @@ WantedBy=multi-user.target
 EOF
 systemctl daemon-reload
 systemctl enable --now sentrel >/dev/null 2>&1
+install_updater_units
 
 say "waiting for the server to start"
 PORT=${LISTEN##*:}

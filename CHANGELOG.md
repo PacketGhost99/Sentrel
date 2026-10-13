@@ -4,6 +4,20 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-10-13
+
+### Added
+
+- Update notifications: the server checks the latest GitHub release every 6 hours (and on demand) and shows a green "Update vX.Y.Z" pill next to the version in the sidebar and a one-time dismissible banner, both for administrators only. Settings, Updates shows the release notes, the install method and a "Check now" button. The check sends only a `User-Agent` and an ETag; turn it off in Settings, Updates or with `SENTREL_DISABLE_UPDATE_CHECK=1`.
+- One-click, signed server updates for systemd installs. The server downloads and verifies the release, then a root-owned updater (`sentrel-updater.path` and `.service`, installed by `install-server.sh`) re-verifies the Ed25519 signature with the key compiled into the installed binary, refuses downgrades, swaps the binary, restarts, checks health for up to 90 seconds and rolls back on failure. Disable with `SENTREL_DISABLE_SELF_UPDATE=1`. Docker and package installs show the exact `docker pull` or `apt`/`dnf` commands instead.
+- Release `SHA256SUMS.sig` verification shared with `sentrel-sign` in `internal/release`; the public key is the trust root and cannot be overridden at run time.
+- API: `GET /server/updates`, `POST /server/updates/check`, `POST /server/updates/install`, `GET /server/updates/status`; audit entries `server.update_requested`, `server.update_applied`, `server.update_rolled_back`.
+- `scripts/dev-deploy.sh` defaults to the next patch version after the latest tag with `-dev` and installs the updater units.
+
+### Changed
+
+- Documentation no longer says Sentrel never calls out: the version check is the one automatic outbound request, and it can be disabled.
+
 ## [0.9.0] - 2026-10-13
 
 First public release.

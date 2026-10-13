@@ -19,6 +19,7 @@ This page lists what Sentrel protects, where the trust boundaries are, who might
 2. **Server and agent.** The agent connects outbound over gRPC. Authentication is mTLS or a signed hello. Server-to-agent instructions are signed jobs.
 3. **Agent and root helper (Linux).** The unprivileged `sentrel-agent` user calls `sudo sentrel-agent priv <verb>`.
 4. **Tenant and tenant.** Users bound to one tenant share the server with every other tenant.
+5. **Server and root updater (Linux, systemd installs).** The unprivileged `sentrel` user stages a downloaded release in a directory it owns; a root-owned updater applies it. See "Server self-update" below.
 
 ## Attackers
 
@@ -95,6 +96,20 @@ Cannot (Windows):
 Can:
 - Read what any local user can read, such as the process list and listening ports.
 - If they can become the agent user (for example through another vulnerability), they have the capabilities in section 4.
+
+## Server self-update
+
+One-click updates (systemd installs only, administrators only) cross a privilege boundary, so the trust model is explicit.
+
+- **Trust root.** The Ed25519 release public key is compiled into the binary (`internal/release/key.go`). No environment variable, setting or flag can replace it. Release builds contain no test hook; only a binary built with the `testkey` tag trusts a key given at link time, and such a binary is never published.
+- **What is signed.** `SHA256SUMS` carries a detached Ed25519 signature (`SHA256SUMS.sig`) made in the release workflow. The binary is trusted only if its hash is listed in a correctly signed file. GitHub, the network path and the Sentrel server process are therefore not trusted for the content of an update.
+- **Two verifications.** The unprivileged server verifies the download first, so a bad release fails fast. The root updater (the installed, root-owned binary run by `sentrel-updater.service`) verifies again with its own embedded key, because the staging directory belongs to the `sentrel` user.
+- **Hostile staging directory.** A compromised server process controls `<data-dir>/update/`. The updater opens the data directory with `os.Root`, refuses symlinks and non-regular files, requires the opened file to be the file it examined, size-limits everything, copies into a root-owned scratch directory, and verifies the copy. It ignores the file names in `request.json` and derives the asset from its own architecture. Results are written with exclusive create plus rename, so a planted symlink at `result.json` is replaced, not followed.
+- **No replay of old releases.** The updater runs the new binary's `version` command and requires it to report the requested version, and requires that version to be strictly newer than the running one. An old, genuinely signed release cannot be installed as an upgrade.
+- **What a compromised server can still do.** It can ask for an update to a newer genuine release at a time of its choosing (a restart), and it can withhold or delay updates. It cannot make the updater run a binary that Sentrel did not sign. If the release signing key itself is stolen, an attacker can sign a malicious update; rotating it needs a release signed with the old key that embeds the new one.
+- **Rollback.** The previous binary is kept as `sentrel-server.old`. If the new version does not answer `/healthz` and report its version within 90 seconds, the updater restores it and records the rollback in `result.json` and the audit log.
+- **Opting out.** `SENTREL_DISABLE_SELF_UPDATE=1` disables installing, `SENTREL_DISABLE_UPDATE_CHECK=1` disables the version check, and the `.deb`/`.rpm` packages and the Docker image do not include the updater units at all.
+- **Network.** The version check is a GET to `api.github.com` with a `User-Agent` and `ETag`; it sends no data about the install. Installing downloads from `github.com` releases of the Sentrel repository.
 
 ## Transport
 

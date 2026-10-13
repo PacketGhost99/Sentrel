@@ -2,11 +2,12 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState, type R
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Activity, Bell, Boxes, Building2, CalendarClock, ChevronDown, ClipboardList, Cog, FileClock, Gauge, KeyRound, LayoutDashboard, LogOut,
+  Activity, ArrowUpCircle, Bell, Boxes, Building2, CalendarClock, ChevronDown, ClipboardList, Cog, FileClock, Gauge, KeyRound, LayoutDashboard, LogOut,
   HardDriveDownload, Menu, Moon, PlayCircle, Radar, Search, Server, ShieldAlert, SlidersHorizontal, Sun, User as UserIcon, Users, Wrench, X, Globe, BookOpen,
 } from 'lucide-react'
 import { useAuth, getThemePref, setThemePref, type ThemePref } from '@/lib/auth'
 import { get } from '@/lib/api'
+import { dismiss, showBanner, showPill, type UpdateInfo } from '@/lib/updates'
 import { useLiveEvents } from '@/lib/events'
 import type { Host, Tenant } from '@/lib/types'
 import { cx, PageBoundary, StatusDot } from './ui'
@@ -52,6 +53,9 @@ export function Layout() {
   const provider = me?.user.tenant_id === 0
   const dash = useQuery({ queryKey: ['dashboard', tenant], queryFn: () => get('/dashboard', { tenant_id: tenant ?? undefined }), refetchInterval: 60_000, enabled: can('read') })
   const tenants = useQuery({ queryKey: ['tenants'], queryFn: () => get<Tenant[]>('/tenants'), enabled: provider && can('read') })
+  const isAdmin = can('settings') && provider
+  const upd = useQuery({ queryKey: ['updates'], queryFn: () => get<UpdateInfo>('/server/updates'), refetchInterval: 30 * 60_000, enabled: isAdmin })
+  const [bannerGone, setBannerGone] = useState(false)
   const firing = (dash.data?.alerts?.critical ?? 0) + (dash.data?.alerts?.warning ?? 0)
 
   const sections: { title: string; items: NavItem[] }[] = [
@@ -136,7 +140,13 @@ export function Layout() {
         })}
       </div>
       <div className="flex items-center justify-between px-5 py-3 text-[11px] text-muted">
-        <span>v{me?.version}</span>
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span>v{me?.version}</span>
+          {showPill(upd.data, isAdmin) && (
+            <NavLink to="/admin/settings?tab=updates" title={`Sentrel ${upd.data!.latest} is available`}
+              className="truncate rounded-full bg-ok/14 px-2 py-0.5 text-[10.5px] font-semibold text-ok-ink hover:bg-ok/22">Update v{upd.data!.latest}</NavLink>
+          )}
+        </span>
         <span className="flex items-center gap-1.5" title={live ? 'Live updates connected' : 'Live updates reconnecting'}>
           <StatusDot status={live ? 'up' : 'warning'} />{live ? 'live' : 'offline'}
         </span>
@@ -177,6 +187,15 @@ export function Layout() {
           </header>
           <main className="scrollbar-thin flex-1 overflow-y-auto">
             <div className="fade-in mx-auto max-w-[1500px] p-4 sm:p-6 lg:p-8">
+              {!bannerGone && showBanner(upd.data, isAdmin) && (
+                <div className="mb-4 flex items-center gap-3 rounded-xl border border-ok/25 bg-ok/10 px-4 py-2.5 text-sm">
+                  <ArrowUpCircle className="size-4 shrink-0 text-ok" />
+                  <span className="min-w-0 flex-1">Sentrel <b>{upd.data!.latest}</b> is available (you are running {upd.data!.current}).{' '}
+                    <NavLink to="/admin/settings?tab=updates" className="font-medium text-accent hover:underline">View release notes and update</NavLink></span>
+                  <button aria-label="Dismiss" title="Dismiss for this version" className="rounded-md p-1 text-muted hover:bg-panel-2 hover:text-fg"
+                    onClick={() => { dismiss(upd.data!.latest!); setBannerGone(true) }}><X className="size-4" /></button>
+                </div>
+              )}
               <PageBoundary key={loc.pathname}><Outlet /></PageBoundary>
             </div>
             {me?.branding.footer_text && <footer className="px-5 pb-4 text-center text-xs text-muted">{me.branding.footer_text}</footer>}

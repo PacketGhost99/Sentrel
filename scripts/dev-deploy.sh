@@ -8,7 +8,15 @@
 # only a path. The server itself is installed as sentrel-server / sentrel.service.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-VERSION="${1:-0.9.0-dev}"
+# Default: the next patch after the latest release tag, with -dev, so a dev
+# install (0.9.1-dev) is offered the real release (0.9.1) but not an older one.
+LATEST_TAG=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null | sed 's/^v//' || true)
+if [ -n "$LATEST_TAG" ]; then
+  DEFAULT_VERSION="${LATEST_TAG%.*}.$(( ${LATEST_TAG##*.} + 1 ))-dev"
+else
+  DEFAULT_VERSION="0.0.1-dev"
+fi
+VERSION="${1:-$DEFAULT_VERSION}"
 [ "${1:-}" = "--version" ] && VERSION="$2"
 scripts/sync.sh push
 # ~/bin holds a prebuilt nfpm so the agent .deb/.rpm are built and embedded.
@@ -36,3 +44,5 @@ MIGRATE
 scripts/sync.sh run "sudo install -m 0755 dist/sentrel-server-linux-amd64 /usr/local/bin/sentrel-server
   sudo setcap 'cap_net_raw,cap_net_bind_service+ep' /usr/local/bin/sentrel-server
   sudo systemctl restart sentrel && sleep 2 && systemctl is-active sentrel && grep -E 'agents|server' /tmp/hb-build.log | tail -5"
+# One-click updater units (sentrel-updater.path/.service).
+scripts/sync.sh run "sudo sh deploy/linux/install-server.sh --updater-units-only --data-dir /var/lib/sentrel && systemctl is-enabled sentrel-updater.path"

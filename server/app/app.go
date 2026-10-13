@@ -53,6 +53,7 @@ type App struct {
 	jobs     *JobManager
 	vuln     *VulnService
 	snmp     *SNMPPoller
+	updates  *updateService
 	maint    *MaintenanceCache
 	latest   *latestCache
 	auth     *authService
@@ -103,6 +104,7 @@ func New(cfg Config) (*App, error) {
 	a.vuln = newVulnService(a)
 	a.snmp = newSNMPPoller(a)
 	a.auth = newAuthService(a)
+	a.updates = newUpdateService(a)
 	if err := a.seed(a.ctx); err != nil {
 		return nil, fmt.Errorf("seed: %w", err)
 	}
@@ -141,6 +143,7 @@ func (a *App) Run(ctx context.Context) error {
 		a.jobs.loop,
 		a.vuln.loop,
 		a.snmp.loop,
+		a.updates.loop,
 		a.maint.loop,
 		a.housekeepingLoop,
 		a.uptimeLoop,

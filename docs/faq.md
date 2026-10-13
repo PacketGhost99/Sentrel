@@ -38,8 +38,9 @@ Sentrel is pre-1.0. It is young and has not been run at large scale.
 
 ## Does it phone home?
 
-No. Sentrel has no telemetry, no analytics, no update check and no phone-home. The server, agent and UI sources were checked for outbound connections. The complete list of places where Sentrel connects out:
+Sentrel has no telemetry and no analytics. The only automatic outbound call that is not something you configured is a **version check**: every 6 hours the server sends a `GET` to `api.github.com` (the latest release of the Sentrel repository) with a `User-Agent` of `Sentrel/<version>` and an `ETag`. Nothing about your install, hosts or users is sent. You can turn it off in **Settings, Updates** or by setting `SENTREL_DISABLE_UPDATE_CHECK=1` in the server's environment; the environment variable wins over the setting. The server, agent and UI sources were checked for outbound connections. The complete list of places where Sentrel connects out:
 
+- **Version check and updates**: the request above. If an administrator clicks **Install update**, the server also downloads the release files from `github.com` (see [operations.md](operations.md#updating)). Agents never contact GitHub.
 - **Vulnerability database download**: only if CVE scanning is enabled (off by default). The embedded Grype library fetches its listing and database from Anchore's public host unless you set a mirror URL in Settings. With scanning off, the database is never downloaded or opened.
 - **Agent to your server**: the agent connects to the server URL it was registered with and downloads updates from that same server.
 - **Notification channels you configure**: webhook, Slack, Teams, Discord, Gotify, ntfy (defaults to `https://ntfy.sh` if its server field is empty), Telegram, Pushover and SMTP. Nothing is sent unless you create a channel.

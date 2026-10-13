@@ -185,5 +185,9 @@ func (a *App) registerRoutes(r *apiRouter) {
 	r.add(routeDef{Method: GET, Path: "/branding", Summary: "Branding for the caller's tenant", Tag: "settings", Perm: PermRead, Resp: Branding{}, Query: []string{"tenant_id"}}, a.apiGetBranding)
 	r.add(routeDef{Method: PUT, Path: "/branding", Summary: "Update branding", Tag: "settings", Perm: PermBranding, Req: Branding{}, Query: []string{"tenant_id"}}, a.apiPutBranding)
 	r.add(routeDef{Method: GET, Path: "/server/status", Summary: "Server health, storage and version", Tag: "server", Perm: PermRead}, a.apiServerStatus)
+	r.add(routeDef{Method: GET, Path: "/server/updates", Summary: "Current version and whether an update exists (release notes and install details for admins)", Tag: "server", Perm: PermRead}, a.apiGetUpdates)
+	r.add(routeDef{Method: POST, Path: "/server/updates/check", Summary: "Check GitHub for a new release now", Tag: "server", Perm: PermSettings}, a.apiCheckUpdates)
+	r.add(routeDef{Method: POST, Path: "/server/updates/install", Summary: "Download, verify and install the latest release (systemd installs only)", Tag: "server", Perm: PermSettings, Req: installUpdateReq{}}, a.apiInstallUpdate)
+	r.add(routeDef{Method: GET, Path: "/server/updates/status", Summary: "Progress of the running or last update", Tag: "server", Perm: PermSettings, Resp: InstallStatus{}}, a.apiUpdateStatus)
 	r.add(routeDef{Method: GET, Path: "/server/backup", Summary: "Download a backup (SQLite + PKI + settings)", Tag: "server", Perm: PermSettings}, a.apiBackup)
 }

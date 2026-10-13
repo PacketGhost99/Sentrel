@@ -441,7 +441,7 @@ var settingSecrets = map[string][]string{
 	keyOIDC:   {"client_secret"},
 }
 
-var editableSections = []string{keyGeneral, keyTLS, keySMTP, keyLDAP, keyRADIUS, keyOIDC, keyProxyAuth, keySecurity, keyRetention, keyAgent, keyAlerting, keyVuln}
+var editableSections = []string{keyGeneral, keyTLS, keySMTP, keyLDAP, keyRADIUS, keyOIDC, keyProxyAuth, keySecurity, keyRetention, keyAgent, keyAlerting, keyVuln, keyUpdates}
 
 func (a *App) apiGetSettings(c *Ctx) (any, error) {
 	out := map[string]any{}
@@ -630,6 +630,10 @@ func (a *App) apiPutSettings(c *Ctx) (any, error) {
 			if err := a.vuln.Disable(extra.DeleteDB); err != nil {
 				warn = "Vulnerability scanning is off, but the database files were not deleted: " + err.Error()
 			}
+		}
+	case keyUpdates:
+		if v.(*UpdateSettings).CheckEnabled {
+			go func() { _ = a.updates.Check(context.Background()) }()
 		}
 	case keySecurity:
 		w := time.Duration(v.(*SecuritySettings).LockoutMinutes) * time.Minute

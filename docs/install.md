@@ -168,11 +168,13 @@ Everything the server needs to restart elsewhere is in `sentrel.db` plus `pki/`.
 | 8080 (configurable) | inbound to server | UI, REST API, agent gRPC, installers, `/metrics`, `/healthz` |
 | 80, 443 | inbound to server | only in Let's Encrypt mode (443 serves everything, 80 does HTTP-01 and redirects) |
 | 161/udp | outbound from server | SNMP polling (configurable per device) |
-| 443/tcp | outbound from server | vulnerability database download, notification services |
+| 443/tcp | outbound from server | version check (`api.github.com`) and update download (`github.com`), vulnerability database download, notification services |
 
 Agents only need outbound access to the server port. The agent honours `HTTPS_PROXY` and `NO_PROXY`.
 
 ## Upgrading
+
+On a systemd install an administrator can update from **Settings, Updates** with one click; see [Updating](operations.md#updating) for every method and the signing model. The manual steps are:
 
 1. Take a backup (`sentrel-server backup`, see [operations.md](operations.md)).
 2. Run `install-server.sh --binary <new binary>` again (or pull and rebuild the container: `docker compose up -d --build`). The script stops the service, replaces the binary, re-applies capabilities and starts it. Database migrations run automatically at startup; there is no automated downgrade, so restore the backup to roll back.

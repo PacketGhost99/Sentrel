@@ -154,4 +154,4 @@ Unauthenticated endpoints: `/healthz`, `/api/v1/public/info`, `/api/v1/public/st
 4. Leave remote actions off for hosts that do not need them.
 5. Docker group membership is root-equivalent, so the installer leaves it off by default; pass `--docker` only on hosts where container metrics are worth that risk.
 6. Protect and encrypt backups; keep `pki/` out of shared storage.
-7. Keep the server and (via self-update) the agents current.
+7. Keep the server and (via self-update) the agents current. Server updates are Ed25519-signed and verified twice; see [Updating](operations.md#updating) and the [threat model](threat-model.md#server-self-update). Set `SENTREL_DISABLE_SELF_UPDATE=1` if you prefer to update only through your own tooling.

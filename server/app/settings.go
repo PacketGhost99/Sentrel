@@ -203,6 +203,7 @@ const (
 	keyAlerting  = "alerting"
 	keyVuln      = "vuln"
 	keyBranding  = "branding"
+	keyUpdates   = "updates"
 )
 
 func defaultFor(key string) any {
@@ -235,6 +236,8 @@ func defaultFor(key string) any {
 		return &AlertingSettings{GroupWaitSeconds: 30, DefaultRepeatMinutes: 240, FlapWindowMinutes: 30, FlapThreshold: 6, ResolveCount: 1}
 	case keyVuln:
 		return &VulnSettings{Enabled: false, SyncHour: 2, ScanAfterInventory: true, AlertSeverity: "Critical", OnlyFixable: true}
+	case keyUpdates:
+		return &UpdateSettings{CheckEnabled: true, InstallEnabled: true}
 	case keyBranding:
 		return &Branding{ProductName: "Sentrel", AccentColor: "#1f6bf5"}
 	}

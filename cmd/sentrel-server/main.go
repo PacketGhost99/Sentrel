@@ -12,15 +12,20 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"os/user"
 	"path/filepath"
+	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
+	"sentrel/internal/release"
 	"sentrel/internal/version"
 	"sentrel/server/app"
 	"sentrel/server/authn"
 	"sentrel/server/db"
+	"sentrel/server/selfupdate"
 )
 
 const usage = `Sentrel server %s
@@ -31,6 +36,7 @@ Usage:
   sentrel-server restore    [--data-dir DIR] --in FILE [--force]
   sentrel-server reset-password [--data-dir DIR] --user NAME
   sentrel-server healthcheck [--url URL]
+  sentrel-server self-update apply [--data-dir DIR]   (root; run by sentrel-updater.service)
   sentrel-server version
 
 Environment: SENTREL_DATA_DIR, SENTREL_LISTEN, SENTREL_LOG_LEVEL (debug|info|warn), SENTREL_LOG_FORMAT (text|json)
@@ -90,6 +96,8 @@ func main() {
 		err = restore(args)
 	case "reset-password":
 		err = resetPassword(args)
+	case "self-update":
+		err = selfUpdate(args)
 	case "healthcheck":
 		err = healthcheck(args)
 	case "version", "--version", "-v":
@@ -249,6 +257,41 @@ func healthcheck(args []string) error {
 		if err2 := try("https://" + strings.TrimPrefix(*url, "http://")); err2 == nil {
 			return nil
 		}
+	}
+	return err
+}
+
+// selfUpdate is the privileged half of one-click updates. It runs as root from
+// sentrel-updater.service and trusts only the key compiled into this binary.
+func selfUpdate(args []string) error {
+	if len(args) == 0 || args[0] != "apply" {
+		return fmt.Errorf("usage: sentrel-server self-update apply [--data-dir DIR]")
+	}
+	fs := flag.NewFlagSet("self-update apply", flag.ExitOnError)
+	dataDir := fs.String("data-dir", defaultDataDir(), "data directory")
+	binPath := fs.String("bin", "/usr/local/bin/sentrel-server", "installed server binary")
+	unit := fs.String("unit", "sentrel.service", "systemd unit of the server")
+	unitFile := fs.String("unit-file", "/etc/systemd/system/sentrel.service", "unit file to read the listen address from")
+	owner := fs.String("owner", "sentrel", "user that owns status and result files")
+	fs.Parse(args[1:])
+	if os.Geteuid() != 0 {
+		return fmt.Errorf("self-update apply must run as root")
+	}
+	uid, gid := -1, -1
+	if u, err := user.Lookup(*owner); err == nil {
+		uid, _ = strconv.Atoi(u.Uid)
+		gid, _ = strconv.Atoi(u.Gid)
+	}
+	cfg := selfupdate.ApplyConfig{
+		DataDir: *dataDir, BinPath: *binPath, CurrentVersion: version.Version, GOARCH: runtime.GOARCH,
+		Key: release.TrustRoot(), OwnerUID: uid, OwnerGID: gid,
+		Logf:    func(f string, a ...any) { fmt.Fprintf(os.Stderr, "self-update: "+f+"\n", a...) },
+		Restart: selfupdate.SystemdRestart(*unit),
+		Health:  selfupdate.HTTPHealth(selfupdate.ListenFromUnit(*unitFile)),
+	}
+	res, err := selfupdate.Apply(context.Background(), cfg)
+	if res != nil {
+		fmt.Fprintf(os.Stderr, "self-update: %s: %s\n", res.Outcome, res.Message)
 	}
 	return err
 }

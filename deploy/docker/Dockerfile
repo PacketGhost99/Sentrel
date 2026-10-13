@@ -24,6 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
     && mkdir -p /data && chown sentrel:sentrel /data
 COPY --from=build /sentrel-server /usr/local/bin/sentrel-server
 RUN setcap 'cap_net_raw,cap_net_bind_service+ep' /usr/local/bin/sentrel-server
+ENV SENTREL_INSTALL_METHOD=docker
 USER sentrel
 VOLUME /data
 EXPOSE 8080

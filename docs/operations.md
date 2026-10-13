@@ -118,6 +118,46 @@ On a host's Metrics tab:
 
 Scripts can fetch the same data from `GET /api/v1/hosts/{id}/metrics/export` (see the API reference). Exports are limited to 50,000 rows; for long ranges pick a coarser step.
 
+## Updating
+
+Sentrel tells administrators when a new release exists: a green **Update vX.Y.Z** pill appears next to the version at the bottom of the sidebar (administrators only), with a dismissible banner once per version. **Settings, Updates** shows the release notes, the install method and what to do about it. Back up before updating ([Backup](#backup)).
+
+### The version check
+
+Every 6 hours (and on **Check now**) the server sends `GET https://api.github.com/repos/PacketGhost99/Sentrel/releases/latest` with `User-Agent: Sentrel/<version>` and an `If-None-Match` ETag. Nothing else is sent, and drafts and prereleases are ignored. This is the only automatic outbound call besides the ones you configure. Turn it off in **Settings, Updates**, or set `SENTREL_DISABLE_UPDATE_CHECK=1` in the server's environment (which overrides the setting; the UI then says it is disabled by the administrator of the host). `SENTREL_DISABLE_SELF_UPDATE=1` disables installing.
+
+### Methods
+
+The server detects how it was installed:
+
+| Method | Detected by | How to update |
+|---|---|---|
+| `systemd` | Started by systemd from `/usr/local/bin/sentrel-server` with the `sentrel-updater` units installed by `install-server.sh` | **Install update** in Settings, Updates (one click) |
+| `docker` | `/.dockerenv`, or `SENTREL_INSTALL_METHOD=docker` (set in the official image) | `docker pull ghcr.io/packetghost99/sentrel:<version>`, then `docker compose up -d` |
+| `package` | The binary is owned by a dpkg or rpm package | `sudo apt update && sudo apt install --only-upgrade sentrel-server`, or `sudo dnf upgrade sentrel-server` |
+| `manual` | Anything else | Download the binary, verify it, replace it and restart (or re-run `install-server.sh`) |
+
+Installs that predate the updater get its units by re-running `install-server.sh` with the new script (`sudo sh install-server.sh --binary ./sentrel-server`, or `--updater-units-only` to add just the units).
+
+### One-click update (systemd)
+
+1. An administrator clicks **Install update** and types the hostname to confirm. The request is audited.
+2. The `sentrel` user downloads the server binary for its architecture, `SHA256SUMS` and `SHA256SUMS.sig` from the release, stages them in `<data-dir>/update/staged/`, verifies the signature and the checksum itself, and writes `<data-dir>/update/request.json`.
+3. `sentrel-updater.path` notices the file and starts `sentrel-updater.service` as root. The updater is the currently installed binary (`sentrel-server self-update apply`). It copies the staged files to a root-owned directory (refusing symlinks), verifies the signature with the key compiled into itself, checks the binary's hash, runs `<new> version` and checks it reports the requested version, and refuses downgrades and equal versions.
+4. It copies the current binary to `sentrel-server.old`, installs the new one with an atomic rename, re-applies `setcap 'cap_net_raw,cap_net_bind_service+ep'`, and restarts `sentrel.service`.
+5. It polls `/healthz` and `/api/v1/public/info` (using the configured listen address, over HTTP or HTTPS) for up to 90 seconds. If the new version does not report itself healthy, it restores `.old`, restarts, and records a rollback.
+6. It writes `<data-dir>/update/result.json` and the server records `server.update_applied` or `server.update_rolled_back` in the audit log. The page shows each phase (downloading, verifying, waiting for the updater, installing, restarting, health check) and reloads when the new version answers. Agents then update through the usual agent auto-update.
+
+If the page says the updater has not started, check `systemctl status sentrel-updater.path` and `journalctl -u sentrel-updater`.
+
+### Signing model
+
+Each release's `SHA256SUMS` is signed in the release workflow with an Ed25519 key (`sentrel-sign sign`), producing `SHA256SUMS.sig`. The public key is compiled into the server in one place, `internal/release/key.go`, and cannot be overridden by an environment variable, setting or flag. Verify a download by hand with `sentrel-sign verify -pub <key file> SHA256SUMS SHA256SUMS.sig`; the releases are additionally signed with cosign. Why this design is safe against a compromised server process is described in the [threat model](threat-model.md#server-self-update).
+
+### Rolling back by hand
+
+`/usr/local/bin/sentrel-server.old` is the previous binary. To go back: `sudo install -m 0755 /usr/local/bin/sentrel-server.old /usr/local/bin/sentrel-server && sudo setcap 'cap_net_raw,cap_net_bind_service+ep' /usr/local/bin/sentrel-server && sudo systemctl restart sentrel`. Database migrations are not reversed; restore a backup if a release changed the schema and you need the old schema back.
+
 ## Upgrading
 
 See [install.md](install.md#upgrading). In short: back up, replace the binary (or rebuild the image), let the server migrate the database at start, then upgrade agents from the UI. Check **Settings** and the host list afterwards; agents show their version.

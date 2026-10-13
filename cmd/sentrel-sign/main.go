@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"sentrel/internal/jobpolicy"
+	"sentrel/internal/release"
 )
 
 func main() {
@@ -150,13 +151,9 @@ func verify(pubRef, file, sigFile string) error {
 	if err != nil {
 		return err
 	}
-	k, err := x509.ParsePKIXPublicKey(der)
+	pub, err := release.ParsePublicKey(base64.StdEncoding.EncodeToString(der))
 	if err != nil {
-		return fmt.Errorf("parse public key: %w", err)
-	}
-	pub, ok := k.(ed25519.PublicKey)
-	if !ok {
-		return errors.New("public key is not Ed25519")
+		return err
 	}
 	data, err := os.ReadFile(file)
 	if err != nil {
@@ -166,12 +163,8 @@ func verify(pubRef, file, sigFile string) error {
 	if err != nil {
 		return err
 	}
-	sig, err := base64.StdEncoding.DecodeString(strings.TrimSpace(string(sb)))
-	if err != nil {
-		return fmt.Errorf("decode signature: %w", err)
-	}
-	if !ed25519.Verify(pub, data, sig) {
-		return errors.New("signature verification FAILED")
+	if err := release.VerifySignature(pub, data, sb); err != nil {
+		return err
 	}
 	fmt.Println("signature OK")
 	return nil

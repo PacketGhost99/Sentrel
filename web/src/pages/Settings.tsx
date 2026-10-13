@@ -8,22 +8,26 @@ import { bytes, dateTime, duration, timezones } from '@/lib/format'
 import type { Branding, Tenant } from '@/lib/types'
 import { Badge, Button, Card, Checkbox, CodeBlock, CopyButton, ErrorBox, Field, Input, KV, Loading, Note, PageHeader, Select, TagInput, Tabs, Textarea, Toggle, useToast } from '@/components/ui'
 import { roleInfo } from './Users'
+import { UpdatesTab } from './UpdatesTab'
+import type { UpdateInfo } from '@/lib/updates'
 
-type Section = 'general' | 'tls' | 'smtp' | 'directory' | 'sso' | 'security' | 'retention' | 'agent_defaults' | 'alerting' | 'vuln' | 'snmp' | 'server'
+type Section = 'general' | 'tls' | 'smtp' | 'directory' | 'sso' | 'security' | 'retention' | 'agent_defaults' | 'alerting' | 'vuln' | 'snmp' | 'updates' | 'server'
 
 export function Settings() {
   const [params, setParams] = useSearchParams()
   const tab = (params.get('tab') as Section) || 'general'
   const s = useQuery({ queryKey: ['settings'], queryFn: () => get<Record<string, any>>('/settings') })
+  const upd = useQuery({ queryKey: ['updates'], queryFn: () => get<UpdateInfo>('/server/updates'), refetchInterval: 5 * 60_000 })
   return (
     <div>
       <PageHeader title="Settings" subtitle="Server-wide configuration. Changes apply immediately and are recorded in the audit log." />
       <Tabs<Section> value={tab} onChange={(t) => setParams({ tab: t }, { replace: true })} className="mb-4" tabs={[
         { id: 'general', label: 'General' }, { id: 'tls', label: 'TLS & access' }, { id: 'smtp', label: 'Email' }, { id: 'directory', label: 'LDAP & RADIUS' }, { id: 'sso', label: 'Single sign-on' },
         { id: 'security', label: 'Security' }, { id: 'retention', label: 'Data retention' }, { id: 'agent_defaults', label: 'Agents' }, { id: 'alerting', label: 'Alerting' },
-        { id: 'vuln', label: 'Vulnerabilities' }, { id: 'snmp', label: 'SNMP profiles' }, { id: 'server', label: 'Server & backup' },
+        { id: 'vuln', label: 'Vulnerabilities' }, { id: 'snmp', label: 'SNMP profiles' }, { id: 'updates', label: 'Updates', count: upd.data?.update_available ? 1 : undefined, countTitle: upd.data?.latest ? `Sentrel ${upd.data.latest} is available` : undefined },
+        { id: 'server', label: 'Server & backup' },
       ]} />
-      {s.isLoading ? <Loading /> : s.error ? <ErrorBox error={s.error} /> : (
+      {tab === 'updates' ? <UpdatesTab /> : s.isLoading ? <Loading /> : s.error ? <ErrorBox error={s.error} /> : (
         <>
           {tab === 'general' && <General data={s.data!.general} />}
           {tab === 'tls' && <TLS data={s.data!.tls} active={s.data!.active_tls_mode} fp={s.data!.ca_fingerprint} />}

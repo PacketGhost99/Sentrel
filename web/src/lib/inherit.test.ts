@@ -52,5 +52,7 @@ describe('sameList', () => {
     expect(sameList(['a'], ['a'])).toBe(true)
     expect(sameList(['a'], ['b'])).toBe(false)
     expect(sameList([], ['a'])).toBe(false)
+    expect(sameList(true, true)).toBe(false)
+    expect(sameList(null, [])).toBe(false)
   })
 })

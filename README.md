@@ -22,7 +22,7 @@ Agents, uptime checks, security, patching and CVEs in one place.
 
 ## Why Sentrel
 
-- 🎨 **Beautiful dashboard and status pages.** Light and dark themes, live beat bars, public or secret-link status pages.
+- 🎨 **Clean dashboard and status pages.** Light and dark themes, live beat bars, public or secret-link status pages.
 - 🖥️ **Agents for Linux and Windows.** Copy one line from the Agents page and the host appears.
 - 🌐 **Uptime checks.** HTTP, TCP, ping, DNS and TLS certificate expiry, plus SNMP switches, firewalls and printers.
 - 🛡️ **Intrusion detection built in.** Spots SSH and Windows logon brute-force attempts and port scans (Linux), shows fail2ban jails, and blocks attacking IPs from the UI or automatically.
@@ -31,9 +31,11 @@ Agents, uptime checks, security, patching and CVEs in one place.
 - 🔔 **Alerts where you already are.** Email, Slack, Discord, Teams, Telegram, ntfy, Pushover, Gotify and webhooks.
 - 🏢 **Multi-tenant for MSPs.** Isolated customers, branding, roles and single sign-on (OIDC, LDAP, RADIUS).
 - 🔒 **Secure by design.** Unprivileged agent, signed jobs, and read-only agents that a compromised server cannot command.
-- 🪶 **Lightweight.** One server binary (about 120 MB RAM idle), agent about 15 MB. State lives in a single data directory.
+- 🪶 **Lightweight.** One Go binary with its own database and time-series store, about 120 MB RAM idle with CVE scanning off; the agent uses about 15 MB. All state lives in one data directory.
 
 ## Quick start
+
+> Sentrel is an early release (v0.9). Expect changes before 1.0; see the [changelog](CHANGELOG.md).
 
 **Docker**
 
@@ -46,7 +48,10 @@ docker run -d --name sentrel --cap-add NET_RAW -p 8080:8080 -v sentrel-data:/dat
 
 ```sh
 curl -fsSLO https://github.com/PacketGhost99/Sentrel/releases/latest/download/install-server.sh
-sudo sh install-server.sh --url https://github.com/PacketGhost99/Sentrel/releases/latest/download/sentrel-server-linux-amd64
+curl -fsSLO https://github.com/PacketGhost99/Sentrel/releases/latest/download/sentrel-server-linux-amd64
+curl -fsSLO https://github.com/PacketGhost99/Sentrel/releases/latest/download/SHA256SUMS
+sha256sum -c SHA256SUMS --ignore-missing
+sudo sh install-server.sh --binary ./sentrel-server-linux-amd64
 ```
 
 Open `http://your-server:8080`, follow the setup wizard, then go to **Agents** to add your first host.
@@ -85,7 +90,7 @@ Packages (`.deb`, `.rpm`), Compose, TLS and upgrades are covered in [Installing]
 
 <div align="center">
 
-Apache License 2.0, see [LICENSE](LICENSE). Formerly known as Heartbeat.<br>
+Apache License 2.0, see [LICENSE](LICENSE).<br>
 Built with AI assistance (Claude) and checked by an automated test suite; see the [FAQ](docs/faq.md) for details.
 
 </div>

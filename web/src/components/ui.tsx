@@ -430,9 +430,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
 export function Tabs<T extends string>({ tabs, value, onChange, className }: { tabs: { id: T; label: ReactNode; count?: number; hidden?: boolean; countTitle?: string }[]; value: T; onChange: (v: T) => void; className?: string }) {
   return (
-    <div className={cx('scrollbar-thin -mx-1 flex gap-1 overflow-x-auto border-b border-line px-1', className)}>
+    <div role="tablist" className={cx('scrollbar-thin -mx-1 flex gap-1 overflow-x-auto border-b border-line px-1', className)}>
       {tabs.filter((t) => !t.hidden).map((t) => (
-        <button key={t.id} onClick={() => onChange(t.id)}
+        <button key={t.id} type="button" role="tab" aria-selected={value === t.id} onClick={() => onChange(t.id)}
           className={cx('-mb-px flex items-center gap-1.5 whitespace-nowrap rounded-t-lg border-b-2 px-3.5 py-2.5 text-sm',
             value === t.id ? 'border-accent font-semibold text-fg' : 'border-transparent text-muted hover:bg-panel-2/70 hover:text-fg')}>
           {t.label}

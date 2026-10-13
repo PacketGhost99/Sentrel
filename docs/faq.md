@@ -54,10 +54,6 @@ The web UI loads no external fonts, scripts or other assets (the Inter font is b
 
 Sentrel was developed with substantial AI assistance (Claude), directed, reviewed and tested by the maintainer. It has a Go test suite (unit tests, route tests that probe every `{id}` route for cross-tenant access, and live-event tenancy tests), an end-to-end script that runs against a real server and real agents, and a security review whose findings were fixed before release. The e2e script is run by hand rather than in CI. Vulnerability reports go through [SECURITY.md](../SECURITY.md).
 
-## Why was Heartbeat renamed?
-
-Elastic already ships an uptime monitor called Heartbeat. Binaries, services, paths, the Go module, the protocol package, cookies, environment variables and metric prefixes were all renamed, so installs made before the rename must be migrated by hand.
-
 ## What are the known security limits?
 
 With the default `server` write policy the server is fully trusted by its agents, the database is not encrypted, integration secrets (SMTP, LDAP, RADIUS, webhook tokens) are stored in clear text in it, and backups contain the CA and job keys. Read-only and `operator` agents are not affected by a compromised server. Details are in the [threat model](threat-model.md).

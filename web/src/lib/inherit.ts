@@ -66,6 +66,7 @@ export function parseNumberDraft(draft: string, min: number, max: number): { val
   return { value: n }
 }
 
-export function sameList(a: string[], b: string[]): boolean {
+export function sameList(a: unknown, b: unknown): boolean {
+  if (!Array.isArray(a) || !Array.isArray(b)) return false
   return a.length === b.length && a.every((x, i) => x === b[i])
 }

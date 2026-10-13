@@ -30,7 +30,7 @@ export function InheritableField({ label, description, kind, setting, onSave, di
   const toast = useToast()
   const state = inheritState(setting)
   const initialNum = String(setting.override ?? setting.effective)
-  const initialList: string[] = (setting.override as string[] | null) ?? []
+  const initialList: string[] = kind === 'list' && Array.isArray(setting.override) ? (setting.override as string[]) : []
   const [editing, setEditing] = useState(false)
   const [num, setNum] = useState(initialNum)
   const [list, setList] = useState<string[]>(initialList)
@@ -57,7 +57,10 @@ export function InheritableField({ label, description, kind, setting, onSave, di
   const inherited = state === 'inherited'
   const open = !inherited || editing
   const parsed = kind === 'number' ? parseNumberDraft(num, min, max) : undefined
-  const dirty = kind === 'number' ? parsed?.value !== undefined && parsed.value !== setting.override : !sameList(list, initialList) || (inherited && editing && list.length > 0)
+  const dirty =
+    kind === 'number' ? parsed?.value !== undefined && parsed.value !== setting.override
+    : kind === 'list' ? !sameList(list, initialList) || (inherited && editing && list.length > 0)
+    : false
   const canSave = !disabled && !busy && (kind === 'number' ? parsed?.value !== undefined && dirty : kind === 'list' ? dirty : false)
 
   return (

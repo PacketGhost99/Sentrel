@@ -4,7 +4,9 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
-First public release (0.9.x). Nothing has been tagged yet; the entries below summarise the development history.
+## [0.9.0] - 2026-10-13
+
+First public release.
 
 ### Added
 
@@ -30,17 +32,6 @@ First public release (0.9.x). Nothing has been tagged yet; the entries below sum
 - `.deb` and `.rpm` packages for the server and agent, a multi-arch container image on GHCR, cosign-signed release checksums and SPDX SBOMs.
 - Resource usage measurements in `docs/operations.md`.
 - `SECURITY.md`, `docs/threat-model.md`, `docs/comparison.md`.
-
-### Changed
-
-- Renamed the product from Heartbeat to Sentrel (Elastic already ships a monitor called Heartbeat). Binaries, services, paths, the Go module, the protocol package, signing contexts, cookies, environment variables, the Windows service and MSI (new UpgradeCode) and the metric prefix all changed. Installs made before the rename must be migrated by hand.
-- Vulnerabilities are counted per CVE per host, not per binary package.
-- Agent service install is idempotent, so MSI reinstall and repair work.
-
-### Removed
-
-- Remote script execution: the `script` job type, the `scripts` permission, the per-host `allow_scripts` option (column dropped by migration 00009) and the Run script UI. Agents now reject `script` jobs as an unknown job type. Package upgrades, IP blocking, disk cleanup, kernel removal and agent updates are unchanged.
-- Push install over SSH and WinRM, including the `/push/*` API routes, the `push_installs` table (dropped by migration 00006) and the SSH and WinRM libraries. Install agents with the one-liner or a package from the Agents page instead. `--insecure-download` / `-InsecureDownload` still work for old scripts but are no longer generated.
 
 ### Security
 

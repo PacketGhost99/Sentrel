@@ -12,7 +12,19 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Upgrade notes
 
-- Linux agents on 0.9.3 or 0.9.4 cannot update themselves to this release, because the update runs inside the installed agent. Update them once by upgrading the package (`apt install ./sentrel-agent_*.deb` or `dnf upgrade ./sentrel-agent-*.rpm`) or by re-running the install command from the Agents page. Later updates work from the UI again. Agents on 0.9.2 or earlier, and Windows agents, update normally.
+- Linux agents on 0.9.3 or 0.9.4 cannot update themselves to this release, because the update runs inside the installed agent. Update each of them once; later updates work from the UI again. Agents on 0.9.2 or earlier, and Windows agents, update normally.
+  - Package installs: upgrade the package (`sudo apt install ./sentrel-agent_0.9.5_amd64.deb` or `sudo dnf upgrade ./sentrel-agent-0.9.5-1.x86_64.rpm`, using the file for your architecture).
+  - Script installs: replace the binary and restart. Do not re-run the install command, which enrols the host again:
+
+    ```sh
+    curl -fsSLO https://github.com/XEDigital/Sentrel/releases/download/v0.9.5/sentrel-agent-linux-amd64
+    curl -fsSLO https://github.com/XEDigital/Sentrel/releases/download/v0.9.5/SHA256SUMS
+    sha256sum -c SHA256SUMS --ignore-missing
+    sudo install -m 0755 sentrel-agent-linux-amd64 /usr/local/bin/sentrel-agent
+    sudo systemctl restart sentrel-agent
+    ```
+
+    Use `sentrel-agent-linux-arm64` on ARM64.
 
 ## [0.9.4] - 2026-10-14
 

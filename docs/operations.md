@@ -101,6 +101,54 @@ Vulnerability scanning is off by default. While it is off, the server never down
 | Small server | On | 2 cores | 2 GB or more | 6 GB or more (the database is about 3 GB and is replaced on update) |
 | Larger fleet (50+ hosts) with scanning | On | 2 to 4 cores | 4 GB | 10 GB or more |
 
+## Capacity
+
+How many agents can one server handle? These numbers come from simulated agents on a laptop, so read them as an indication of the shape of the load, not a guarantee for your hardware.
+
+**Test machine:** Windows 11 laptop, Intel Core i3-1215U (6 cores, 8 threads), 7.7 GB RAM, SSD. The load generator ran on the same machine as the server, so the two competed for the same CPU, memory and loopback network. The server process is measured on its own.
+
+**Method:** Each step is a fresh set of simulated agents (1 to 4000) against one server (plain HTTP, SQLite, built-in metric store), each agent reporting every 30 s (the default). Each report is about 60 metric samples plus a host state (4 disks, 3 interfaces, 30 services, 8 ports, 10 top processes, 3 containers), and every agent sends an inventory of 450 packages once when it connects. CVE scanning was off. Agents connected over a 45 s ramp, settled for 45 s, then CPU, memory, data growth and API latency were measured for 3 minutes. CPU is the server process's average, as a percentage of one core (100% is one full core; this laptop has 8 logical cores).
+
+| Agents | Server CPU (% of one core) | Server RSS (avg / max) | `GET /api/v1/hosts` median (response size) | Metric WAL growth |
+|---:|---:|---:|---:|---:|
+| 50 | 1.1% | 110 / 112 MB | 11 ms (71 KB) | 3 MB/hour |
+| 200 | 4.2% | 178 / 182 MB | 25 ms (284 KB) | 14 MB/hour |
+| 500 | 9.9% | 297 / 310 MB | 48 ms (709 KB) | 34 MB/hour |
+| 1,000 | 20.6% | 509 / 527 MB | 88 ms (1.4 MB) | 68 MB/hour |
+| 2,000 | 34.6% | 857 / 938 MB | 155 ms (2.8 MB) | 137 MB/hour |
+| 4,000 | 64% | 1,537 / 1,606 MB | 389 ms (5.7 MB) | 280 MB/hour |
+
+What the numbers say:
+
+- **Cost is close to linear in agents:** about 2% of a core and 0.35 MB of memory per 100 agents on top of a baseline of about 150 MB. A 1,000-agent run held for 15 minutes in an earlier pass stayed at 18% of a core and about 540 MB.
+- **No errors:** in every step all agents stayed connected with no reconnects, connection failures or send errors.
+- **Outliers on the host list:** `GET /hosts` returns every host in one response and is not paginated, so it grows with the fleet. At 2,000 and 4,000 agents single requests took 1.1 s and 5.0 s (the medians above are typical). The UI polls this endpoint, so very large fleets will feel slower there before anything else does.
+- **Connection storms are the weak spot:** when 4,000 agents connected within 45 s, the time from hello to welcome was 17 s at the median and 27 s at the 95th percentile (2,000 agents: 5 ms and 153 ms). Every agent got in with no failures, and the load settled afterwards. The cause was not profiled; the likely culprit is the database writes done on connect (host update and inventory ingest). After a server restart a large fleet reconnects over a minute or more, which the agents' own back-off handles.
+
+Storage figures need care:
+
+- *Metric WAL growth* is the metric store's write-ahead log, which is written uncompressed (about 10 bytes per sample) and later folded into compressed 2-hour blocks. It is an upper bound on the live write rate, not the long-term disk cost. The test did not run long enough to measure compacted blocks, so for long-term disk use keep the budget of 0.5 to 1 MB per host per day given under [Resource usage](#resource-usage), which was measured at default collection settings on a small fleet.
+- `sentrel.db` grew by under 1 MB per hour up to 1,000 agents and about 12 MB per hour at 4,000 while agents were steadily reporting (inventory data is replaced on each connect, not appended).
+
+Limits of this test:
+
+- Simulated agents report plausible but synthetic data and do not run jobs, security scans or port-scan detection. Real agents with Docker, many services or large process lists send somewhat larger states.
+- It was one laptop on Windows, not a server on Linux, and storage was an SSD. Other disks, especially slow ones, will change the database behaviour.
+- Alert rules, notification channels, checks, SNMP, status pages, many users in the UI, CVE scanning and long retention add load and were not included. Beyond 4,000 agents nothing was measured.
+- Each result is a single 3-minute window per step, not a repeated run.
+
+### Reproduce it
+
+`sentrel-loadtest` ships in the source tree (`cmd/sentrel-loadtest`). It uses the real agent protocol, gives every simulated agent its own certificate and hostname (`loadtest-0001`, `loadtest-0002`, and so on), and caches identities so reruns skip enrolment. Run it only against a server you own, preferably a throwaway one.
+
+```sh
+go build -o sentrel-loadtest ./cmd/sentrel-loadtest
+# Start a scratch server and finish setup (web UI or POST /api/v1/setup) with an admin account that has no MFA.
+sentrel-loadtest -server http://127.0.0.1:18090 -user admin -password '...' -agents 1000 -interval 30s -ramp 45s -duration 8m -data ./lt-identities
+```
+
+Enrolment tokens are single-use, so the tool logs in with `-user` and `-password` (or `SENTREL_PASSWORD`) and creates one token per new agent. The server limits enrolment to 20 per minute per source IP, so for a loopback server the tool enrols from several `127.x.y.1` addresses; disable that with `-spread-source=false`. Run `sentrel-loadtest -h` for the other flags (`-enrol-only` to pre-enrol, `-probe` to time `GET /api/v1/hosts`, `-packages` to size the inventory). The tool prints connection counts and the report rate every 10 s. Measure the server process's CPU and memory with your platform's tools (for example `Get-Process` on Windows or `pidstat` on Linux). Delete the loadtest hosts from the server afterwards.
+
 ## Logs and health
 
 - Logs go to stderr: `journalctl -u sentrel` (systemd) or `docker logs sentrel`. `SENTREL_LOG_LEVEL` is `debug`, `info` (default), `warn` or `error`; `SENTREL_LOG_FORMAT=json` switches to JSON lines.

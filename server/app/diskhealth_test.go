@@ -19,6 +19,7 @@ func TestDiskHealthConditions(t *testing.T) {
 		Pools: []DiskHealthPool{{Name: "tank", Health: "DEGRADED"}, {Name: "ok", Health: "ONLINE"}},
 	}
 	prev := &DiskHealth{Devices: []DiskHealthDevice{{Device: "/dev/sdb", Pending: i64(1)}}}
+	carrySectorBaselines(prev, s, 1000)
 	got := diskHealthConditions(7, "h1", 0, s, prev)
 	want := map[string]string{
 		"diskhealth:7:smart:/dev/sda":    "critical",
@@ -39,6 +40,45 @@ func TestDiskHealthConditions(t *testing.T) {
 	}
 	if m := got["diskhealth:7:sectors:/dev/sdb"].Message; !strings.Contains(m, "up from 1") {
 		t.Errorf("message should mention the increase: %q", m)
+	}
+}
+
+func TestSectorBaselineWarnsOnlyOnIncrease(t *testing.T) {
+	sev := func(prev, cur *DiskHealth, now int64) string {
+		carrySectorBaselines(prev, cur, now)
+		return diskHealthConditions(1, "h", 0, cur, prev)["diskhealth:1:sectors:/dev/sda"].Severity
+	}
+	snap := func(n int64, serial string) *DiskHealth {
+		return &DiskHealth{Devices: []DiskHealthDevice{{Device: "/dev/sda", Serial: serial, Health: "passed", Reallocated: i64(n)}}}
+	}
+	// First sight of a drive with 8 long-stable sectors: no warning.
+	s1 := snap(8, "A1")
+	if got := sev(&DiskHealth{}, s1, 0); got != "ok" {
+		t.Fatalf("first sight = %s", got)
+	}
+	// Unchanged: still fine.
+	s2 := snap(8, "A1")
+	if got := sev(s1, s2, 100); got != "ok" {
+		t.Fatalf("stable = %s", got)
+	}
+	// Rises: warns, and keeps warning while the count holds.
+	s3 := snap(10, "A1")
+	if got := sev(s2, s3, 200); got != "warning" {
+		t.Fatalf("rise = %s", got)
+	}
+	s4 := snap(10, "A1")
+	if got := sev(s3, s4, 300); got != "warning" {
+		t.Fatalf("held = %s", got)
+	}
+	// A quiet week later the new count becomes the baseline.
+	s5 := snap(10, "A1")
+	if got := sev(s4, s5, 200+sectorQuietPeriod+1); got != "ok" {
+		t.Fatalf("after quiet period = %s", got)
+	}
+	// A replaced drive (new serial) starts fresh.
+	s6 := snap(30, "B2")
+	if got := sev(s5, s6, 400+sectorQuietPeriod); got != "ok" {
+		t.Fatalf("replaced = %s", got)
 	}
 }
 

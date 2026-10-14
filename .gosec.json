@@ -3,52 +3,75 @@
     {
       "_comment": "G115 (integer conversion): the flagged int/uint64 to uint32/int32 conversions are protobuf field widths and metric counters (ports, counts, seconds, byte sizes) bounded well below 2^31 by their sources. A blanket exclusion is used because gosec cannot see the bounds.",
       "path": ".*",
-      "rules": ["G115"]
+      "rules": [
+        "G115"
+      ]
     },
     {
       "_comment": "G304 (file inclusion via variable): every flagged path comes from operator configuration, the data/state directory or a CLI flag, never directly from a network request. Paths that do originate from the API are validated against allowlists before use (priv verbs, backup restore names, update staging).",
       "path": ".*",
-      "rules": ["G304"]
+      "rules": [
+        "G304"
+      ]
     },
     {
       "_comment": "G204 (subprocess with variable): commands are launched without a shell (argv form). Arguments that originate from jobs are validated against allowlists in the priv verbs; the remaining binaries are fixed OS paths (icacls, smartctl, systemctl).",
       "path": ".*",
-      "rules": ["G204"]
+      "rules": [
+        "G204"
+      ]
     },
     {
-      "_comment": "G302/G306 (permissions above 0600): only public material (CA and leaf certificates, public keys, signatures, SAN lists), executables that must be 0755/0700, and config read by the agent group (0640) use these modes. Private keys are written 0600 and are not flagged.",
-      "path": "(server.pki|server.selfupdate|server.app.updates[.]go|cmd.sentrel-sign|agent.(register|config|jobs)[.]go)",
-      "rules": ["G302", "G306"]
+      "_comment": "G302/G306 (permissions above 0600): only public material (CA and leaf certificates, public keys, signatures, SAN lists), executables that must be 0755/0700, and config read by the agent group (0640) use these modes. Private keys are written 0600 and are not flagged. priv_linux.go makes the verified, staged agent binary executable (0755) before it replaces the installed one.",
+      "path": "(server.pki|server.selfupdate|server.app.updates[.]go|cmd.sentrel-sign|agent.(register|config|jobs)[.]go|agent.priv_linux[.]go)",
+      "rules": [
+        "G302",
+        "G306"
+      ]
     },
     {
       "_comment": "G402 (InsecureSkipVerify): intentional. probe.go inspects certificates of arbitrary monitored hosts (expiry checks); notify.go honours a per-channel opt-in skip_verify setting; selfupdate/apply.go and the server healthcheck only talk to this server's own loopback listener, which may use a self-signed certificate.",
       "path": "(server.probe.probe[.]go|server.notify.notify[.]go|server.selfupdate.apply[.]go|cmd.sentrel-server.main[.]go)",
-      "rules": ["G402"]
+      "rules": [
+        "G402"
+      ]
     },
     {
       "_comment": "G123 (VerifyPeerCertificate with resumption): the agent TLS config sets no ClientSessionCache, so sessions are never resumed and the CA-pin verifier runs on every handshake.",
       "path": "agent.transport[.]go",
-      "rules": ["G123"]
+      "rules": [
+        "G123"
+      ]
     },
     {
       "_comment": "G404 (math/rand): used only for reconnect backoff jitter, which is not security sensitive.",
       "path": "agent.agent[.]go",
-      "rules": ["G404"]
+      "rules": [
+        "G404"
+      ]
     },
     {
       "_comment": "G124 (cookie attributes): HttpOnly and SameSite are set; Secure is deliberately derived from the request (isHTTPS) so plain-HTTP installs can still sign in.",
       "path": "server.app.(auth|sso)[.]go",
-      "rules": ["G124"]
+      "rules": [
+        "G124"
+      ]
     },
     {
-      "_comment": "G702/G703 (taint analysis): sentrel-sign is an operator CLI that signs a file the operator names; acl_windows.go runs icacls.exe (no shell) on a path the agent itself derived.",
-      "path": "(cmd.sentrel-sign.main[.]go|agent.acl_windows[.]go)",
-      "rules": ["G702", "G703"]
+      "_comment": "G702/G703 (taint analysis): sentrel-sign is an operator CLI that signs a file the operator names; acl_windows.go runs icacls.exe (no shell) on a path the agent itself derived. docker_unix.go stats the Docker socket path from the agent's own DOCKER_HOST environment, which only the host administrator sets.",
+      "path": "(cmd.sentrel-sign.main[.]go|agent.acl_windows[.]go|agent.docker_unix[.]go)",
+      "rules": [
+        "G702",
+        "G703"
+      ]
     },
     {
-      "_comment": "G110 (decompression bomb): backup restore copies tar entries from an archive uploaded by an authenticated admin. Real but low risk; recommended fix is wrapping the entry in io.LimitReader. Scoped to this one file so the rule still guards the rest of the tree.",
-      "path": "server.app.housekeeping[.]go",
-      "rules": ["G110"]
+      "_comment": "sentrel-loadtest is a developer tool: it sends requests to the server URL its operator passes with -server (G704) and uses math/rand only to stagger simulated agents (G404).",
+      "path": "cmd.sentrel-loadtest",
+      "rules": [
+        "G404",
+        "G704"
+      ]
     }
   ]
 }

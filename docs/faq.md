@@ -28,7 +28,7 @@ Measured on a 2 vCPU, 3.8 GB VPS monitoring 3 hosts. Your numbers will vary with
 
 ## Is it production ready? What is the support policy?
 
-Sentrel is pre-1.0. It is young and has not been run at large scale.
+Sentrel is pre-1.0. It is young and has not been run in production at large scale. A simulated-agent load test on a laptop handled 4,000 agents reporting every 30 s on one server (about 64% of one core and 1.5 GB of memory); see [Capacity](operations.md#capacity) for the numbers and their limits.
 
 - Only the latest release is supported; fixes land there.
 - Database migrations run automatically at server start and are never edited after release. There is no automated downgrade: take a backup (`sentrel-server backup`) before upgrading and restore it to roll back.

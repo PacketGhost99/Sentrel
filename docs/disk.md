@@ -66,7 +66,7 @@ Alerts raised from each report (they clear when the condition goes away or the d
 | Condition | Severity |
 |---|---|
 | SMART health check failed | critical |
-| Reallocated, pending or uncorrectable sectors above 0 (the message notes an increase) | warning |
+| Reallocated, pending or uncorrectable sectors rising above the count first seen for that drive (stays raised until a week passes with no further rise, then the new count is the baseline; a replaced drive starts fresh) | warning |
 | NVMe percentage used at or above 90 | warning |
 | md array degraded or failed | critical |
 | ZFS pool not `ONLINE` | critical |

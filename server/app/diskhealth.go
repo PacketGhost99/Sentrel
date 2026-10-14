@@ -17,6 +17,9 @@ import (
 const (
 	maxDiskHealthJSON = 256 << 10
 	nvmeWearWarnPct   = 90
+	// sectorQuietPeriod is how long a bad-sector warning stays raised after
+	// the count last rose; after that the new count becomes the baseline.
+	sectorQuietPeriod = 7 * 24 * 3600
 )
 
 // DiskHealthDevice is one SMART device.
@@ -34,6 +37,10 @@ type DiskHealthDevice struct {
 	PercentUsed   *int64 `json:"percentage_used,omitempty"`
 	MediaErrors   *int64 `json:"media_errors,omitempty"`
 	Error         string `json:"error,omitempty"`
+	// Set by the server, never taken from the agent: the bad-sector count
+	// treated as normal for this drive, and when the count last rose.
+	SectorBaseline *int64 `json:"sector_baseline,omitempty"`
+	SectorsRoseAt  int64  `json:"sectors_rose_at,omitempty"`
 }
 
 // DiskHealthRaid is one md array.
@@ -135,6 +142,7 @@ func (a *App) ingestDiskHealth(ctx context.Context, hostID int64, r *pb.DiskHeal
 	if a.db.GetContext(ctx, &prevData, `SELECT data FROM disk_health WHERE host_id=?`, hostID) == nil {
 		_ = json.Unmarshal([]byte(prevData), &prev)
 	}
+	carrySectorBaselines(&prev, &cur, db.Now())
 	b, _ := json.Marshal(cur)
 	_, _ = a.db.ExecContext(ctx, `INSERT INTO disk_health (tenant_id, host_id, data, updated_at) VALUES (?,?,?,?)
 		ON CONFLICT(host_id) DO UPDATE SET data=excluded.data, updated_at=excluded.updated_at, tenant_id=excluded.tenant_id`, tenant, hostID, string(b), db.Now())
@@ -178,10 +186,6 @@ func diskHealthConditions(hostID int64, hostName string, tenant int64, s *DiskHe
 	base := func(key, source, metric string) condition {
 		return condition{Key: "diskhealth:" + itoa(hostID) + ":" + key, TenantID: tenant, HostID: &hid, Source: source, Metric: metric, Severity: "ok", ForCount: 1}
 	}
-	prevSectors := map[string]int64{}
-	for _, d := range prev.Devices {
-		prevSectors[d.Device] = sectorTotal(d)
-	}
 	for _, d := range s.Devices {
 		label := d.Device
 		if d.Model != "" {
@@ -196,15 +200,12 @@ func diskHealthConditions(hostID int64, hostName string, tenant int64, s *DiskHe
 		out[h.Key] = h
 
 		sc := base("sectors:"+d.Device, "disk_health", "smart_sectors")
-		if n := sectorTotal(d); n > 0 {
+		if n, b := sectorTotal(d), sectorBaseline(d); n > b {
 			sc.Severity = "warning"
 			v := float64(n)
 			sc.Value = &v
-			sc.Title = "Bad sectors on " + label + " on " + hostName
-			sc.Message = fmt.Sprintf("%s on %s: %s", label, hostName, sectorSummary(d))
-			if p, ok := prevSectors[d.Device]; ok && n > p {
-				sc.Message += fmt.Sprintf(" (up from %d)", p)
-			}
+			sc.Title = "Bad sectors increasing on " + label + " on " + hostName
+			sc.Message = fmt.Sprintf("%s on %s: %s (up from %d)", label, hostName, sectorSummary(d), b)
 		}
 		out[sc.Key] = sc
 
@@ -244,6 +245,44 @@ func diskHealthConditions(hostID int64, hostName string, tenant int64, s *DiskHe
 		out[c.Key] = c
 	}
 	return out
+}
+
+// sectorBaseline is the bad-sector count treated as normal for a device.
+func sectorBaseline(d DiskHealthDevice) int64 {
+	if d.SectorBaseline != nil {
+		return *d.SectorBaseline
+	}
+	return sectorTotal(d)
+}
+
+// carrySectorBaselines sets each device's baseline from the previous snapshot.
+// A drive seen for the first time (or replaced: a different serial) starts at
+// its current count, so long-stable reallocated sectors do not warn. A rise
+// above the baseline warns until sectorQuietPeriod passes without a further
+// rise, then the current count becomes the new baseline.
+func carrySectorBaselines(prev, cur *DiskHealth, now int64) {
+	old := map[string]DiskHealthDevice{}
+	for _, d := range prev.Devices {
+		old[d.Device] = d
+	}
+	for i := range cur.Devices {
+		d := &cur.Devices[i]
+		n := sectorTotal(*d)
+		p, seen := old[d.Device]
+		if !seen || (p.Serial != "" && d.Serial != "" && p.Serial != d.Serial) {
+			d.SectorBaseline, d.SectorsRoseAt = &n, 0
+			continue
+		}
+		base := sectorBaseline(p)
+		roseAt := p.SectorsRoseAt
+		if n > sectorTotal(p) {
+			roseAt = now
+		}
+		if n < base || (roseAt > 0 && now-roseAt > sectorQuietPeriod) {
+			base, roseAt = n, 0
+		}
+		d.SectorBaseline, d.SectorsRoseAt = &base, roseAt
+	}
 }
 
 func sectorSummary(d DiskHealthDevice) string {

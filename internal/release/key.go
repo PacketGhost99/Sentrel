@@ -5,7 +5,7 @@ package release
 
 // Repo is the GitHub repository that publishes releases. It is the only place
 // the slug is defined.
-const Repo = "PacketGhost99/Sentrel"
+const Repo = "XEDigital/Sentrel"
 
 // publicKeyB64 is the release signing key (Ed25519, base64 PKIX). It is the
 // trust root for self-updates. It is compiled in and cannot be replaced by an

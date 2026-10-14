@@ -103,7 +103,7 @@ func ghJSON(tag string, draft, pre bool, assets ...string) string {
 	for _, n := range assets {
 		as = append(as, fmt.Sprintf(`{"name":%q,"browser_download_url":"https://github.com/x/y/releases/download/%s/%s","size":10}`, n, tag, n))
 	}
-	return fmt.Sprintf(`{"tag_name":%q,"draft":%v,"prerelease":%v,"published_at":"2026-10-01T10:00:00Z","html_url":"https://github.com/PacketGhost99/Sentrel/releases/tag/%s","body":"## Notes\n- <b>x</b>","assets":[%s]}`,
+	return fmt.Sprintf(`{"tag_name":%q,"draft":%v,"prerelease":%v,"published_at":"2026-10-01T10:00:00Z","html_url":"https://github.com/XEDigital/Sentrel/releases/tag/%s","body":"## Notes\n- <b>x</b>","assets":[%s]}`,
 		tag, draft, pre, tag, strings.Join(as, ","))
 }
 
@@ -131,7 +131,7 @@ func TestUpdateCheck(t *testing.T) {
 	if err := u.Check(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	if gotPath != "/repos/PacketGhost99/Sentrel/releases/latest" {
+	if gotPath != "/repos/XEDigital/Sentrel/releases/latest" {
 		t.Errorf("path %s", gotPath)
 	}
 	if gotHeaders.Get("User-Agent") != "Sentrel/0.9.1-dev" {

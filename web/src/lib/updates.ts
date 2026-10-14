@@ -171,7 +171,7 @@ export function installHelp(method: string | undefined, version: string): Instal
   switch (method) {
     case 'docker':
       return { title: 'Update the container', steps: [
-        { text: 'Pull the new image:', code: `docker pull ghcr.io/packetghost99/sentrel:${version}` },
+        { text: 'Pull the new image:', code: `docker pull ghcr.io/xedigital/sentrel:${version}` },
         { text: `Set the image tag to ${version} in your compose file (or use latest) and recreate the container. The data volume is kept:`, code: 'docker compose up -d' },
       ] }
     case 'package':
@@ -182,7 +182,7 @@ export function installHelp(method: string | undefined, version: string): Instal
     default:
       return { title: 'Update manually', steps: [
         { text: 'Back up first, then download the server binary for your platform from the release page and verify it against the signed SHA256SUMS. Replace the binary and restart the service.' },
-        { text: 'With the install script, which also installs the one-click updater units:', code: 'curl -fsSL https://github.com/PacketGhost99/Sentrel/releases/latest/download/install-server.sh -o install-server.sh\nsudo sh install-server.sh --url https://github.com/PacketGhost99/Sentrel/releases/latest/download/sentrel-server-linux-amd64' },
+        { text: 'With the install script, which also installs the one-click updater units:', code: 'curl -fsSL https://github.com/XEDigital/Sentrel/releases/latest/download/install-server.sh -o install-server.sh\nsudo sh install-server.sh --url https://github.com/XEDigital/Sentrel/releases/latest/download/sentrel-server-linux-amd64' },
       ] }
   }
 }

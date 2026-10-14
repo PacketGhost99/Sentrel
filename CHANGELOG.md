@@ -4,6 +4,10 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Changed
+
+- The project moved to https://github.com/XEDigital/Sentrel and the container image to `ghcr.io/xedigital/sentrel`. Old GitHub links redirect, and servers on 0.9.3 keep receiving updates. Docker users should switch the image name (see docs/install.md); `ghcr.io/packetghost99/sentrel` receives no further updates.
+
 ## [0.9.3] - 2026-10-14
 
 Security release: fixes from an external review. Upgrading is recommended for every installation. Operator-signing users: see Removed.
@@ -126,4 +130,4 @@ Fixes from an internal security review:
 - Disk usage analysis is limited to mount points; logout cookie flags corrected; job-cancel events carry tenant tags; hardened systemd unit for the server.
 - Added a test that calls every `{id}` route as a user from another tenant, and a live-event tenancy test.
 
-[Unreleased]: https://github.com/PacketGhost99/Sentrel/commits/main
+[Unreleased]: https://github.com/XEDigital/Sentrel/commits/main

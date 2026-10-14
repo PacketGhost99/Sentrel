@@ -77,7 +77,7 @@ describe('release notes', () => {
 
 describe('install help', () => {
   it('gives exact commands per method', () => {
-    expect(installHelp('docker', '0.9.2').steps[0].code).toBe('docker pull ghcr.io/packetghost99/sentrel:0.9.2')
+    expect(installHelp('docker', '0.9.2').steps[0].code).toBe('docker pull ghcr.io/xedigital/sentrel:0.9.2')
     expect(installHelp('docker', '0.9.2').steps[1].code).toBe('docker compose up -d')
     expect(installHelp('package', '0.9.2').steps.map((s) => s.code).join('\n')).toContain('apt install --only-upgrade sentrel-server')
     expect(installHelp('package', '0.9.2').steps.map((s) => s.code).join('\n')).toContain('dnf upgrade sentrel-server')

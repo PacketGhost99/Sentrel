@@ -6,7 +6,7 @@ Five steps from nothing to a monitored host with an alert.
 
 ```sh
 docker run -d --name sentrel --cap-add NET_RAW -p 8080:8080 -v sentrel-data:/data \
-  ghcr.io/packetghost99/sentrel:latest
+  ghcr.io/xedigital/sentrel:latest
 ```
 
 On a Linux host without Docker, use the install script or a `.deb`/`.rpm` package instead. All options, TLS and upgrades are in [install](install.md).

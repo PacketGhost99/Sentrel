@@ -1,6 +1,6 @@
 # Roadmap
 
-This is the current direction for Sentrel. Items move between sections as work starts and priorities change, and there are no fixed dates. Ideas and votes are welcome in [GitHub Discussions](https://github.com/PacketGhost99/Sentrel/discussions); bugs go in [Issues](https://github.com/PacketGhost99/Sentrel/issues). Shipped work is listed in the [changelog](CHANGELOG.md).
+This is the current direction for Sentrel. Items move between sections as work starts and priorities change, and there are no fixed dates. Ideas and votes are welcome in [GitHub Discussions](https://github.com/XEDigital/Sentrel/discussions); bugs go in [Issues](https://github.com/XEDigital/Sentrel/issues). Shipped work is listed in the [changelog](CHANGELOG.md).
 
 ## Now
 

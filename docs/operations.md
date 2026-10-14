@@ -172,7 +172,7 @@ Sentrel tells administrators when a new release exists: a green **Update vX.Y.Z*
 
 ### The version check
 
-Every 6 hours (and on **Check now**) the server sends `GET https://api.github.com/repos/PacketGhost99/Sentrel/releases/latest` with `User-Agent: Sentrel/<version>` and an `If-None-Match` ETag. Nothing else is sent, and drafts and prereleases are ignored. This is the only automatic outbound call besides the ones you configure. Turn it off in **Settings, Updates**, or set `SENTREL_DISABLE_UPDATE_CHECK=1` in the server's environment (which overrides the setting; the UI then says it is disabled by the administrator of the host). `SENTREL_DISABLE_SELF_UPDATE=1` disables installing.
+Every 6 hours (and on **Check now**) the server sends `GET https://api.github.com/repos/XEDigital/Sentrel/releases/latest` with `User-Agent: Sentrel/<version>` and an `If-None-Match` ETag. Nothing else is sent, and drafts and prereleases are ignored. This is the only automatic outbound call besides the ones you configure. Turn it off in **Settings, Updates**, or set `SENTREL_DISABLE_UPDATE_CHECK=1` in the server's environment (which overrides the setting; the UI then says it is disabled by the administrator of the host). `SENTREL_DISABLE_SELF_UPDATE=1` disables installing.
 
 ### Methods
 
@@ -181,7 +181,7 @@ The server detects how it was installed:
 | Method | Detected by | How to update |
 |---|---|---|
 | `systemd` | Started by systemd from `/usr/local/bin/sentrel-server` with the `sentrel-updater` units installed by `install-server.sh` | **Install update** in Settings, Updates (one click) |
-| `docker` | `/.dockerenv`, or `SENTREL_INSTALL_METHOD=docker` (set in the official image) | `docker pull ghcr.io/packetghost99/sentrel:<version>`, then `docker compose up -d` |
+| `docker` | `/.dockerenv`, or `SENTREL_INSTALL_METHOD=docker` (set in the official image) | `docker pull ghcr.io/xedigital/sentrel:<version>`, then `docker compose up -d` |
 | `package` | The binary is owned by a dpkg or rpm package | `sudo apt update && sudo apt install --only-upgrade sentrel-server`, or `sudo dnf upgrade sentrel-server` |
 | `manual` | Anything else | Download the binary, verify it, replace it and restart (or re-run `install-server.sh`) |
 

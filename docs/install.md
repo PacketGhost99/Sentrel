@@ -74,14 +74,16 @@ There is no hosted package repository yet; install the packages from the release
 
 ## Container image (GHCR)
 
-Images are published for linux/amd64 and linux/arm64 as `ghcr.io/packetghost99/sentrel` (the repository name in lower case) with tags `edge` (latest main), the release tag (for example `v1.2.0`) and `latest` (latest release).
+Images are published for linux/amd64 and linux/arm64 as `ghcr.io/xedigital/sentrel` (the repository name in lower case) with tags `edge` (latest main), the release tag (for example `v1.2.0`) and `latest` (latest release).
 
 ```sh
 docker run -d --name sentrel --cap-add NET_RAW -p 8080:8080 -v sentrel-data:/data \
-  ghcr.io/packetghost99/sentrel:latest
+  ghcr.io/xedigital/sentrel:latest
 ```
 
-In the compose file, replace the `build:` section with `image: ghcr.io/packetghost99/sentrel:latest`.
+In the compose file, replace the `build:` section with `image: ghcr.io/xedigital/sentrel:latest`.
+
+Releases up to 0.9.3 were published as `ghcr.io/packetghost99/sentrel`, which receives no further updates. If your compose file or `docker run` command uses that name, change it to `ghcr.io/xedigital/sentrel` and pull again; the data volume is unaffected.
 
 ## Verifying downloads
 
@@ -94,7 +96,7 @@ Releases carry several independent checks:
 ```sh
 cosign verify-blob \
   --bundle SHA256SUMS.cosign.bundle \
-  --certificate-identity-regexp '^https://github.com/PacketGhost99/Sentrel/\.github/workflows/ci\.yml@refs/tags/v' \
+  --certificate-identity-regexp '(?i)^https://github.com/(xedigital|packetghost99)/sentrel/\.github/workflows/ci\.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   SHA256SUMS
 sha256sum -c SHA256SUMS --ignore-missing
@@ -104,12 +106,12 @@ sha256sum -c SHA256SUMS --ignore-missing
 - The container image is signed keyless as well:
 
 ```sh
-cosign verify ghcr.io/packetghost99/sentrel:<tag> \
-  --certificate-identity-regexp '^https://github.com/PacketGhost99/Sentrel/\.github/workflows/ci\.yml@' \
+cosign verify ghcr.io/xedigital/sentrel:<tag> \
+  --certificate-identity-regexp '(?i)^https://github.com/(xedigital|packetghost99)/sentrel/\.github/workflows/ci\.yml@' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
-Replace `PacketGhost99/Sentrel` with the GitHub repository (case-sensitive in the certificate identity).
+The pattern also accepts releases up to 0.9.3, which were published from the repository's earlier location. If you verify a fork, replace the owner and name with your own.
 
 ## Docker
 

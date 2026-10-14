@@ -8,11 +8,11 @@
 **Self-hosted monitoring for your servers, sites and network.**<br>
 Agents, uptime checks, security, patching and CVEs in one place.
 
-[![CI](https://github.com/PacketGhost99/Sentrel/actions/workflows/ci.yml/badge.svg)](https://github.com/PacketGhost99/Sentrel/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/PacketGhost99/Sentrel/actions/workflows/codeql.yml/badge.svg)](https://github.com/PacketGhost99/Sentrel/actions/workflows/codeql.yml)
-[![Release](https://img.shields.io/github/v/release/PacketGhost99/Sentrel)](https://github.com/PacketGhost99/Sentrel/releases/latest)
-[![Licence](https://img.shields.io/github/license/PacketGhost99/Sentrel)](LICENSE)
-[![Container image](https://img.shields.io/badge/ghcr.io-packetghost99%2Fsentrel-blue?logo=docker&logoColor=white)](https://github.com/PacketGhost99/Sentrel/pkgs/container/sentrel)
+[![CI](https://github.com/XEDigital/Sentrel/actions/workflows/ci.yml/badge.svg)](https://github.com/XEDigital/Sentrel/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/XEDigital/Sentrel/actions/workflows/codeql.yml/badge.svg)](https://github.com/XEDigital/Sentrel/actions/workflows/codeql.yml)
+[![Release](https://img.shields.io/github/v/release/XEDigital/Sentrel)](https://github.com/XEDigital/Sentrel/releases/latest)
+[![Licence](https://img.shields.io/github/license/XEDigital/Sentrel)](LICENSE)
+[![Container image](https://img.shields.io/badge/ghcr.io-xedigital%2Fsentrel-blue?logo=docker&logoColor=white)](https://github.com/XEDigital/Sentrel/pkgs/container/sentrel)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dashboard-dark.png">
@@ -42,15 +42,15 @@ Agents, uptime checks, security, patching and CVEs in one place.
 
 ```sh
 docker run -d --name sentrel --cap-add NET_RAW -p 8080:8080 -v sentrel-data:/data \
-  ghcr.io/packetghost99/sentrel:latest
+  ghcr.io/xedigital/sentrel:latest
 ```
 
 **Or on Linux** (systemd)
 
 ```sh
-curl -fsSLO https://github.com/PacketGhost99/Sentrel/releases/latest/download/install-server.sh
-curl -fsSLO https://github.com/PacketGhost99/Sentrel/releases/latest/download/sentrel-server-linux-amd64
-curl -fsSLO https://github.com/PacketGhost99/Sentrel/releases/latest/download/SHA256SUMS
+curl -fsSLO https://github.com/XEDigital/Sentrel/releases/latest/download/install-server.sh
+curl -fsSLO https://github.com/XEDigital/Sentrel/releases/latest/download/sentrel-server-linux-amd64
+curl -fsSLO https://github.com/XEDigital/Sentrel/releases/latest/download/SHA256SUMS
 sha256sum -c SHA256SUMS --ignore-missing
 sudo sh install-server.sh --binary ./sentrel-server-linux-amd64
 ```
@@ -83,8 +83,8 @@ Packages (`.deb`, `.rpm`), Compose, TLS and upgrades are covered in [Installing]
 
 ## Community & support
 
-- Questions and ideas: [GitHub Discussions](https://github.com/PacketGhost99/Sentrel/discussions)
-- Bugs and feature requests: [Issues](https://github.com/PacketGhost99/Sentrel/issues)
+- Questions and ideas: [GitHub Discussions](https://github.com/XEDigital/Sentrel/discussions)
+- Bugs and feature requests: [Issues](https://github.com/XEDigital/Sentrel/issues)
 - Security reports: please follow [SECURITY.md](SECURITY.md) and do not open a public issue
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
 

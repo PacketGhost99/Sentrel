@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Bell, BellOff, Plus, ShieldAlert, Wrench } from 'lucide-react'
+import { Activity, ArrowRight, Bell, BellOff, Plus, Server, ShieldAlert, Wrench } from 'lucide-react'
 import { get, post } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { ago, plural } from '@/lib/format'
@@ -40,9 +40,9 @@ const tileStyle: Record<Tone, { ring: string; text: string; dot: string; label: 
 function HealthCard({ parts, total }: { parts: { tone: Tone; value: number; title: string; onClick: () => void }[]; total: string }) {
   const sum = parts.reduce((n, p) => n + p.value, 0)
   return (
-    <div className="flex h-full flex-col rounded-2xl border border-line/70 bg-panel p-4 shadow-card">
+    <div className="flex h-full flex-col rounded-md border border-line bg-panel p-4">
       <div className="flex items-center justify-between gap-2 text-xs font-medium text-muted">
-        <span>Health</span>
+        <span>Infrastructure health</span>
         <span className="truncate">{total}</span>
       </div>
       <div className="mt-1.5 grid grid-cols-4 gap-2">
@@ -101,12 +101,15 @@ export function Dashboard() {
   }
 
   return (
-    <div className="space-y-6">
-      <PageHeader title="Dashboard"
-        actions={can('hosts') && <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => nav('/hosts/new')}>Add host</Button>} />
+    <div className="space-y-5">
+      <PageHeader title="Overview" subtitle="Your infrastructure at a glance. Start with what needs attention."
+        actions={<>
+          {(x.alerts.critical + x.alerts.warning > 0) && <Button variant="primary" icon={<Bell className="size-4" />} onClick={() => nav('/alerts')}>Review alerts</Button>}
+          {can('hosts') && <Button icon={<Plus className="size-4" />} onClick={() => nav('/hosts/new')}>Add host</Button>}
+        </>} />
 
-      <div className={cx('grid grid-cols-2 gap-3 sm:gap-4', x.vuln_enabled ? 'xl:grid-cols-[minmax(0,1.7fr)_repeat(3,minmax(0,1fr))]' : 'xl:grid-cols-[minmax(0,1.7fr)_repeat(2,minmax(0,1fr))]')}>
-        <div className="col-span-2 xl:col-span-1">
+      <div className={cx('grid grid-cols-2 gap-3 sm:gap-4', x.vuln_enabled ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}>
+        <div className="col-span-2 sm:col-span-full">
           <HealthCard total={`${plural(x.hosts.total, 'host')} · ${plural(x.checks.total, 'check')}${x.hosts.pending ? ` · ${x.hosts.pending} pending` : ''}`} parts={[
             { tone: 'ok', value: upHosts + x.checks.up, title: `${plural(upHosts, 'host')} · ${plural(x.checks.up, 'check')}`, onClick: () => nav('/hosts?status=up') },
             { tone: 'crit', value: x.hosts.down + x.checks.down, title: `${plural(x.hosts.down, 'host')} · ${plural(x.checks.down, 'check')}`, onClick: () => nav(x.hosts.down ? '/hosts?status=down' : '/checks') },
@@ -116,9 +119,36 @@ export function Dashboard() {
         </div>
         <Stat label="Active alerts" icon={<Bell />} value={x.alerts.critical + x.alerts.warning} tone={x.alerts.critical ? 'crit' : x.alerts.warning ? 'warn' : 'muted'}
           sub={`${x.alerts.critical} critical · ${x.alerts.warning} warning${x.alerts.acked ? ` · ${x.alerts.acked} acknowledged` : ''}`} onClick={() => nav('/alerts')} />
-        <Stat label="Updates pending" icon={<Wrench />} value={x.upgrades_pending} tone={x.security_updates ? 'warn' : 'muted'} sub={`${x.security_updates} security${x.reboot_required ? ` · ${x.reboot_required} need a reboot` : ''}`} onClick={() => nav('/hosts')} />
-        {x.vuln_enabled && <Stat label="Critical CVEs" icon={<ShieldAlert />} value={nf(v.critical ?? 0)} tone={v.critical ? 'crit' : v.high ? 'warn' : 'muted'} title={FIXABLE_TITLE} sub={`${nf(v.high ?? 0)} high · ${nf(x.vulnerabilities_fixable ?? 0)} fixable`} onClick={() => nav('/vulnerabilities')} />}
+        <Stat label="Updates pending" icon={<Wrench />} value={x.upgrades_pending} tone={x.security_updates ? 'warn' : 'muted'} sub={`${x.security_updates} security${x.reboot_required ? ` · ${x.reboot_required} need a reboot` : ''}`} onClick={() => nav('/hosts?sort=updates')} />
+        {x.vuln_enabled && <div className="col-span-2 sm:col-span-1"><Stat label="Critical vulnerabilities" icon={<ShieldAlert />} value={nf(v.critical ?? 0)} tone={v.critical ? 'crit' : v.high ? 'warn' : 'muted'} title={FIXABLE_TITLE} sub={`${nf(v.high ?? 0)} high · ${nf(x.vulnerabilities_fixable ?? 0)} fixable`} onClick={() => nav('/vulnerabilities')} /></div>}
       </div>
+
+        <Card className="h-full" title="Active alerts" subtitle="Issues that need investigation." actions={<Link to="/alerts" className="text-xs font-medium text-accent hover:underline">View all</Link>} bodyClass="p-0">
+          {x.firing_alerts.length === 0 ? (
+            <AllClear title="All quiet" />
+          ) : (
+            <ul className="divide-y divide-line/60">
+              {x.firing_alerts.slice(0, 12).map((a) => (
+                <li key={a.id} className="flex flex-wrap items-center gap-3 px-5 py-4">
+                  <StatusDot status={a.severity === 'critical' ? 'down' : 'warning'} pulse={!a.acked_by} />
+                  <div className="min-w-0 flex-1 basis-56 sm:basis-auto">
+                    <Link to={`/alerts/${a.id}`} className="block text-sm font-medium hover:text-accent">{a.title}</Link>
+                    <div className="mt-1 line-clamp-2 text-xs text-muted">{a.message}</div>
+                  </div>
+                  <div className="hidden shrink-0 items-center gap-2 sm:flex">
+                    {a.muted && <MutedBadge />}
+                    {a.in_maintenance && <Badge tone="maint">maintenance</Badge>}
+                    {a.flapping && <Badge tone="warn">flapping</Badge>}
+                    {a.acked_by ? <Badge title={a.ack_comment}>acked by {a.acked_by}</Badge> : <SeverityBadge severity={a.severity} />}
+                    <span className="w-16 text-right text-xs text-muted">{ago(a.fired_at)}</span>
+                  </div>
+                  {!a.acked_by && can('ack') && <Button className="ml-auto shrink-0" size="sm" variant="ghost" icon={<BellOff className="size-3.5" />} onClick={() => ack(a)}>Acknowledge</Button>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
 
       <div className="grid gap-4 xl:grid-cols-2">
         <Card className="h-full" title="Hosts needing attention" bodyClass="p-0"
@@ -149,7 +179,7 @@ export function Dashboard() {
         <Card className="h-full" title="Checks needing attention" subtitle={problemChecks.length ? `${problemChecks.length} failing` : undefined} bodyClass="p-0"
           actions={<Link to="/checks" className="text-xs font-medium text-accent hover:underline">All checks</Link>}>
           {checks.isLoading ? <Loading /> : problemChecks.length === 0 ? (
-            <AllClear title="All checks passing" />
+            (checks.data?.length ?? 0) === 0 ? <Empty title="No service checks yet">Add a check to monitor a website, port or endpoint.<Link to="/checks" className="mt-2 block font-medium text-accent hover:underline">Set up checks →</Link></Empty> : <AllClear title="All checks passing" />
           ) : (
             <ul className="divide-y divide-line/60">
               {problemChecks.slice(0, 8).map((c) => (
@@ -169,37 +199,30 @@ export function Dashboard() {
         </Card>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-3">
-        <Card className="h-full xl:col-span-2" title="Firing alerts" actions={<Link to="/alerts" className="text-xs font-medium text-accent hover:underline">View all</Link>} bodyClass="p-0">
-          {x.firing_alerts.length === 0 ? (
-            <AllClear title="All quiet" />
-          ) : (
-            <ul className="divide-y divide-line/60">
-              {x.firing_alerts.slice(0, 12).map((a) => (
-                <li key={a.id} className="flex items-center gap-3 px-5 py-3">
-                  <StatusDot status={a.severity === 'critical' ? 'down' : 'warning'} pulse={!a.acked_by} />
-                  <div className="min-w-0 flex-1">
-                    <Link to={`/alerts/${a.id}`} className="block truncate text-sm font-medium hover:text-accent">{a.title}</Link>
-                    <div className="truncate text-xs text-muted">{a.message}</div>
-                  </div>
-                  <div className="hidden shrink-0 items-center gap-2 sm:flex">
-                    {a.muted && <MutedBadge />}
-                    {a.in_maintenance && <Badge tone="maint">maintenance</Badge>}
-                    {a.flapping && <Badge tone="warn">flapping</Badge>}
-                    {a.acked_by ? <Badge title={a.ack_comment}>acked by {a.acked_by}</Badge> : <SeverityBadge severity={a.severity} />}
-                    <span className="w-16 text-right text-xs text-muted">{ago(a.fired_at)}</span>
-                  </div>
-                  {!a.acked_by && can('ack') && <Button size="sm" variant="ghost" icon={<BellOff className="size-3.5" />} onClick={() => ack(a)}>Ack</Button>}
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-
-        <Card className="h-full" title="Recent events" bodyClass="p-0">
+      <Card title="Host overview" bodyClass="p-4">
+        {hosts.isLoading ? <Loading /> : !allHosts.length ? (
+          <Empty title="No hosts yet">{can('hosts') && <Link to="/hosts/new" className="text-accent hover:underline">Add your first host</Link>}</Empty>
+        ) : (
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-3">
+            {allHosts.map((h) => <HostTile key={h.id} h={h} />)}
+          </div>
+        )}
+      </Card>
+      <nav aria-label="Overview shortcuts" className="grid gap-3 sm:grid-cols-3">
+        {[
+          { to: '/hosts', title: 'Explore hosts', hint: 'Health, metrics and inventory', icon: <Server className="size-5" /> },
+          { to: '/checks', title: 'Service checks', hint: 'Availability and response times', icon: <Activity className="size-5" /> },
+          { to: '/jobs', title: 'Jobs & updates', hint: 'Review scheduled work and results', icon: <Wrench className="size-5" /> },
+        ].map((item) => <Link key={item.to} to={item.to} className="group flex items-center gap-3 rounded-md border border-line bg-panel px-4 py-3 hover:border-accent/40">
+          <span className="rounded-lg bg-accent/8 p-2 text-accent">{item.icon}</span>
+          <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{item.title}</span><span className="block text-xs text-muted">{item.hint}</span></span>
+          <ArrowRight className="size-4 shrink-0 text-muted group-hover:text-accent" />
+        </Link>)}
+      </nav>
+        <Card className="h-full" title="Recent activity" subtitle="The five most recent alert events" actions={<Link to="/alerts" className="text-xs font-medium text-accent hover:underline">View alerts</Link>} bodyClass="p-0">
           {x.recent_events.length === 0 ? <Empty title="No events yet" /> : (
             <ul className="divide-y divide-line/60">
-              {x.recent_events.map((e) => (
+              {x.recent_events.slice(0, 5).map((e) => (
                 <li key={e.id} className="px-5 py-3">
                   <div className="flex items-center gap-2 text-xs">
                     <Badge tone={e.event === 'resolved' ? 'ok' : e.event === 'acked' ? 'info' : e.event === 'silenced' ? 'maint' : e.severity === 'critical' ? 'crit' : 'warn'}>{e.event}</Badge>
@@ -212,17 +235,7 @@ export function Dashboard() {
             </ul>
           )}
         </Card>
-      </div>
 
-      <Card title="Host overview" bodyClass="p-4">
-        {!allHosts.length ? (
-          <Empty title="No hosts yet">{can('hosts') && <Link to="/hosts/new" className="text-accent hover:underline">Add your first host</Link>}</Empty>
-        ) : (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-3">
-            {allHosts.map((h) => <HostTile key={h.id} h={h} />)}
-          </div>
-        )}
-      </Card>
     </div>
   )
 }
@@ -232,7 +245,7 @@ function HostTile({ h }: { h: Host }) {
   const st = hostStatusLabel(h)
   const edge = h.in_maintenance ? 'bg-maint' : h.status === 'down' || h.alert_severity === 'critical' ? 'bg-crit-fill' : h.alert_severity === 'warning' ? 'bg-warn-fill' : h.status === 'up' ? 'bg-ok-fill' : 'bg-unknown-fill'
   return (
-    <Link to={`/hosts/${h.id}`} className="group relative block overflow-hidden rounded-xl border border-line/70 bg-panel p-3.5 pl-4 transition-[transform,box-shadow] duration-150 hover:-translate-y-px hover:shadow-pop">
+    <Link to={`/hosts/${h.id}`} className="group relative block overflow-hidden rounded-md border border-line/70 bg-panel p-3.5 pl-4 transition-[transform,box-shadow] duration-150 hover:-translate-y-px hover:shadow-pop">
       <span className={cx('absolute inset-y-0 left-0 w-1', edge)} />
       <div className="flex items-center justify-between gap-2">
         <span className="truncate text-sm font-semibold">{h.name}</span>

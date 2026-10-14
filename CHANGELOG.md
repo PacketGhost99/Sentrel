@@ -4,6 +4,18 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [0.9.6] - 2026-10-14
+
+### Changed
+
+- Web UI:
+  - **Overview:** leads with active alerts, then affected hosts and checks, and shows the five most recent events.
+  - **Navigation:** grouped into Monitor, Operations, Setup & routing, and Administration. Administration starts collapsed and the sidebar remembers collapsed sections.
+  - **Host pages:** show every applicable tab directly, wrapping on small screens.
+  - **Hosts list:** search and sorting stay visible and the detailed filters open on demand. Selecting hosts shows a separate bulk-action bar.
+  - **Empty states:** tell "no data yet" apart from "no matches".
+  - **Styling:** refined spacing, keyboard focus, mobile wrapping and theme styling.
+
 ## [0.9.5] - 2026-10-14
 
 ### Fixed

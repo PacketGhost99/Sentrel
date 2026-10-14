@@ -11,9 +11,12 @@ import { DISK_ALERT_METRICS, StorageForAlert } from './host/DiskUsage'
 import { Badge, Button, Card, Checkbox, Empty, ErrorBox, Field, Input, KV, Loading, Modal, MutedBadge, PageHeader, Segmented, SeverityBadge, StatusDot, Table, Td, Th, Textarea, useToast } from '@/components/ui'
 
 export function Alerts() {
+  const { can } = useAuth()
   return (
     <div>
-      <PageHeader title="Alerts" info="Firing and pending alerts, plus history. Acknowledge to stop repeat notifications." />
+      <PageHeader title="Alerts" subtitle="Alerts raised by your monitoring rules and vulnerability policy."
+        info="Host update, reboot and CVE inventory counts are not separate alerts. Security-update and reboot rules must be enabled to raise alerts; vulnerability alerts follow the configured severity, fixability and inactive-kernel policy. Acknowledge an alert to stop repeat notifications."
+        actions={can('monitoring') && <Link to="/thresholds" className="rounded-lg border border-line bg-panel px-3 py-2 text-sm font-medium hover:border-accent">Configure alert rules</Link>} />
       <AlertsTable />
     </div>
   )

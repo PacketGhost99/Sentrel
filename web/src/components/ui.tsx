@@ -15,7 +15,7 @@ export function Button({ variant = 'secondary', size = 'md', loading, icon, clas
       {...rest}
       disabled={rest.disabled || loading}
       className={cx(
-        'inline-flex items-center justify-center gap-1.5 rounded-lg font-medium whitespace-nowrap select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50',
+        'inline-flex items-center justify-center gap-1.5 rounded-md font-medium whitespace-nowrap select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50',
         size === 'sm' ? 'h-8 px-3 text-xs' : 'h-9 px-4 text-sm',
         variant === 'primary' && 'bg-accent text-accent-fg shadow-sm hover:brightness-110',
         variant === 'secondary' && 'border border-line bg-panel text-fg shadow-sm hover:bg-panel-2',
@@ -36,12 +36,12 @@ export function Button({ variant = 'secondary', size = 'md', loading, icon, clas
 export function Card({ title, actions, children, className, bodyClass, subtitle, info }:
   { title?: ReactNode; actions?: ReactNode; children?: ReactNode; className?: string; bodyClass?: string; subtitle?: ReactNode; info?: ReactNode }) {
   return (
-    <section className={cx('overflow-hidden rounded-2xl border bg-panel shadow-card', !className?.includes('border-') && 'border-line/70', className)}>
+    <section className={cx('console-panel overflow-hidden rounded-md border bg-panel', !className?.includes('border-') && 'border-line/70', className)}>
       {(title || actions) && (
-        <header className="flex items-center justify-between gap-3 border-b border-line/70 px-5 py-3.5">
+        <header className="flex items-center justify-between gap-3 border-b border-line/70 bg-panel-2/40 px-4 py-3">
           <div className="min-w-0">
             {title && <h3 className="flex min-w-0 items-center gap-1.5 text-sm font-semibold tracking-tight"><span className="truncate">{title}</span>{info && <InfoTip>{info}</InfoTip>}</h3>}
-            {subtitle && <p className="mt-0.5 truncate text-xs text-muted">{subtitle}</p>}
+            {subtitle && <p className="mt-0.5 text-xs leading-relaxed text-muted">{subtitle}</p>}
           </div>
           {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
         </header>
@@ -53,10 +53,10 @@ export function Card({ title, actions, children, className, bodyClass, subtitle,
 
 export function PageHeader({ title, subtitle, actions, back, info }: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode; back?: ReactNode; info?: ReactNode }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+    <div className="console-page-header mb-5 flex flex-wrap items-end justify-between gap-3">
       <div className="min-w-0">
         {back}
-        <h1 className="flex min-w-0 items-center gap-2 text-2xl font-semibold tracking-tight"><span className="truncate">{title}</span>{info && <InfoTip size="md">{info}</InfoTip>}</h1>
+        <h1 className="flex min-w-0 items-center gap-2 text-[22px] font-semibold tracking-tight"><span className="truncate">{title}</span>{info && <InfoTip size="md">{info}</InfoTip>}</h1>
         {subtitle && <div className="mt-1 text-sm text-muted">{subtitle}</div>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
@@ -65,16 +65,17 @@ export function PageHeader({ title, subtitle, actions, back, info }: { title: Re
 }
 
 export function Stat({ label, value, sub, tone, onClick, icon, title, info }: { label: string; value: ReactNode; sub?: ReactNode; tone?: 'ok' | 'warn' | 'crit' | 'info' | 'muted' | 'maint'; onClick?: () => void; icon?: ReactNode; title?: string; info?: ReactNode }) {
+  const Container = onClick ? 'button' : 'div'
   return (
-    <div onClick={onClick} title={title} className={cx('flex h-full flex-col rounded-2xl border border-line/70 bg-panel p-4 shadow-card transition-[transform,box-shadow] duration-150', onClick && 'cursor-pointer hover:-translate-y-px hover:shadow-pop')}>
+    <Container type={onClick ? 'button' : undefined} onClick={onClick} title={title} className={cx('console-stat flex h-full w-full flex-col rounded-md border border-line bg-panel p-4 text-left transition-[border-color] duration-150', onClick && 'cursor-pointer hover:border-accent/40')}>
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1 text-xs font-medium text-muted"><span className="truncate">{label}</span>{info && <InfoTip>{info}</InfoTip>}</div>
         {icon && <div className={cx('[&_svg]:size-4', tone === 'ok' && 'text-ok', tone === 'warn' && 'text-warn', tone === 'crit' && 'text-crit', tone === 'info' && 'text-info', tone === 'maint' && 'text-maint', (!tone || tone === 'muted') && 'text-muted')}>{icon}</div>}
       </div>
       <div className={cx('mt-1.5 text-3xl font-semibold tabular-nums tracking-tight',
         tone === 'ok' && 'text-ok-ink', tone === 'warn' && 'text-warn-ink', tone === 'crit' && 'text-crit-ink', tone === 'info' && 'text-info-ink', tone === 'maint' && 'text-maint-ink', tone === 'muted' && 'text-muted')}>{value}</div>
-      {sub && <div className="mt-0.5 truncate text-xs text-muted" title={typeof sub === 'string' ? sub : undefined}>{sub}</div>}
-    </div>
+      {sub && <div className="mt-0.5 text-xs leading-relaxed text-muted" title={typeof sub === 'string' ? sub : undefined}>{sub}</div>}
+    </Container>
   )
 }
 
@@ -343,7 +344,7 @@ export function Field({ label, hint, error, children, className, required, info 
   )
 }
 
-const inputCls = 'w-full rounded-lg border border-line bg-panel px-3 py-1.5 text-sm text-fg shadow-sm placeholder:text-muted/70 hover:border-muted/40 focus:border-accent focus:outline-none focus:ring-3 focus:ring-accent/20 disabled:opacity-60'
+const inputCls = 'w-full rounded-md border border-line bg-panel px-3 py-1.5 text-sm text-fg shadow-sm placeholder:text-muted/70 hover:border-muted/40 focus:border-accent focus:outline-none focus:ring-3 focus:ring-accent/20 disabled:opacity-60'
 
 /** inputCls, minus its default width and height when the caller sets their own. */
 function fieldCls(className: string | undefined, height: string) {
@@ -461,7 +462,7 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }: {
   return createPortal(
     <div className="fade-in fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/45 p-4 pt-[8vh] backdrop-blur-sm" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className={cx('pop-in w-full rounded-2xl border border-line/70 bg-panel shadow-pop', size === 'sm' && 'max-w-md', size === 'md' && 'max-w-xl', size === 'lg' && 'max-w-3xl', size === 'xl' && 'max-w-5xl')}>
-        <div className="flex items-center justify-between border-b border-line/70 px-5 py-3.5">
+        <div className="flex items-center justify-between border-b border-line/70 bg-panel-2/40 px-4 py-3">
           <h2 className="text-base font-semibold tracking-tight">{title}</h2>
           <button onClick={onClose} className="rounded-lg p-1.5 text-muted hover:bg-panel-2 hover:text-fg" aria-label="Close"><X className="size-4" /></button>
         </div>
@@ -547,12 +548,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
 // ---------- Tabs ----------
 
-export function Tabs<T extends string>({ tabs, value, onChange, className }: { tabs: { id: T; label: ReactNode; count?: number; hidden?: boolean; countTitle?: string }[]; value: T; onChange: (v: T) => void; className?: string }) {
+export function Tabs<T extends string>({ tabs, value, onChange, className, wrap = false }: { tabs: { id: T; label: ReactNode; count?: number; hidden?: boolean; countTitle?: string }[]; value: T; onChange: (v: T) => void; className?: string; wrap?: boolean }) {
   return (
-    <div role="tablist" className={cx('scrollbar-thin -mx-1 flex gap-1 overflow-x-auto border-b border-line px-1', className)}>
+    <div role="tablist" className={cx('scrollbar-thin flex gap-1', wrap ? 'flex-wrap' : '-mx-1 overflow-x-auto border-b border-line px-1', className)}>
       {tabs.filter((t) => !t.hidden).map((t) => (
         <button key={t.id} type="button" role="tab" aria-selected={value === t.id} onClick={() => onChange(t.id)}
-          className={cx('-mb-px flex items-center gap-1.5 whitespace-nowrap rounded-t-lg border-b-2 px-3.5 py-2.5 text-sm',
+          className={cx('flex items-center gap-1.5 whitespace-nowrap px-3.5 py-2.5 text-sm', wrap ? 'rounded-lg' : '-mb-px rounded-t-lg border-b-2',
+            wrap && value === t.id && 'bg-accent/10',
             value === t.id ? 'border-accent font-semibold text-fg' : 'border-transparent text-muted hover:bg-panel-2/70 hover:text-fg')}>
           {t.label}
           {t.count !== undefined && t.count > 0 && <span title={t.countTitle} className={cx('rounded-full px-1.5 text-[11px] font-medium', value === t.id ? 'bg-accent/12 text-accent' : 'bg-panel-2 text-muted')}>{t.count.toLocaleString()}</span>}

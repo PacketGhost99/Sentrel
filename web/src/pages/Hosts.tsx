@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
-import { Plus, RefreshCcw, ScanSearch, Server } from 'lucide-react'
+import { Plus, RefreshCcw, ScanSearch, Server, SlidersHorizontal } from 'lucide-react'
 import { errorMessage, get, post } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { ago, osLabel, plural } from '@/lib/format'
@@ -73,7 +73,16 @@ export function Hosts() {
   const group = params.get('group_id') || ''
   const tag = params.get('tag') || ''
   const [selected, setSelected] = useState<Set<number>>(new Set())
-  const [sortKey, setSortKey] = useState('status')
+  const sortKey = sortOptions.some((o) => o.id === params.get('sort')) ? params.get('sort')! : 'status'
+  const [filtersOpen, setFiltersOpen] = useState(!!(status || kind || group || tag))
+  const filterCount = [status, kind, group, tag].filter(Boolean).length
+  const clearFilters = () => {
+    const p = new URLSearchParams(params)
+    for (const k of ['status', 'kind', 'group_id', 'tag', 'q']) p.delete(k)
+    setQ('')
+    setSelected(new Set())
+    setParams(p, { replace: true })
+  }
   const hosts = useQuery({ queryKey: ['hosts', tenant, status, kind, group, tag], queryFn: () => get<Host[]>('/hosts', { tenant_id: tenant ?? undefined, status, kind, group_id: group, tag }), refetchInterval: 30_000 })
   const groups = useQuery({ queryKey: ['groups', tenant], queryFn: () => get<HostGroup[]>('/groups', { tenant_id: tenant ?? undefined }) })
   const tags = useQuery({ queryKey: ['tags', tenant], queryFn: () => get<{ tag: string; count: number }[]>('/tags', { tenant_id: tenant ?? undefined }) })
@@ -130,38 +139,42 @@ export function Hosts() {
 
   return (
     <div>
-      <PageHeader title="Hosts" subtitle={hosts.data ? `${hosts.data.length} monitored` : undefined}
+      <PageHeader title="Hosts" subtitle={hosts.data ? `${filtered.length} shown · ${hosts.data.length} in this view` : 'Health, inventory and updates across your infrastructure'}
         actions={can('hosts') && <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => nav('/hosts/new')}>Add host</Button>} />
       <Card bodyClass="p-0">
         <div className="flex flex-wrap items-center gap-2 border-b border-line/70 p-4">
-          <Input placeholder="Filter by name, address, tag, OS…" value={q} onChange={(e) => setQ(e.target.value)} className="w-full sm:w-72" />
-          <div className="w-[calc(50%-4px)] sm:w-36"><Select value={status} onChange={(e) => setParam('status', e.target.value)}>
-            <option value="">Any status</option><option value="up">Up</option><option value="down">Down</option><option value="pending">Pending</option>
-          </Select></div>
-          <div className="w-[calc(50%-4px)] sm:w-36"><Select value={kind} onChange={(e) => setParam('kind', e.target.value)}>
-            <option value="">Any type</option><option value="agent">Agent</option><option value="snmp">SNMP device</option><option value="target">Target</option>
-          </Select></div>
-          <div className="w-[calc(50%-4px)] sm:w-40"><Select value={group} onChange={(e) => setParam('group_id', e.target.value)}>
-            <option value="">Any group</option>{groups.data?.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-          </Select></div>
-          {!!tags.data?.length && <div className="w-[calc(50%-4px)] sm:w-36"><Select value={tag} onChange={(e) => setParam('tag', e.target.value)}>
-            <option value="">Any tag</option>{tags.data.map((t) => <option key={t.tag} value={t.tag}>{t.tag} ({t.count})</option>)}
-          </Select></div>}
-          <div className="w-[calc(50%-4px)] sm:w-44"><Select value={sortKey} onChange={(e) => setSortKey(e.target.value)}>
+          <Input aria-label="Search hosts" placeholder="Search name, address, tag or OS…" value={q} onChange={(e) => { setQ(e.target.value); setSelected(new Set()) }} className="w-full sm:w-auto sm:min-w-48 sm:flex-1" />
+          <div className="w-44"><Select aria-label="Sort hosts" value={sortKey} onChange={(e) => setParam('sort', e.target.value)}>
             {sortOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
           </Select></div>
-          <Button variant="ghost" size="sm" aria-label="Refresh" icon={<RefreshCcw className="size-3.5" />} onClick={() => { hosts.refetch(); beats.refetch() }} />
-          {selected.size > 0 && can('jobs') && (
-            <div className="ml-auto flex flex-wrap items-center gap-2">
-              <span className="text-xs text-muted">{selected.size} selected</span>
-              <Button size="sm" icon={<ScanSearch className="size-3.5" />} onClick={() => bulk('scan')}>Scan</Button>
-              <Button size="sm" onClick={() => bulk('dry')}>Upgrade dry run</Button>
-              <Button size="sm" variant="danger" onClick={() => bulk('upgrade')}>Upgrade</Button>
-            </div>
-          )}
+          <Button aria-expanded={filtersOpen} aria-controls="host-filters" icon={<SlidersHorizontal className="size-4" />} onClick={() => setFiltersOpen(!filtersOpen)}>Filters{filterCount > 0 ? ` (${filterCount})` : ''}</Button>
+          <Button variant="ghost" size="sm" aria-label="Refresh hosts" icon={<RefreshCcw className="size-3.5" />} onClick={() => { hosts.refetch(); beats.refetch() }} />
+          {(filterCount > 0 || q) && <Button variant="ghost" size="sm" onClick={clearFilters}>Clear filters</Button>}
         </div>
+        {filtersOpen && <div id="host-filters" className="grid grid-cols-2 gap-3 border-b border-line/70 bg-panel-2/40 p-4 sm:grid-cols-4">
+          <label className="space-y-1 text-xs text-muted">Status<Select aria-label="Filter by status" value={status} onChange={(e) => { setSelected(new Set()); setParam('status', e.target.value) }}>
+            <option value="">Any status</option><option value="up">Up</option><option value="down">Down</option><option value="pending">Pending</option>
+          </Select></label>
+          <label className="space-y-1 text-xs text-muted">Host type<Select aria-label="Filter by host type" value={kind} onChange={(e) => { setSelected(new Set()); setParam('kind', e.target.value) }}>
+            <option value="">Any type</option><option value="agent">Agent</option><option value="snmp">SNMP device</option><option value="target">Target</option>
+          </Select></label>
+          <label className="space-y-1 text-xs text-muted">Group<Select aria-label="Filter by group" value={group} onChange={(e) => { setSelected(new Set()); setParam('group_id', e.target.value) }}>
+            <option value="">Any group</option>{groups.data?.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+          </Select></label>
+          {!!tags.data?.length && <label className="space-y-1 text-xs text-muted">Tag<Select aria-label="Filter by tag" value={tag} onChange={(e) => { setSelected(new Set()); setParam('tag', e.target.value) }}>
+            <option value="">Any tag</option>{tags.data.map((t) => <option key={t.tag} value={t.tag}>{t.tag} ({t.count})</option>)}
+          </Select></label>}
+        </div>}
+        {selected.size > 0 && can('jobs') && <div className="flex flex-wrap items-center gap-2 border-b border-line/70 bg-accent/5 px-4 py-3">
+          <span className="mr-auto text-xs font-medium">{selected.size} selected · {plural(agentIds.length, 'agent')}</span>
+          <Button size="sm" disabled={!agentIds.length} icon={<ScanSearch className="size-3.5" />} onClick={() => bulk('scan')}>Scan vulnerabilities</Button>
+          <Button size="sm" disabled={!agentIds.length} onClick={() => bulk('dry')}>Preview upgrades</Button>
+          <Button size="sm" disabled={!agentIds.length} variant="danger" onClick={() => bulk('upgrade')}>Install updates</Button>
+        </div>}
         {hosts.isLoading ? <Loading /> : sorted.length === 0 ? (
-          <Empty title="No hosts" icon={<Server className="size-8" />}>{can('hosts') ? <>Install an agent, add an SNMP device or a monitored target. <Link to="/hosts/new" className="text-accent hover:underline">Add host</Link></> : 'Nothing to show.'}</Empty>
+          <Empty title={q || filterCount ? 'No matching hosts' : 'No hosts yet'} icon={<Server className="size-8" />}>
+            {q || filterCount ? <>Try a different search or <button className="font-medium text-accent hover:underline" onClick={clearFilters}>clear your filters</button>.</> : can('hosts') ? <>Install an agent, add an SNMP device or a monitored target. <Link to="/hosts/new" className="text-accent hover:underline">Add host</Link></> : 'Nothing to show.'}
+          </Empty>
         ) : (
           <>
             <div className="flex items-center gap-3 border-b border-line/70 bg-panel-2/40 px-5 py-2 text-xs text-muted">
@@ -208,15 +221,18 @@ function HostRow({ h, selected, onToggle, days }: { h: Host; selected: boolean; 
         <MiniMeter label="Mem" value={h.summary?.memory} />
         <MiniMeter label="Disk" value={h.summary?.disk} />
       </div>
-      <div className="hidden w-40 shrink-0 flex-col items-start gap-1 xl:flex">
-        {h.kind === 'agent' && h.security_count > 0 && <Badge tone="crit">{h.security_count} security</Badge>}
-        {h.kind === 'agent' && h.upgrade_count > 0 && <Badge tone="warn">{plural(h.upgrade_count, 'update')}</Badge>}
-        {h.kind === 'agent' && h.reboot_required && <Badge tone="warn">reboot</Badge>}
-        {h.vuln_critical + h.vuln_high > 0 && (
-          <Badge tone={h.vuln_critical > 0 ? 'crit' : 'warn'} title={critHighTitle({ critical: h.vuln_critical, high: h.vuln_high })}>
-            {critHighLabel({ critical: h.vuln_critical, high: h.vuln_high })}
-          </Badge>
-        )}
+      <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-1 text-xs lg:w-44 lg:shrink-0">
+        {h.kind === 'agent' && (h.upgrade_count > 0 || h.reboot_required) && <Link to={`/hosts/${h.id}?tab=packages`}
+          className="inline-flex flex-wrap items-center gap-x-1 text-muted hover:text-accent hover:underline"
+          title="View packages, security updates and reboot status">
+          {h.upgrade_count > 0 && <span>{plural(h.upgrade_count, 'update')}{h.security_count > 0 ? ` · ${h.security_count} security` : ''}</span>}
+          {h.reboot_required && <span>{h.upgrade_count > 0 ? '· ' : ''}Reboot needed</span>}
+        </Link>}
+        {h.vuln_critical + h.vuln_high > 0 && <Link to={`/hosts/${h.id}?tab=vulns`}
+          className="inline-flex items-center gap-1 text-muted hover:text-accent hover:underline"
+          title={critHighTitle({ critical: h.vuln_critical, high: h.vuln_high }) + '. Inventory count; alerts follow the configured severity and fixability policy.'}>
+          {critHighLabel({ critical: h.vuln_critical, high: h.vuln_high })} CVEs
+        </Link>}
       </div>
       <div className="flex w-full items-center gap-3 lg:w-56 lg:shrink-0 2xl:w-72">
         <BeatBar beats={hostBeatsToBeats(days)} count={30} className="flex-1" />

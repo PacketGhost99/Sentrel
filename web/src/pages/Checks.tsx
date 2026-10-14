@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Activity, ArrowLeft, Pencil, Play, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { del, errorMessage, get, post, put } from '@/lib/api'
@@ -42,7 +42,19 @@ export function ChecksTable({ hostId, hostKind, tenantId, canCreate = true }: { 
   const toast = useToast()
   const [q, setQ] = useState('')
   const [status, setStatus] = useState('')
+  const [params, setParams] = useSearchParams()
+  const createRequested = !hostId && params.get('new') === '1' && canCreate && can('monitoring')
   const [editing, setEditing] = useState<Partial<Check> | null>(null)
+  const editorInitial = editing ?? (createRequested ? { host_id: null, type: 'ping', tenant_id: tenantId } : null)
+  const closeEditor = () => {
+    setEditing(null)
+    if (!hostId && params.get('new') === '1') {
+      const next = new URLSearchParams(params)
+      next.delete('new')
+      setParams(next, { replace: true })
+    }
+    qc.invalidateQueries({ queryKey: ['checks'] })
+  }
   const checks = useQuery({ queryKey: ['checks', hostId ?? 'all', tenant], queryFn: () => get<Check[]>('/checks', { host_id: hostId, tenant_id: hostId ? undefined : tenant ?? undefined }), refetchInterval: 30_000 })
   const beats = useCheckBeats(40, hostId ? undefined : tenant)
   const rows = useMemo(() => (checks.data || []).filter((c) => (!status || c.status === status) && (!q || c.name.toLowerCase().includes(q.toLowerCase()) || c.target.toLowerCase().includes(q.toLowerCase()) || (c.host_name || '').toLowerCase().includes(q.toLowerCase()))), [checks.data, q, status])
@@ -91,7 +103,7 @@ export function ChecksTable({ hostId, hostKind, tenantId, canCreate = true }: { 
           </tbody>
         </Table>
       )}
-      {editing && <CheckEditor initial={editing} hostKind={hostKind} onClose={() => { setEditing(null); qc.invalidateQueries({ queryKey: ['checks'] }) }} />}
+      {editorInitial && <CheckEditor initial={editorInitial} hostKind={hostKind} onClose={closeEditor} />}
     </Card>
   )
 }

@@ -7,9 +7,7 @@ import { useAuth } from '@/lib/auth'
 import type { Host, HostGroup, Tenant } from '@/lib/types'
 import { SnmpForm, defaultSnmp, type SnmpConfig } from '@/components/SnmpForm'
 import { useTenantFilter } from '@/components/Layout'
-import { Button, Card, ErrorBox, Field, Input, Note, PageHeader, Select, TagInput, Toggle, cx, useToast } from '@/components/ui'
-
-type Method = 'snmp' | 'target'
+import { Button, Card, ErrorBox, Field, Input, Note, PageHeader, Select, TagInput, useToast } from '@/components/ui'
 
 export interface Placement { tenant_id: number; group_id: number; tags: string[]; name: string }
 
@@ -40,13 +38,8 @@ export function PlacementFields({ p, onChange, showName = true }: { p: Placement
 }
 
 export function AddHost() {
-  const [method, setMethod] = useState<Method>('snmp')
   const { tenant } = useTenantFilter()
   const [p, setP] = useState<Placement>({ tenant_id: tenant ?? 0, group_id: 0, tags: [], name: '' })
-  const options: { id: Method; icon: React.ReactNode; title: string; desc: string }[] = [
-    { id: 'snmp', icon: <Router />, title: 'SNMP device', desc: 'Switches, routers, firewalls, NAS. SNMP v2c or v3.' },
-    { id: 'target', icon: <Target />, title: 'Agentless target', desc: 'Ping, TCP, HTTP, certificate and DNS checks only.' },
-  ]
   return (
     <div>
       <PageHeader back={<Link to="/hosts" className="mb-1 inline-flex items-center gap-1 text-xs text-muted hover:text-fg"><ArrowLeft className="size-3" />Hosts</Link>} title="Add host" />
@@ -59,16 +52,17 @@ export function AddHost() {
         <span className="hidden items-center gap-1 text-sm font-medium text-accent sm:inline-flex">Open the Agents page<ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" /></span>
       </Link>
       <div className="mb-4 grid gap-3 sm:grid-cols-2">
-        {options.map((o) => (
-          <button key={o.id} onClick={() => setMethod(o.id)}
-            className={cx('flex items-start gap-3 rounded-xl border p-4 text-left [&_svg]:size-5', method === o.id ? 'border-accent bg-accent/8' : 'border-line bg-panel hover:border-muted')}>
-            <span className={method === o.id ? 'text-accent' : 'text-muted'}>{o.icon}</span>
-            <span><span className="block font-medium">{o.title}</span><span className="mt-0.5 block text-xs text-muted">{o.desc}</span></span>
-          </button>
-        ))}
+        <div className="flex items-start gap-3 rounded-xl border border-accent bg-accent/8 p-4">
+          <Router className="size-5 shrink-0 text-accent" />
+          <span><span className="block font-medium">SNMP device</span><span className="mt-0.5 block text-xs text-muted">Switches, routers, firewalls and NAS. Configure SNMP below.</span></span>
+        </div>
+        <Link to="/checks?new=1" className="group flex items-start gap-3 rounded-xl border border-line bg-panel p-4 hover:border-accent">
+          <Target className="size-5 shrink-0 text-accent" />
+          <span className="flex-1"><span className="block font-medium">Agentless checks</span><span className="mt-0.5 block text-xs text-muted">Monitor a website, IP, port, certificate or DNS record using the full check editor.</span><span className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-accent">Add a check<ArrowRight className="size-3.5" /></span></span>
+        </Link>
       </div>
-      {method === 'snmp' && <AddSnmp p={p} setP={setP} />}
-      {method === 'target' && <AddTarget p={p} setP={setP} />}
+      <AddSnmp p={p} setP={setP} />
+
     </div>
   )
 }
@@ -116,30 +110,5 @@ function AddSnmp({ p, setP }: { p: Placement; setP: (p: Placement) => void }) {
         )}
       </Card>
     </div>
-  )
-}
-
-function AddTarget({ p, setP }: { p: Placement; setP: (p: Placement) => void }) {
-  const [address, setAddress] = useState('')
-  const [ping, setPing] = useState(true)
-  const [err, setErr] = useState<unknown>(null)
-  const [busy, setBusy] = useState(false)
-  const nav = useNavigate()
-  return (
-    <Card title="Agentless target" className="max-w-2xl">
-      <div className="space-y-3">
-        <Field label="Address" info="Hostname or IP. Add TCP, HTTP, certificate and DNS checks afterwards."><Input value={address} onChange={(e) => setAddress(e.target.value)} /></Field>
-        <PlacementFields p={p} onChange={setP} />
-        <Toggle checked={ping} onChange={setPing} label="Add a ping check" />
-        <ErrorBox error={err} />
-        <Button variant="primary" loading={busy} disabled={!address && !p.name} onClick={async () => {
-          setBusy(true); setErr(null)
-          try {
-            const h = await post<Host>('/hosts/target', { name: p.name, address, tenant_id: p.tenant_id, group_id: p.group_id || null, tags: p.tags, add_ping_check: ping })
-            nav(`/hosts/${h.id}?tab=checks`)
-          } catch (e) { setErr(e) } finally { setBusy(false) }
-        }}>Add target</Button>
-      </div>
-    </Card>
   )
 }

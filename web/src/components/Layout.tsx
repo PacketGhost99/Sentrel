@@ -38,6 +38,7 @@ export function Layout() {
   useEffect(() => setMobileOpen(false), [loc.pathname])
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setMobileOpen(false); setPaletteOpen(false) }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
         setPaletteOpen(true)
@@ -59,46 +60,38 @@ export function Layout() {
   const firing = (dash.data?.alerts?.critical ?? 0) + (dash.data?.alerts?.warning ?? 0)
 
   const sections: { title: string; items: NavItem[] }[] = [
-    { title: '', items: [{ to: '/', label: 'Dashboard', icon: <LayoutDashboard />, perm: 'read' }] },
-    {
-      title: 'Monitoring', items: [
-        { to: '/hosts', label: 'Hosts', icon: <Server />, perm: 'read' },
-        { to: '/agents', label: 'Agents', icon: <HardDriveDownload />, perm: 'hosts' },
-        { to: '/checks', label: 'Checks', icon: <Activity />, perm: 'read' },
-        { to: '/alerts', label: 'Alerts', icon: <Bell />, perm: 'read', badge: firing },
-        { to: '/maintenance', label: 'Maintenance', icon: <CalendarClock />, perm: 'read' },
-        { to: '/thresholds', label: 'Thresholds', icon: <SlidersHorizontal />, perm: 'read' },
-      ],
-    },
-    {
-      title: 'Security & updates', items: [
-        { to: '/vulnerabilities', label: 'Vulnerabilities', icon: <ShieldAlert />, perm: 'read' },
-        { to: '/jobs', label: 'Jobs', icon: <PlayCircle />, perm: 'read' },
-      ],
-    },
-    {
-      title: 'Configure', items: [
-        { to: '/groups', label: 'Groups & tags', icon: <Boxes />, perm: 'read' },
-        { to: '/notifications', label: 'Notifications', icon: <Radar />, perm: 'read' },
-        { to: '/status-pages', label: 'Status pages', icon: <Globe />, perm: 'read' },
-      ],
-    },
-    {
-      title: 'Administration', items: [
-        { to: '/admin/users', label: 'Users', icon: <Users />, perm: 'users' },
-        { to: '/admin/tenants', label: 'Tenants', icon: <Building2 />, perm: 'tenants' },
-        { to: '/admin/api-keys', label: 'API keys', icon: <KeyRound /> },
-        { to: '/admin/audit', label: 'Audit log', icon: <FileClock />, perm: 'audit' },
-        { to: '/admin/settings', label: 'Settings', icon: <Cog />, perm: 'settings' },
-        { to: '/admin/branding', label: 'Branding', icon: <Wrench />, perm: 'branding' },
-        { to: '/api-docs', label: 'API reference', icon: <BookOpen /> },
-      ],
-    },
+    { title: '', items: [{ to: '/', label: 'Overview', icon: <LayoutDashboard />, perm: 'read' }] },
+    { title: 'Monitor', items: [
+      { to: '/alerts', label: 'Alerts', icon: <Bell />, perm: 'read', badge: firing },
+      { to: '/hosts', label: 'Hosts', icon: <Server />, perm: 'read' },
+      { to: '/checks', label: 'Checks', icon: <Activity />, perm: 'read' },
+    ] },
+    { title: 'Operations', items: [
+      { to: '/vulnerabilities', label: 'Vulnerabilities', icon: <ShieldAlert />, perm: 'read' },
+      { to: '/jobs', label: 'Jobs & updates', icon: <PlayCircle />, perm: 'read' },
+      { to: '/maintenance', label: 'Maintenance', icon: <CalendarClock />, perm: 'read' },
+    ] },
+    { title: 'Setup & routing', items: [
+      { to: '/agents', label: 'Install agents', icon: <HardDriveDownload />, perm: 'hosts' },
+      { to: '/groups', label: 'Groups & tags', icon: <Boxes />, perm: 'read' },
+      { to: '/thresholds', label: 'Alert thresholds', icon: <SlidersHorizontal />, perm: 'read' },
+      { to: '/notifications', label: 'Notification channels', icon: <Radar />, perm: 'read' },
+      { to: '/status-pages', label: 'Status pages', icon: <Globe />, perm: 'read' },
+    ] },
+    { title: 'Administration', items: [
+      { to: '/admin/settings', label: 'Server settings', icon: <Cog />, perm: 'settings' },
+      { to: '/admin/users', label: 'Users', icon: <Users />, perm: 'users' },
+      { to: '/admin/tenants', label: 'Tenants', icon: <Building2 />, perm: 'tenants' },
+      { to: '/admin/api-keys', label: 'API keys', icon: <KeyRound /> },
+      { to: '/admin/audit', label: 'Audit log', icon: <FileClock />, perm: 'audit' },
+      { to: '/admin/branding', label: 'Branding', icon: <Wrench />, perm: 'branding' },
+      { to: '/api-docs', label: 'API reference', icon: <BookOpen /> },
+    ] },
   ]
 
   const b = me?.branding
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
-    try { return JSON.parse(localStorage.getItem('sentrel-nav-collapsed') || '{}') } catch { return {} }
+    try { return { Administration: true, ...JSON.parse(localStorage.getItem('sentrel-nav-collapsed') || '{}') } } catch { return {} }
   })
   const toggleSection = (t: string) => setCollapsed((c) => {
     const n = { ...c, [t]: !c[t] }
@@ -106,21 +99,21 @@ export function Layout() {
     return n
   })
   const sidebar = (
-    <nav className="flex h-full flex-col">
-      <div className="flex h-16 items-center gap-2.5 px-5">
+    <nav aria-label="Main navigation" className="flex h-full flex-col">
+      <div className="flex h-14 items-center gap-2.5 border-b border-line/70 px-5">
         {b?.logo_data_url ? <img src={b.logo_data_url} alt="" className="h-7 max-w-[140px] object-contain" /> : <Logo />}
         {!b?.logo_data_url && <span className="truncate text-[17px] font-semibold tracking-tight">{b?.product_name || 'Sentrel'}</span>}
       </div>
-      <div className="scrollbar-thin flex-1 overflow-y-auto px-3 pb-3">
+      <div className="scrollbar-thin flex-1 overflow-y-auto px-3 pb-3 pt-3">
         {sections.map((s) => {
           const items = s.items.filter((i) => !i.perm || can(i.perm))
           if (!items.length) return null
           const hasActive = items.some((i) => (i.to === '/' ? loc.pathname === '/' : loc.pathname.startsWith(i.to)))
           const closed = !!s.title && !!collapsed[s.title] && !hasActive
           return (
-            <div key={s.title} className="mb-3">
+            <div key={s.title} className="mb-4">
               {s.title && (
-                <button onClick={() => toggleSection(s.title)} aria-expanded={!closed}
+                <button onClick={() => toggleSection(s.title)} aria-expanded={!closed} aria-label={s.title}
                   className="mb-1 flex w-full items-center justify-between rounded-md px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-muted hover:text-fg">
                   {s.title}
                   <ChevronDown className={cx('size-3.5 transition-transform', closed && '-rotate-90')} />
@@ -128,8 +121,8 @@ export function Layout() {
               )}
               {!closed && items.map((i) => (
                 <NavLink key={i.to} to={i.to} end={i.to === '/'}
-                  className={({ isActive }) => cx('group relative flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm [&_svg]:size-[17px] [&_svg]:shrink-0',
-                    isActive ? 'bg-accent/10 font-medium text-accent' : 'text-muted hover:bg-panel-2 hover:text-fg')}>
+                  className={({ isActive }) => cx('group relative flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px] [&_svg]:size-[17px] [&_svg]:shrink-0',
+                    isActive ? 'bg-accent/10 font-semibold text-accent shadow-[inset_3px_0_0_var(--accent)]' : 'text-muted hover:bg-panel-2 hover:text-fg')}>
                   {i.icon}
                   <span className="flex-1 truncate">{i.label}</span>
                   {!!i.badge && <span className="rounded-full bg-crit px-1.5 py-px text-[11px] font-semibold leading-4 text-white">{i.badge}</span>}
@@ -157,17 +150,18 @@ export function Layout() {
   return (
     <TenantCtx.Provider value={{ tenant, setTenant }}>
       <div className="flex h-full">
-        <aside className="hidden w-60 shrink-0 border-r border-line/70 bg-panel lg:block">{sidebar}</aside>
+        <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-panel focus:p-3">Skip to content</a>
+        <aside className="console-sidebar hidden w-56 shrink-0 border-r border-line/70 bg-panel md:block">{sidebar}</aside>
         {mobileOpen && (
-          <div className="fixed inset-0 z-40 lg:hidden" onClick={() => setMobileOpen(false)}>
+          <div className="fixed inset-0 z-40 md:hidden" onClick={() => setMobileOpen(false)}>
             <div className="fade-in absolute inset-0 bg-slate-950/45 backdrop-blur-sm" />
-            <aside className="pop-in absolute inset-y-0 left-0 w-64 border-r border-line bg-panel shadow-pop" onClick={(e) => e.stopPropagation()}>{sidebar}</aside>
+            <aside className="console-sidebar pop-in absolute inset-y-0 left-0 w-64 border-r border-line bg-panel shadow-pop" onClick={(e) => e.stopPropagation()}>{sidebar}</aside>
           </div>
         )}
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="flex h-16 shrink-0 items-center gap-2 border-b border-line/70 bg-bg/80 px-3 backdrop-blur sm:px-6">
-            <button className="rounded-lg p-2 text-muted hover:bg-panel-2 lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Menu"><Menu className="size-5" /></button>
-            <button onClick={() => setPaletteOpen(true)} className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-xl border border-line/70 bg-panel px-3.5 text-sm text-muted shadow-card hover:border-muted/40 hover:text-fg sm:max-w-sm">
+          <header className="flex h-14 shrink-0 items-center gap-2 border-b border-line/70 bg-panel/90 px-3 backdrop-blur sm:px-6">
+            <button className="rounded-lg p-2 text-muted hover:bg-panel-2 md:hidden" onClick={() => setMobileOpen(true)} aria-label="Menu"><Menu className="size-5" /></button>
+            <button onClick={() => setPaletteOpen(true)} className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-md border border-line/70 bg-panel px-3.5 text-sm text-muted shadow-card hover:border-muted/40 hover:text-fg sm:max-w-sm">
               <Search className="size-4 shrink-0" /><span className="truncate sm:hidden">Search</span><span className="hidden truncate sm:inline">Search hosts and pages…</span>
               <kbd className="ml-auto hidden rounded-md border border-line bg-panel-2 px-1.5 text-[10px] sm:inline">Ctrl K</kbd>
             </button>
@@ -185,8 +179,8 @@ export function Layout() {
             <ThemeSwitch />
             <UserMenu name={me?.user.display_name || me?.user.username || ''} onLogout={logout} />
           </header>
-          <main className="scrollbar-thin flex-1 overflow-y-auto">
-            <div className="fade-in mx-auto max-w-[1500px] p-4 sm:p-6 lg:p-8">
+          <main id="main-content" tabIndex={-1} className="scrollbar-thin flex-1 overflow-y-auto">
+            <div className="fade-in mx-auto max-w-[1800px] p-4 sm:p-5 lg:p-6">
               {!bannerGone && showBanner(upd.data, isAdmin) && (
                 <div className="mb-4 flex items-center gap-3 rounded-xl border border-ok/25 bg-ok/10 px-4 py-2.5 text-sm">
                   <ArrowUpCircle className="size-4 shrink-0 text-ok" />
@@ -257,8 +251,8 @@ function UserMenu({ name, onLogout }: { name: string; onLogout: () => void }) {
 }
 
 const pages = [
-  ['Dashboard', '/'], ['Hosts', '/hosts'], ['Add host', '/hosts/new'], ['Agents', '/agents'], ['Checks', '/checks'], ['Alerts', '/alerts'], ['Maintenance windows', '/maintenance'],
-  ['Thresholds', '/thresholds'], ['Vulnerabilities', '/vulnerabilities'], ['Jobs', '/jobs'], ['Groups & tags', '/groups'], ['Notifications', '/notifications'],
+  ['Overview / Dashboard', '/'], ['Hosts', '/hosts'], ['Add host', '/hosts/new'], ['Install agents', '/agents'], ['Checks', '/checks'], ['Alerts', '/alerts'], ['Maintenance windows', '/maintenance'],
+  ['Thresholds', '/thresholds'], ['Vulnerabilities', '/vulnerabilities'], ['Jobs & updates', '/jobs'], ['Groups & tags', '/groups'], ['Notifications', '/notifications'],
   ['Status pages', '/status-pages'], ['Users', '/admin/users'], ['Tenants', '/admin/tenants'], ['API keys', '/admin/api-keys'], ['Audit log', '/admin/audit'],
   ['Settings', '/admin/settings'], ['Branding', '/admin/branding'], ['Profile & security', '/profile'], ['API reference', '/api-docs'],
 ] as const
@@ -293,7 +287,7 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
               else if (e.key === 'Enter' && results[sel]) go(results[sel].to)
             }}
             className="h-12 flex-1 bg-transparent text-sm outline-none" />
-          <button onClick={onClose} className="text-muted hover:text-fg"><X className="size-4" /></button>
+          <button aria-label="Close search" onClick={onClose} className="text-muted hover:text-fg"><X className="size-4" /></button>
         </div>
         <div className="max-h-80 overflow-y-auto p-2">
           {results.length === 0 && <div className="px-4 py-6 text-center text-sm text-muted">No matches</div>}

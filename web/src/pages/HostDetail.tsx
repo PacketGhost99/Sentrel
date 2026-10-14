@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, ArrowUpCircle, RefreshCw } from 'lucide-react'
+import { Activity, ArrowLeft, ArrowUpCircle, Bell, ChartNoAxesCombined, Cpu, Gauge, ListChecks, Network, Package, RefreshCw, Settings2, Shield, ShieldAlert, SlidersHorizontal } from 'lucide-react'
 import { errorMessage, get, post } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { ago, bits, bytes, dateTime, duration, num, osLabel, pct } from '@/lib/format'
@@ -9,7 +9,7 @@ import type { Alert, HostDetail as HD, Series } from '@/lib/types'
 import { Chart, RangePicker, rangeSeconds, type RangeId, type Unit } from '@/components/Chart'
 import { ExportChartsButton, ExportDataButton } from '@/components/MetricsExport'
 import { WritePolicyBadge } from '@/components/OperatorSign'
-import { Badge, Button, Card, Empty, ErrorBox, Input, KV, Loading, Meter, MutedBadge, Note, PageHeader, SeverityBadge, StatusPill, Table, Tabs, Td, Th, UptimePill, useConfirm, useToast } from '@/components/ui'
+import { Badge, Button, Card, Empty, ErrorBox, Input, KV, Loading, Meter, MutedBadge, Note, PageHeader, SeverityBadge, StatusPill, Table, Td, Th, UptimePill, useConfirm, useToast } from '@/components/ui'
 import { BeatBar, averageUptime, hostBeatsToBeats, useHostBeats } from '@/components/BeatBar'
 import { hostStatusLabel } from './Hosts'
 import { ChecksTable } from './Checks'
@@ -41,9 +41,30 @@ export function HostDetail() {
   const agent = host.kind === 'agent'
   const snmp = host.kind === 'snmp'
   const firing = (alerts.data || []).filter((a) => a.status === 'firing').length
+  const hostTabs: { id: Tab; label: string; hidden?: boolean; count?: number; countTitle?: string }[] = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'metrics', label: 'Metrics' },
+    { id: 'system', label: 'System', hidden: !agent },
+    { id: 'interfaces', label: 'Interfaces', hidden: !snmp },
+    { id: 'checks', label: 'Checks', count: host.check_count },
+    { id: 'alerts', label: 'Alerts', count: firing },
+    { id: 'packages', label: 'Updates', hidden: !agent, count: host.upgrade_count },
+    { id: 'vulns', label: 'Vulnerabilities', hidden: !agent || !host.vuln_enabled, count: critHigh(host.vuln_counts ?? host.open_findings), countTitle: critHighTitle(host.vuln_counts) },
+    { id: 'security', label: 'Security', hidden: !agent },
+    { id: 'jobs', label: 'Jobs', hidden: !agent },
+    { id: 'thresholds', label: 'Thresholds' },
+    { id: 'settings', label: 'Settings', hidden: !can('host_settings') && !can('hosts') },
+  ]
+  const hostIcons: Record<Tab, typeof Gauge> = {
+    overview: Gauge, metrics: ChartNoAxesCombined, system: Cpu, interfaces: Network,
+    checks: Activity, alerts: Bell, packages: Package, vulns: ShieldAlert,
+    security: Shield, jobs: ListChecks, thresholds: SlidersHorizontal, settings: Settings2,
+  }
+  const activeTab = hostTabs.some((t) => t.id === tab && !t.hidden) ? tab : 'overview'
+
 
   return (
-    <div>
+    <div className="host-workspace">
       <PageHeader
         back={<Link to="/hosts" className="mb-1 inline-flex items-center gap-1 text-xs text-muted hover:text-fg"><ArrowLeft className="size-3" />Hosts</Link>}
         title={host.name}
@@ -55,40 +76,46 @@ export function HostDetail() {
             {snmp && host.snmp_info?.system?.descr && <span className="max-w-md truncate">· {host.snmp_info.system.descr}</span>}
             {host.group_name && <Badge>{host.group_name}</Badge>}
             {(host.tags || []).map((t) => <Badge key={t} tone="info">{t}</Badge>)}
-            {host.reboot_required && <Badge tone="warn">reboot required</Badge>}
-            {agent && host.vuln_enabled && critHigh(host.vuln_counts) > 0 && <Badge tone={host.vuln_counts!.critical > 0 ? 'crit' : 'warn'} title={critHighTitle(host.vuln_counts)}>{critHighLabel(host.vuln_counts)}</Badge>}
+            {host.reboot_required && <span className="text-xs text-warn-ink">· Reboot needed</span>}
+            {agent && host.vuln_enabled && critHigh(host.vuln_counts) > 0 && <span className="text-xs text-muted" title={critHighTitle(host.vuln_counts)}>· {critHighLabel(host.vuln_counts)} CVEs</span>}
             {host.revoked && <Badge tone="crit">revoked</Badge>}
             {agent && <WritePolicyBadge host={host} />}
           </span>
         }
         actions={agent && <HostActions host={host} />}
       />
-      <Tabs<Tab> value={tab} onChange={setTab} className="mb-4" tabs={[
-        { id: 'overview', label: 'Overview' },
-        { id: 'metrics', label: 'Metrics' },
-        { id: 'system', label: 'System', hidden: !agent },
-        { id: 'interfaces', label: 'Interfaces', hidden: !snmp },
-        { id: 'packages', label: 'Packages', hidden: !agent, count: host.upgrade_count },
-        { id: 'vulns', label: 'CVEs', hidden: !agent || !host.vuln_enabled, count: critHigh(host.vuln_counts ?? host.open_findings), countTitle: critHighTitle(host.vuln_counts) },
-        { id: 'security', label: 'Security', hidden: !agent },
-        { id: 'checks', label: 'Checks', count: host.check_count },
-        { id: 'alerts', label: 'Alerts', count: firing },
-        { id: 'jobs', label: 'Jobs', hidden: !agent },
-        { id: 'thresholds', label: 'Thresholds' },
-        { id: 'settings', label: 'Settings', hidden: !can('host_settings') && !can('hosts') },
-      ]} />
-      {tab === 'overview' && <Overview host={host} alerts={alerts.data || []} />}
-      {tab === 'metrics' && <Metrics host={host} />}
-      {tab === 'system' && <SystemTab host={host} />}
-      {tab === 'interfaces' && <Interfaces host={host} />}
-      {tab === 'packages' && <HostPackages host={host} />}
-      {tab === 'vulns' && <FindingsTable hostId={host.id} />}
-      {tab === 'security' && <HostSecurity host={host} />}
-      {tab === 'checks' && <ChecksTable hostId={host.id} hostKind={host.kind} tenantId={host.tenant_id} />}
-      {tab === 'alerts' && <AlertsTable hostId={host.id} />}
-      {tab === 'jobs' && <JobsTable hostId={host.id} />}
-      {tab === 'thresholds' && <HostThresholds host={host} />}
-      {tab === 'settings' && <HostSettings host={host} />}
+      <div className="host-workspace-grid">
+        <nav aria-label="Host sections" className="host-section-nav">
+          <div className="host-nav-heading">Host workspace</div>
+          <div className="host-section-links">
+            {hostTabs.filter((t) => !t.hidden).map((t) => {
+              const Icon = hostIcons[t.id]
+              return <button key={t.id} type="button" onClick={() => setTab(t.id)}
+                aria-current={activeTab === t.id ? 'page' : undefined} title={t.id === 'packages' ? 'Packages and updates' : t.label}
+                className={`host-section-link ${activeTab === t.id ? 'is-active' : ''}`}>
+                <Icon className="size-4 shrink-0" />
+                <span className="host-section-label">{t.label}</span>
+                {!!t.count && <span title={t.countTitle} className="host-section-count">{t.count.toLocaleString()}</span>}
+              </button>
+            })}
+          </div>
+        </nav>
+        <div className="host-section-content" key={activeTab}>
+          <div className="host-content-heading"><h2>{hostTabs.find((t) => t.id === activeTab)?.label}</h2><span>{host.name}</span></div>
+      {activeTab === 'overview' && <Overview host={host} alerts={alerts.data || []} />}
+      {activeTab === 'metrics' && <Metrics host={host} />}
+      {activeTab === 'system' && <SystemTab host={host} />}
+      {activeTab === 'interfaces' && <Interfaces host={host} />}
+      {activeTab === 'packages' && <HostPackages host={host} />}
+      {activeTab === 'vulns' && <FindingsTable hostId={host.id} />}
+      {activeTab === 'security' && <HostSecurity host={host} />}
+      {activeTab === 'checks' && <ChecksTable hostId={host.id} hostKind={host.kind} tenantId={host.tenant_id} />}
+      {activeTab === 'alerts' && <AlertsTable hostId={host.id} />}
+      {activeTab === 'jobs' && <JobsTable hostId={host.id} />}
+      {activeTab === 'thresholds' && <HostThresholds host={host} />}
+      {activeTab === 'settings' && <HostSettings host={host} />}
+        </div>
+      </div>
     </div>
   )
 }
@@ -144,7 +171,7 @@ function Overview({ host, alerts }: { host: HD; alerts: Alert[] }) {
             <MiniStat label="CPU" value={s.cpu} />
             <MiniStat label="Memory" value={s.memory} />
             <MiniStat label="Worst disk" value={s.disk} />
-            <div className="h-full rounded-2xl border border-line/70 bg-panel p-4 shadow-card">
+            <div className="h-full rounded-md border border-line/70 bg-panel p-4">
               <div className="text-xs font-medium text-muted">Load / core</div>
               <div className="mt-1 text-2xl font-semibold tabular-nums">{s.load !== undefined && s.load !== null ? s.load.toFixed(2) : '–'}</div>
               <div className="text-xs text-muted">uptime {s.uptime ? duration(s.uptime) : st.uptime_seconds ? duration(st.uptime_seconds) : '–'}</div>
@@ -253,7 +280,7 @@ function UptimeCard({ hostId }: { hostId: number }) {
 function MiniStat({ label, value }: { label: string; value?: number | null }) {
   const tone = value === undefined || value === null ? '' : value >= 90 ? 'text-crit-ink' : value >= 80 ? 'text-warn-ink' : ''
   return (
-    <div className="h-full rounded-2xl border border-line/70 bg-panel p-4 shadow-card">
+    <div className="h-full rounded-md border border-line/70 bg-panel p-4">
       <div className="text-xs font-medium text-muted">{label}</div>
       <div className={`mt-1 text-2xl font-semibold tabular-nums ${tone}`}>{pct(value)}</div>
       <div className="mt-2"><Meter value={value} className="flex-1" showValue={false} /></div>
@@ -427,7 +454,7 @@ function SystemTab({ host }: { host: HD }) {
         <Card className="h-full" title="Temperatures">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {st.temperatures.map((t) => (
-              <div key={t.sensor} className="rounded-xl border border-line/70 p-3">
+              <div key={t.sensor} className="rounded-md border border-line/70 p-3">
                 <div className="truncate text-xs text-muted">{t.sensor}</div>
                 <div className={`text-lg font-semibold ${t.celsius >= 85 ? 'text-crit' : t.celsius >= 75 ? 'text-warn' : ''}`}>{t.celsius.toFixed(1)} °C</div>
               </div>

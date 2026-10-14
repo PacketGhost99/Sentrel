@@ -632,10 +632,21 @@ func stillStaged(path string, want os.FileInfo) error {
 	if err != nil {
 		return err
 	}
-	if !fi.Mode().IsRegular() || !os.SameFile(fi, want) {
+	if !fi.Mode().IsRegular() || !os.SameFile(fi, want) || fi.Size() != want.Size() ||
+		!fi.ModTime().Equal(want.ModTime()) || changeTime(fi) != changeTime(want) {
 		return errors.New("staged update changed unexpectedly")
 	}
 	return nil
+}
+
+// changeTime is the inode change time. Device and inode alone are not enough
+// to recognise a file: a deleted inode number can be reused at once by a new
+// file, which then gets a fresh change time.
+func changeTime(fi os.FileInfo) syscall.Timespec {
+	if st, ok := fi.Sys().(*syscall.Stat_t); ok {
+		return st.Ctim
+	}
+	return syscall.Timespec{}
 }
 
 func cleanStaleStaging(dir string) {

@@ -1,6 +1,6 @@
 # Security model
 
-This page describes what Sentrel protects, how, and where the limits are. To report a vulnerability, contact the maintainers privately rather than opening a public issue.
+This page describes what Sentrel protects, how, and where the limits are. To report a vulnerability, use GitHub private vulnerability reporting as described in [SECURITY.md](../SECURITY.md); do not open a public issue.
 
 ## Threat model
 
@@ -19,7 +19,7 @@ Important limits. Whoever controls the server (or holds `pki/ca.key` and `pki/jo
 - Tokens are single use (consumed in the same transaction that creates the host), default to 15 minutes and are limited to 7 days. They can pre-select tenant, group, tags and name.
 - Registration is rate limited to 20 attempts per minute per source IP, and failed attempts are logged.
 - The server signs the agent's CSR (ECDSA or Ed25519 keys only). The agent's private key never leaves the host.
-- In self-signed TLS mode the agent pins the CA fingerprint supplied by the installer command, so the very first connection cannot be intercepted by someone without the CA.
+- In self-signed TLS mode the agent pins the CA fingerprint supplied by the installer command, so the very first connection cannot be intercepted by someone without the CA. The pin is checked properly: the server's certificate must verify against a trust pool containing only the pinned CA (valid chain, matching host name or IP, within its validity period, server-auth usage), and the CA the server returns at enrolment must match the pin. Presenting the public CA certificate alongside an unrelated certificate is rejected.
 
 ## Internal CA and agent authentication
 
@@ -58,11 +58,11 @@ Each agent enforces a **write policy** that is set only locally, at install or r
 
 Threat model: an attacker who fully controls the server (database, `pki/job.key`, the API) can issue SAFE jobs to every agent and nothing else on `operator` and `none` hosts. They cannot upgrade packages, change firewall rules, clean disks or push an agent binary. The operator private key is never stored on, or sent to, the server; sign on a separate machine or in your browser. A self-update job is a WRITE job: the operator signature covers the download path, SHA-256 and version in the job, and the agent still verifies the binary signature.
 
-The agent reports its policy and the fingerprints of its operator keys to the server in its hello. This is only used to show badges, refuse impossible requests early (a `none` host gets `403`) and to verify signatures before queueing; the agent re-checks everything itself. Hosts that are not on the `server` policy are skipped by automatic agent updates and automatic IP blocking. Jobs waiting for a signature (`awaiting_signature`) expire like queued jobs, after 24 hours by default.
+The agent reports its policy and the fingerprints of its operator keys to the server in its hello. This is only used to show badges, refuse impossible requests early (a `none` host gets `403`) and to verify signatures before queueing; the agent re-checks everything itself. Hosts that are not on the `server` policy are skipped by automatic agent updates and automatic IP blocking. Jobs waiting for a signature (`awaiting_signature`) expire like queued jobs, after 24 hours by default. Operators sign offline with `sentrel-sign job`, which shows every decoded field and asks for confirmation; the web UI only accepts the resulting signature and never the key.
 
 ## Privilege boundary and opt-in remote actions
 
-Linux agents run unprivileged. The only sudo rule allows `sentrel-agent priv *`; each verb validates its arguments (see [agents.md](agents.md)). Because the helper trusts nothing from the caller, a compromised agent process can at worst run the limited verbs: refresh or upgrade packages, add or remove an IP block, read fail2ban status, install or refresh the port-scan detection rules (counting only, never dropping traffic), install a validly signed agent update.
+Linux agents run unprivileged. The only sudo rule allows `sentrel-agent priv *`; each verb validates its arguments (see [agents.md](agents.md)). Because the helper trusts nothing from the caller, a compromised agent process can at worst run the limited verbs: refresh or upgrade packages, add or remove an IP block, read fail2ban status, install or refresh the port-scan detection rules (counting only, never dropping traffic), install a validly signed agent update. Updates run under an exclusive root-owned lock using a private staging file, and `rollback-update` only works while a recent (15 minute) protected pending-update marker written by the update exists.
 
 Remote actions are controlled by permission settings. Each has a global default under **Settings, Agents, Host defaults**, and every host inherits it unless the host overrides it. A host shows the value in effect, where it comes from ("Inherited from global" or "Overridden") and a "Reset to global" link:
 
@@ -105,11 +105,19 @@ On Linux hosts with nftables the agent installs a detection-only chain in the `i
 
 `admin`, `operator` and `viewer` belong to the provider (tenant 0) and see every tenant; `tenant_admin` and `tenant_viewer` are bound to one tenant and every query is restricted to it (hosts, alerts, checks, metrics, channels, status pages, API keys). Threshold rules inherit provider, tenant, group and host in that order. Tenants can have their own branding and a login hostname.
 
-Sign-in sources: local password (Argon2id, minimum length 10 by default and at least 8, common weak passwords refused), LDAP and RADIUS (users are provisioned on first login with a role from the group/attribute mapping; no mapping and no default role means denied).
+**Moving a host to another tenant** (provider operators with the `hosts` permission, `tenant_id` on `PUT /api/v1/hosts/{id}`) is validated and committed in one transaction. The host's checks, alerts and alert history, jobs, inventory, vulnerability data, disk health, security events and host-scoped threshold rules move with it. Dependencies, host-scoped maintenance windows and update schedules that belong to the old tenant are removed, and the host leaves its group. Live state moves too: active alerts, queued notifications and cached checks switch owner at once, so the former tenant sees no new alert content, events or notifications for the host, and checks that were running during the move report to the new owner. Threshold rules and checks on a host are only honoured while their tenant owns the host.
+
+Sign-in sources: local password (Argon2id, minimum length 10 by default and at least 8, common weak passwords refused), LDAP and RADIUS (users are provisioned on first login with a role from the group/attribute mapping, and role and tenant are recomputed on every login; no mapping and no default role means denied). For every external source (LDAP, RADIUS, OIDC, forward-auth), a login with a lowered role revokes the user's existing sessions, and a tenant change or removed access also revokes their API keys.
+
+**Tenant suspension.** Disabling a tenant (`PUT /api/v1/tenants/{id}` with `disabled: true`) immediately rejects every one of its sessions and API keys, and new logins to it are refused; provider accounts are unaffected. One check (user enabled, tenant exists and enabled, key not expired) applies to sessions, API keys and all sign-in methods. Keys and users are not deleted, so re-enabling the tenant makes its existing keys work again; sessions end and users sign in again. Suspension does not stop monitoring: the tenant's scheduled checks, push checks, connected agents and alert processing keep running, and notifications are still sent. Delete the tenant to remove that data.
+
+**External sign-in sources.** On every LDAP or RADIUS login the role and tenant are recomputed from the current group/attribute mapping (or the default role) and saved. If nothing maps and there is no default, the login is refused and the user's sessions and API keys are revoked. A lowered role or changed tenant revokes the user's existing sessions (a tenant change also removes their keys).
 
 ## Two-factor authentication
 
 Users can enrol TOTP (with recovery codes) and passkeys (WebAuthn, usable as a second factor or for password-less login). **Settings, Security, Require 2FA** can enforce it for `none`, `admins` or `all`; users who are required but not enrolled are held in a limited session that can only enrol. An administrator can reset another user's second factors, and `sentrel-server reset-password --disable-2fa` does so from the console.
+
+Recovery codes are single use: spending one is an atomic compare-and-update, so concurrent attempts with the same code produce exactly one sign-in, and a database error refuses the login instead of accepting the code.
 
 ## Sessions, CSRF and brute force
 
@@ -118,9 +126,15 @@ Users can enrol TOTP (with recovery codes) and passkeys (WebAuthn, usable as a s
 - Lockout: 8 failed logins (default) within 15 minutes for the same username and IP return HTTP 429; a per-IP ceiling of five times that applies across usernames. Counters follow the client IP, so configure `trust_proxy` correctly ([tls-and-proxies.md](tls-and-proxies.md)).
 - Responses carry `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options: DENY` (except public status pages, which may be embedded) and, over TLS, HSTS. The UI is served with a strict Content-Security-Policy.
 
+- **Forced password change.** When an administrator sets "ask to change password" on a local account, its sessions can only change the password, complete the second factor, read `GET /auth/me` and log out; every other request returns HTTP 403 with `code: "password_change_required"` and the UI shows the change-password screen. API keys of that user are rejected with the same code until the password is changed. A successful change clears the flag. The flag has no effect on LDAP, RADIUS or SSO accounts, whose passwords Sentrel does not hold.
+- **Interactive-only account changes.** Changing the profile or password, TOTP and passkey enrolment and removal, listing or revoking sessions, and creating, listing or revoking API keys need a signed-in browser session (with CSRF). API keys of any scope get HTTP 403 `interactive_session_required`, so a leaked monitoring key cannot weaken its owner's account.
+- Passkey challenges are capped (1000 outstanding, 5 minutes). Without a configured server URL the relying-party origin comes from the request host, which must be a plain `host[:port]`, and at most 16 origins are cached; set the server URL for a fixed origin.
+
 ## API keys
 
 Keys look like `sentrel_<prefix>_<secret>`; only a hash of the secret is stored and the key is shown once. A key acts as its owner, limited to the intersection of the owner's role and the key's scopes (`read`, `write`, `jobs`, `admin`); it can expire; keys cannot create keys; a disabled owner disables the key. See [api.md](api.md).
+
+The secret is 30 random bytes, so verification is a SHA-256 comparison looked up by prefix; a request with an unknown prefix costs the same cheap comparison (no password hashing). Keys of a disabled user, a suspended tenant or a user who must change their password are rejected; keys cannot manage account security (see Sessions above).
 
 ## Audit log
 

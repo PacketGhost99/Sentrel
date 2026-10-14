@@ -87,6 +87,9 @@ func Register(ctx context.Context, o RegisterOptions) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("registration failed: %w", friendlyErr(err))
 	}
+	if o.CAFingerprint != "" && !caPEMMatchesPin(resp.CaPem, o.CAFingerprint) {
+		return nil, errors.New("the CA returned at enrolment does not match --ca-fingerprint; enrolment aborted")
+	}
 	keyDER, err := x509.MarshalECPrivateKey(key)
 	if err != nil {
 		return nil, err

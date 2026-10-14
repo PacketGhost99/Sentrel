@@ -197,9 +197,6 @@ func (h *Hub) authenticate(ctx context.Context, hello *pb.Hello) (*Host, bool, e
 		if skew > 5*time.Minute || skew < -5*time.Minute {
 			return nil, false, fmt.Errorf("clock skew too large (%s); check NTP on the agent host", skew.Round(time.Second))
 		}
-		if !h.acceptHello(ctx, hello.AgentId, hello.UnixMs) {
-			return nil, false, errors.New("replayed hello")
-		}
 		cert = c
 	}
 	agentID, serial, err := h.app.ca.VerifyAgentCert(cert)
@@ -220,6 +217,11 @@ func (h *Hub) authenticate(ctx context.Context, hello *pb.Hello) (*Host, bool, e
 	}
 	if host.Revoked || host.CertSerial != serial {
 		return nil, false, errRevoked
+	}
+	// Only a fully authenticated hello (chain, ID binding, revocation, host)
+	// may touch replay state; otherwise a forged hello could poison it.
+	if !viaTLS && !h.acceptHello(ctx, hello.AgentId, hello.UnixMs) {
+		return nil, false, errors.New("replayed hello")
 	}
 	return host, viaTLS, nil
 }

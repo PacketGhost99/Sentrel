@@ -133,6 +133,18 @@ func (a *App) setDependency(ctx context.Context, tenant int64, childType string,
 	return err
 }
 
+// setDependencyTx is setDependency inside a transaction.
+func setDependencyTx(ctx context.Context, tx *sqlxTx, tenant int64, childType string, childID int64, parentType string, parentID int64) error {
+	if parentType == "" {
+		_, err := tx.ExecContext(ctx, `DELETE FROM dependencies WHERE child_type=? AND child_id=?`, childType, childID)
+		return err
+	}
+	_, err := tx.ExecContext(ctx, `INSERT INTO dependencies (child_type, child_id, tenant_id, parent_type, parent_id) VALUES (?,?,?,?,?)
+		ON CONFLICT(child_type, child_id) DO UPDATE SET tenant_id=excluded.tenant_id, parent_type=excluded.parent_type, parent_id=excluded.parent_id`,
+		childType, childID, tenant, parentType, parentID)
+	return err
+}
+
 // forgetDependencies removes every dependency that involves an object, as
 // child or parent. For a host it also covers the host's checks.
 func (a *App) forgetDependencies(ctx context.Context, typ string, id int64) {
@@ -153,30 +165,25 @@ func (a *App) forgetDependencies(ctx context.Context, typ string, id int64) {
 // depends on a parent that is down, else "".
 func (a *App) dependencyReason(al *Alert) string {
 	ctx := context.Background()
-	type cand struct {
-		typ string
-		id  int64
-	}
-	var cands []cand
+	// One effective parent: the check's own dependency if it has one, otherwise
+	// the host's. An explicit parent replaces inheritance rather than adding to it.
+	var d *depRow
 	if al.CheckID != nil {
-		cands = append(cands, cand{"check", *al.CheckID})
+		d = a.depOf(ctx, "check", *al.CheckID)
 	}
-	if al.HostID != nil {
-		cands = append(cands, cand{"host", *al.HostID})
-	}
-	for _, c := range cands {
-		d := a.depOf(ctx, c.typ, c.id)
-		if d == nil {
-			continue
-		}
+	if d == nil && al.HostID != nil {
+		d = a.depOf(ctx, "host", *al.HostID)
 		// A check's own alert is never silenced by its host's inherited parent
 		// being that same check.
-		if al.CheckID != nil && d.ParentType == "check" && d.ParentID == *al.CheckID {
-			continue
+		if d != nil && al.CheckID != nil && d.ParentType == "check" && d.ParentID == *al.CheckID {
+			d = nil
 		}
-		if name, _, down, ok := a.depState(ctx, d.ParentType, d.ParentID); ok && down {
-			return fmt.Sprintf("parent %s is down", name)
-		}
+	}
+	if d == nil {
+		return ""
+	}
+	if name, _, down, ok := a.depState(ctx, d.ParentType, d.ParentID); ok && down {
+		return fmt.Sprintf("parent %s is down", name)
 	}
 	return ""
 }

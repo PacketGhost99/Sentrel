@@ -186,7 +186,7 @@ function AgentsBody({ info }: { info: InstallInfo }) {
                       <CodeBlock code={platform === 'windows' ? msiCommand(opts, pkg) : packageCommand(opts, pkg)} />
                     </>
                   ) : (
-                    <p className="text-sm text-muted">No {platform === 'windows' ? 'MSI' : `${platform === 'deb' ? '.deb' : '.rpm'} ${arch === 'amd64' ? 'x86-64' : 'ARM64'}`} package on this server. Use the quick install above{info.packages.length === 0 ? ' (this build was made without nfpm or wixl)' : ''}.</p>
+                    <p className="text-sm text-muted">No {platform === 'windows' ? 'MSI' : `${platform === 'deb' ? '.deb' : '.rpm'} ${arch === 'amd64' ? 'x86-64' : 'ARM64'}`} package on this server. Use the quick install above.</p>
                   )}
                 </section>
               )}

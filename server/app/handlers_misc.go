@@ -22,7 +22,7 @@ import (
 // handleEvents streams server-sent events to the browser.
 func (a *App) handleEvents(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
-	if p == nil || p.MFAPending {
+	if p == nil || p.MFAPending || p.MustChangePW {
 		writeError(w, unauthorized("authentication required"))
 		return
 	}
@@ -110,7 +110,7 @@ func (a *App) handleInstallScript(kind string) http.HandlerFunc {
 // text format, so an existing Prometheus/Grafana can scrape Sentrel.
 func (a *App) handlePromMetrics(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
-	if a.settings.Security().MetricsAuth && (p == nil || !p.Has(PermRead) || p.MFAPending) {
+	if a.settings.Security().MetricsAuth && (p == nil || !p.Has(PermRead) || p.MFAPending || p.MustChangePW) {
 		w.Header().Set("WWW-Authenticate", `Bearer realm="sentrel"`)
 		http.Error(w, "API key with read scope required", 401)
 		return

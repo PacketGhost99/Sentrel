@@ -263,9 +263,20 @@ func (a *App) apiUpdateHost(c *Ctx) (any, error) {
 		return nil, err
 	}
 	ctx := c.ctx()
+	// Authorise and check the tenant move before anything else is validated or
+	// written, so a rejected request changes nothing.
+	moving := req.TenantID != nil && *req.TenantID != h.TenantID
+	if moving {
+		if !c.P.IsProvider() || !c.P.Has(PermHosts) {
+			return nil, forbidden("only provider operators can move hosts between tenants")
+		}
+		if _, err := c.tenantFor(*req.TenantID); err != nil {
+			return nil, err
+		}
+	}
 	dep := depRequest{ParentType: req.ParentType, ParentID: req.ParentID}
 	depType, depID := dep.values()
-	if dep.present() {
+	if dep.present() && !moving {
 		if err := a.validateDependency(ctx, h.TenantID, "host", h.ID, depType, depID); err != nil {
 			return nil, err
 		}
@@ -395,30 +406,31 @@ func (a *App) apiUpdateHost(c *Ctx) (any, error) {
 		set("auto_remove_old_kernels", *req.AutoRemoveOldKernels)
 		changes["auto_remove_old_kernels"] = *req.AutoRemoveOldKernels
 	}
+	// Everything is validated; commit the whole update in one transaction.
 	if len(sets) > 0 {
 		set("updated_at", db.Now())
-		args = append(args, h.ID)
-		if _, err := a.db.ExecContext(ctx, `UPDATE hosts SET `+strings.Join(sets, ", ")+` WHERE id=?`, args...); err != nil {
-			return nil, err
-		}
 	}
-	if req.TenantID != nil && *req.TenantID != h.TenantID {
-		if !c.P.IsProvider() || !c.P.Has(PermHosts) {
-			return nil, forbidden("only provider operators can move hosts between tenants")
+	err = a.db.Tx(ctx, func(tx *sqlxTx) error {
+		if len(sets) > 0 {
+			if _, err := tx.ExecContext(ctx, `UPDATE hosts SET `+strings.Join(sets, ", ")+` WHERE id=?`, append(args, h.ID)...); err != nil {
+				return err
+			}
 		}
-		if _, err := c.tenantFor(*req.TenantID); err != nil {
-			return nil, err
+		if moving {
+			return moveHostTenantTx(ctx, tx, h.ID, *req.TenantID)
 		}
-		if err := a.moveHostTenant(ctx, h.ID, *req.TenantID); err != nil {
-			return nil, err
+		if dep.present() {
+			return setDependencyTx(ctx, tx, h.TenantID, "host", h.ID, depType, depID)
 		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if moving {
 		changes["tenant_id"] = *req.TenantID
-		// Dependencies never cross tenants.
-		a.forgetDependencies(ctx, "host", h.ID)
+		a.hostTransferred(ctx, h.ID, *req.TenantID)
 	} else if dep.present() {
-		if err := a.setDependency(ctx, h.TenantID, "host", h.ID, depType, depID); err != nil {
-			return nil, err
-		}
 		changes["parent_type"], changes["parent_id"] = depType, depID
 	}
 	_ = a.alerts.refreshHosts(ctx)
@@ -453,32 +465,93 @@ func cleanTags(tags []string) []string {
 
 // moveHostTenant reassigns a host and every row that belongs to it.
 func (a *App) moveHostTenant(ctx context.Context, hostID, tenant int64) error {
-	return a.db.Tx(ctx, func(tx *sqlxTx) error {
-		stmts := []string{
-			`UPDATE hosts SET tenant_id=?, group_id=NULL WHERE id=?`,
-			`UPDATE checks SET tenant_id=? WHERE host_id=?`,
-			`UPDATE alerts SET tenant_id=? WHERE host_id=?`,
-			`UPDATE alert_events SET tenant_id=? WHERE host_id=?`,
-			`UPDATE packages SET tenant_id=? WHERE host_id=?`,
-			`UPDATE inventory_status SET tenant_id=? WHERE host_id=?`,
-			`UPDATE jobs SET tenant_id=? WHERE host_id=?`,
-			`UPDATE security_events SET tenant_id=? WHERE host_id=?`,
-			`UPDATE ip_blocks SET tenant_id=? WHERE host_id=?`,
-			`UPDATE fail2ban_status SET tenant_id=? WHERE host_id=?`,
-			`UPDATE disk_health SET tenant_id=? WHERE host_id=?`,
-			`UPDATE portscan_status SET tenant_id=? WHERE host_id=?`,
-			`UPDATE vuln_scans SET tenant_id=? WHERE host_id=?`,
-			`UPDATE vuln_findings SET tenant_id=? WHERE host_id=?`,
-			`UPDATE lldp_neighbors SET tenant_id=? WHERE host_id=?`,
-			`UPDATE uptime_daily SET tenant_id=? WHERE item_type='host' AND item_id=?`,
+	return a.db.Tx(ctx, func(tx *sqlxTx) error { return moveHostTenantTx(ctx, tx, hostID, tenant) })
+}
+
+// moveHostTenantTx is the transactional part of a host transfer. Everything a
+// host owns moves with it; things that only make sense inside the old tenant
+// (dependencies, maintenance windows and update schedules that name the host,
+// the old group) are removed instead.
+func moveHostTenantTx(ctx context.Context, tx *sqlxTx, hostID, tenant int64) error {
+	stmts := []string{
+		`UPDATE hosts SET tenant_id=?, group_id=NULL WHERE id=?`,
+		`UPDATE checks SET tenant_id=? WHERE host_id=?`,
+		`UPDATE alerts SET tenant_id=? WHERE host_id=?`,
+		`UPDATE alert_events SET tenant_id=? WHERE host_id=?`,
+		`UPDATE packages SET tenant_id=? WHERE host_id=?`,
+		`UPDATE inventory_status SET tenant_id=? WHERE host_id=?`,
+		`UPDATE jobs SET tenant_id=? WHERE host_id=?`,
+		`UPDATE security_events SET tenant_id=? WHERE host_id=?`,
+		`UPDATE ip_blocks SET tenant_id=? WHERE host_id=?`,
+		`UPDATE fail2ban_status SET tenant_id=? WHERE host_id=?`,
+		`UPDATE disk_health SET tenant_id=? WHERE host_id=?`,
+		`UPDATE portscan_status SET tenant_id=? WHERE host_id=?`,
+		`UPDATE vuln_scans SET tenant_id=? WHERE host_id=?`,
+		`UPDATE vuln_findings SET tenant_id=? WHERE host_id=?`,
+		`UPDATE lldp_neighbors SET tenant_id=? WHERE host_id=?`,
+		`UPDATE revoked_certs SET tenant_id=? WHERE host_id=?`,
+		`UPDATE uptime_daily SET tenant_id=? WHERE item_type='host' AND item_id=?`,
+		`UPDATE uptime_daily SET tenant_id=? WHERE item_type='check' AND item_id IN (SELECT id FROM checks WHERE host_id=?)`,
+		// Host-scoped threshold rules govern the host for its new owner.
+		`UPDATE OR REPLACE threshold_rules SET tenant_id=? WHERE scope='host' AND scope_id=?`,
+	}
+	for _, s := range stmts {
+		if _, err := tx.ExecContext(ctx, s, tenant, hostID); err != nil {
+			return err
 		}
-		for _, s := range stmts {
-			if _, err := tx.ExecContext(ctx, s, tenant, hostID); err != nil {
-				return err
+	}
+	// Dependencies never cross tenants (the host's own and its checks').
+	if _, err := tx.ExecContext(ctx, `DELETE FROM dependencies WHERE (child_type='host' AND child_id=?1) OR (parent_type='host' AND parent_id=?1)
+		OR (child_type='check' AND child_id IN (SELECT id FROM checks WHERE host_id=?1))
+		OR (parent_type='check' AND parent_id IN (SELECT id FROM checks WHERE host_id=?1))`, hostID); err != nil {
+		return err
+	}
+	// Update schedules naming the host belong to the previous owner.
+	if _, err := tx.ExecContext(ctx, `DELETE FROM update_schedules WHERE scope='host' AND scope_id=? AND tenant_id<>?`, hostID, tenant); err != nil {
+		return err
+	}
+	// Maintenance windows of other tenants stop naming the host; a window left
+	// with no scope is removed.
+	var wins []struct {
+		ID       int64   `db:"id"`
+		ScopeIDs IntList `db:"scope_ids"`
+	}
+	if err := tx.SelectContext(ctx, &wins, `SELECT id, scope_ids FROM maintenance_windows WHERE scope='host' AND tenant_id<>?`, tenant); err != nil {
+		return err
+	}
+	for _, w := range wins {
+		kept := IntList{}
+		for _, id := range w.ScopeIDs {
+			if id != hostID {
+				kept = append(kept, id)
 			}
 		}
-		return nil
-	})
+		if len(kept) == len(w.ScopeIDs) {
+			continue
+		}
+		var err error
+		if len(kept) == 0 {
+			_, err = tx.ExecContext(ctx, `DELETE FROM maintenance_windows WHERE id=?`, w.ID)
+		} else {
+			_, err = tx.ExecContext(ctx, `UPDATE maintenance_windows SET scope_ids=? WHERE id=?`, kept, w.ID)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// hostTransferred moves the in-memory state of a host to its new owner after
+// the transfer committed: live alerts, queued notifications and cached checks.
+func (a *App) hostTransferred(ctx context.Context, hostID, tenant int64) {
+	var name string
+	_ = a.db.GetContext(ctx, &name, `SELECT name FROM hosts WHERE id=?`, hostID)
+	a.alerts.transferHost(hostID, tenant, name)
+	a.notifier.hostMoved(ctx, hostID, tenant)
+	a.checks.hostMoved(hostID, tenant)
+	a.maint.refresh(ctx)
+	_ = a.alerts.ReloadRules(ctx)
 }
 
 func (a *App) apiDeleteHost(c *Ctx) (any, error) {

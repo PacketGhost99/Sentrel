@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
-import { get, onUnauthorized, post, setCsrf } from './api'
+import { get, onPasswordChangeRequired, onUnauthorized, post, setCsrf } from './api'
 import type { Branding, Me } from './types'
 
 export interface PublicInfo {
@@ -104,8 +104,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refresh(),
     ]).finally(() => setLoading(false))
     const off = onUnauthorized(() => setMeState(null))
+    const offPw = onPasswordChangeRequired(() => { void refresh() })
     return () => {
       off()
+      offPw()
     }
   }, [refresh])
 

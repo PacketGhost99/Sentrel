@@ -22,6 +22,14 @@ export function onUnauthorized(l: Listener) {
   return () => unauthListeners.delete(l)
 }
 
+// Fired when the server says the account must change its password (an
+// administrator flagged it while the session was open).
+const pwListeners = new Set<Listener>()
+export function onPasswordChangeRequired(l: Listener) {
+  pwListeners.add(l)
+  return () => pwListeners.delete(l)
+}
+
 export async function api<T = any>(path: string, opts: { method?: string; body?: unknown; query?: Record<string, unknown>; raw?: boolean } = {}): Promise<T> {
   let url = '/api/v1' + path
   if (opts.query) {
@@ -61,6 +69,7 @@ export async function api<T = any>(path: string, opts: { method?: string; body?:
     if (res.status === 401 && code !== 'mfa_required' && !path.startsWith('/auth/login') && !path.startsWith('/auth/mfa') && !path.startsWith('/auth/passkey')) {
       unauthListeners.forEach((l) => l())
     }
+    if (res.status === 403 && code === 'password_change_required') pwListeners.forEach((l) => l())
     throw new ApiError(res.status, code, msg)
   }
   return data as T

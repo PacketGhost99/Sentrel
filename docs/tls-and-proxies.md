@@ -68,7 +68,8 @@ A proxy that terminates TLS hides the agent's client certificate from the server
 
 ## Recovery from a bad TLS setting
 
-- If the server cannot start listeners with the stored TLS settings after a change made in the UI, it logs the error and falls back to plain HTTP on the configured listen address.
+- A TLS change made in the UI is checked before the running listeners are touched: the certificate and key must load and a new address must be bindable. If the check fails, the current listeners keep running, the previous settings are restored, and the error is logged and recorded in the audit log (`settings.tls_reload_failed`).
+- If the new listeners still fail to start, the last working configuration is restarted. If that fails as well, the server exits instead of serving plain HTTP; it never falls back to plain HTTP by itself. Plain HTTP only happens when you choose mode `http` or pass `--force-http`.
 - If it cannot start at all (for example after a restart with a broken certificate setup), run it once with `--force-http`:
 
   ```sh

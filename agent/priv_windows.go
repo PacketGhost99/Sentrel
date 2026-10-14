@@ -104,6 +104,10 @@ func privExec(ctx context.Context, w io.Writer, verb string, rest []string) erro
 		return winInstallUpdate(rest[0], rest[1], rest[2], rest[3])
 	case "rollback-update":
 		return winRollback()
+	case "confirm-update":
+		// The agent removes the protected marker itself on Windows.
+		_ = os.Remove(markerPath(DefaultStateDir()))
+		return nil
 	}
 	return fmt.Errorf("unknown priv verb %q", verb)
 }
@@ -233,6 +237,16 @@ func winInstallUpdate(path, sha, version, sig string) error {
 }
 
 func winRollback() error {
+	// The state directory is protected (SYSTEM and Administrators only), so
+	// its pending-update marker is trustworthy. Without a recent one there is
+	// nothing to recover from.
+	m, err := readMarker(DefaultStateDir())
+	if err != nil {
+		return errors.New("rollback refused: no pending update")
+	}
+	if err := checkRecoveryWindow(m, time.Now()); err != nil {
+		return err
+	}
 	exe := installedPath()
 	old := exe + ".old"
 	if _, err := os.Stat(old); err != nil {

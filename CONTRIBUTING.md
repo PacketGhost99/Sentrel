@@ -54,7 +54,7 @@ By making a contribution to this project, I certify that:
 ## Before you start
 
 - For anything larger than a small fix, open an issue first so the approach can be agreed.
-- Security problems: do not file a public issue. Contact the maintainers privately (see [docs/security.md](docs/security.md)).
+- Security problems: do not file a public issue. Report it privately through GitHub (see [SECURITY.md](SECURITY.md)).
 - Do not copy code from projects whose licence is incompatible with Apache-2.0 (GPL, AGPL, LGPL, SSPL, source-available licences).
 
 ## Development workflow

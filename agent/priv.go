@@ -146,6 +146,23 @@ type updateMarker struct {
 
 func markerPath(stateDir string) string { return filepath.Join(stateDir, "update-pending.json") }
 
+// recoveryWindow bounds how long after an update the privileged rollback verb
+// will restore the previous binary.
+var recoveryWindow = 15 * time.Minute
+
+// checkRecoveryWindow reports whether a protected pending-update marker
+// permits a rollback at now.
+func checkRecoveryWindow(m *updateMarker, now time.Time) error {
+	if m == nil || m.At == 0 {
+		return errors.New("rollback refused: no pending update")
+	}
+	age := now.Sub(time.Unix(m.At, 0))
+	if age < -time.Minute || age > recoveryWindow {
+		return fmt.Errorf("rollback refused: the pending update is outside the %s recovery window", recoveryWindow)
+	}
+	return nil
+}
+
 func readMarker(stateDir string) (*updateMarker, error) {
 	b, err := os.ReadFile(markerPath(stateDir))
 	if err != nil {
@@ -238,10 +255,20 @@ func copyFile(src, dst string, mode os.FileMode) error {
 
 // copyReader writes r to dst (via a temp file renamed into place) with mode.
 func copyReader(in io.Reader, dst string, mode os.FileMode) error {
-	tmp := dst + ".tmp"
-	out, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
-	if err != nil {
-		return err
+	var out *os.File
+	var tmp string
+	for i := 0; ; i++ {
+		var rnd [6]byte
+		_, _ = rand.Read(rnd[:])
+		tmp = fmt.Sprintf("%s.%x.tmp", dst, rnd)
+		var err error
+		out, err = os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_EXCL, mode)
+		if err == nil {
+			break
+		}
+		if !errors.Is(err, os.ErrExist) || i >= 5 {
+			return err
+		}
 	}
 	if _, err := io.Copy(out, in); err != nil {
 		out.Close()

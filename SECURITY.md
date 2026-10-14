@@ -10,8 +10,6 @@ Please report privately. Do not open a public issue or pull request for a suspec
 
 Use GitHub private vulnerability reporting: on the repository page choose **Security**, then **Report a vulnerability**.
 
-Note for the maintainer: this only works if private vulnerability reporting is enabled under Settings, Code security. If the button is missing for you, the feature is not enabled yet; open a public issue that says only "I need to report a security issue privately" with no details, and the maintainer will arrange a channel.
-
 Useful things to include: the version (`sentrel-server version`), how it is deployed (TLS mode, reverse proxy, agent write policy), what you did, what you expected and what happened, and whether the issue needs authentication or a particular role.
 
 ## What to expect

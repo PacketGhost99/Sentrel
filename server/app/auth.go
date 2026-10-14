@@ -36,6 +36,7 @@ type authService struct {
 	waMu    sync.Mutex
 	waSess  map[string]waPending
 	waCache map[string]*webauthn.WebAuthn
+	waOrder []string // waCache keys, least recently used first
 }
 
 type waPending struct {
@@ -99,6 +100,11 @@ func (s *authService) middleware(next http.Handler) http.Handler {
 			var err error
 			p, err = s.apiKeyPrincipal(r.Context(), strings.TrimSpace(strings.TrimPrefix(ah, "Bearer ")))
 			if err != nil {
+				var ae *apiError
+				if errors.As(err, &ae) {
+					writeError(w, ae)
+					return
+				}
 				writeError(w, unauthorized("invalid API key"))
 				return
 			}
@@ -143,15 +149,8 @@ func (s *authService) sessionPrincipal(ctx context.Context, token string) *Princ
 		return nil
 	}
 	u, err := a.getUser(ctx, sr.UserID)
-	if err != nil || u.Disabled {
+	if err != nil || a.principalBlocked(ctx, u) != nil {
 		return nil
-	}
-	var tenantDisabled bool
-	if u.TenantID != 0 {
-		_ = a.db.GetContext(ctx, &tenantDisabled, `SELECT disabled FROM tenants WHERE id=?`, u.TenantID)
-		if tenantDisabled {
-			return nil
-		}
 	}
 	if now-sr.LastSeenAt > 60 {
 		hours := a.settings.Security().SessionHours
@@ -162,19 +161,53 @@ func (s *authService) sessionPrincipal(ctx context.Context, token string) *Princ
 	}
 	uid := u.ID
 	return &Principal{UserID: &uid, Name: u.Username, Role: u.Role, TenantID: u.TenantID, SessionID: sr.IDHash,
-		MFAPending: sr.MFAPending != 0, MFAEnroll: sr.MFAPending == 2, CSRF: sr.CSRF, perms: newPrincipal(u.Role, nil)}
+		MFAPending: sr.MFAPending != 0, MFAEnroll: sr.MFAPending == 2, CSRF: sr.CSRF, MustChangePW: mustChangePassword(u), perms: newPrincipal(u.Role, nil)}
 }
 
-// API keys look like sentrel_<8 char prefix>_<secret>.
+// errTenantDisabled is returned for a user whose tenant is suspended.
+var errTenantDisabled = errors.New("tenant disabled")
+
+// principalBlocked is the single validity check for every authentication
+// method (sessions, API keys, new logins): the user must be enabled and, for
+// tenant users, the tenant must exist and be enabled. It fails closed when
+// the tenant cannot be read. Key expiry is checked by the key path.
+func (a *App) principalBlocked(ctx context.Context, u *User) error {
+	if u.Disabled {
+		return errUserDisabled
+	}
+	if u.TenantID != 0 {
+		var disabled bool
+		if err := a.db.GetContext(ctx, &disabled, `SELECT disabled FROM tenants WHERE id=?`, u.TenantID); err != nil || disabled {
+			return errTenantDisabled
+		}
+	}
+	return nil
+}
+
+// mustChangePassword reports whether the account is restricted to changing its
+// password. Only local accounts can change a password here, so the flag is
+// ignored for externally managed ones.
+func mustChangePassword(u *User) bool { return u.MustChangePW && u.AuthSource == "local" }
+
+// maxAPIKeyLen bounds the work done for a bearer token.
+const maxAPIKeyLen = 200
+
+// dummyKeyHash stands in for a stored key hash when the prefix is unknown.
+var dummyKeyHash = hashToken("sentrel-unknown-api-key")
+
+// API keys look like sentrel_<8 char prefix>_<secret>. The secret is 30 random
+// bytes, so the stored hash is a plain SHA-256 looked up by prefix; a slow
+// password hash would add nothing and would make unknown keys expensive.
 func (s *authService) apiKeyPrincipal(ctx context.Context, key string) (*Principal, error) {
 	parts := strings.SplitN(key, "_", 3)
-	if len(parts) != 3 || parts[0] != "sentrel" {
+	if len(key) > maxAPIKeyLen || len(parts) != 3 || parts[0] != "sentrel" || len(parts[1]) != 8 {
 		return nil, errors.New("malformed")
 	}
 	a := s.app
 	var k APIKey
 	if err := a.db.GetContext(ctx, &k, `SELECT * FROM api_keys WHERE prefix=?`, parts[1]); err != nil {
-		authn.EqualiseTiming(key)
+		// Same cheap work as a known prefix, so timing does not reveal it.
+		subtle.ConstantTimeCompare([]byte(hashToken(parts[2])), []byte(dummyKeyHash))
 		return nil, errors.New("unknown")
 	}
 	if subtle.ConstantTimeCompare([]byte(hashToken(parts[2])), []byte(k.KeyHash)) != 1 {
@@ -185,8 +218,14 @@ func (s *authService) apiKeyPrincipal(ctx context.Context, key string) (*Princip
 		return nil, errors.New("expired")
 	}
 	u, err := a.getUser(ctx, k.UserID)
-	if err != nil || u.Disabled {
-		return nil, errors.New("user disabled")
+	if err != nil {
+		return nil, errors.New("user not found")
+	}
+	if err := a.principalBlocked(ctx, u); err != nil {
+		return nil, err
+	}
+	if mustChangePassword(u) {
+		return nil, &apiError{Status: 403, Code: "password_change_required", Msg: "the account owner must change their password before API keys work again"}
 	}
 	if now-k.LastUsedAt > 60 {
 		_, _ = a.db.ExecContext(ctx, `UPDATE api_keys SET last_used_at=? WHERE id=?`, now, k.ID)
@@ -208,6 +247,9 @@ func (a *App) getUser(ctx context.Context, id int64) (*User, error) {
 // pending, 2 second-factor enrolment required by policy.
 func (s *authService) createSession(w http.ResponseWriter, r *http.Request, u *User, mfa int) (string, error) {
 	a := s.app
+	if err := a.principalBlocked(r.Context(), u); err != nil {
+		return "", unauthorized("this account is disabled")
+	}
 	tok := randomToken(32)
 	csrf := randomToken(24)
 	now := db.Now()
@@ -365,11 +407,12 @@ func (s *authService) authenticate(ctx context.Context, username, password, ip s
 		if err == nil {
 			role, tenant, ok := mapLDAPRole(ldapCfg, lu.Groups)
 			if found {
-				if ok {
-					u.Role, u.TenantID = role, tenant
+				if !ok {
+					// Access was removed upstream: revoke what exists and refuse.
+					s.revokeAccess(ctx, &u, true)
+					return nil, errors.New("LDAP user has no mapped role")
 				}
-				_, _ = a.db.ExecContext(ctx, `UPDATE users SET email=?, display_name=?, role=?, tenant_id=? WHERE id=?`, lu.Email, lu.Name, u.Role, u.TenantID, u.ID)
-				return a.getUser(ctx, u.ID)
+				return s.syncExternalUser(ctx, &u, lu.Email, lu.Name, role, tenant)
 			}
 			if !ok {
 				return nil, errors.New("LDAP user has no mapped role")
@@ -395,11 +438,14 @@ func (s *authService) authenticate(ctx context.Context, username, password, ip s
 			if hint := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(res.RoleHint)), "sentrel:"); ValidRole(hint, tenant) {
 				role = hint
 			}
-			if found {
-				return &u, nil
-			}
 			if !ValidRole(role, tenant) {
+				if found {
+					s.revokeAccess(ctx, &u, true)
+				}
 				return nil, errors.New("RADIUS user has no valid role")
+			}
+			if found {
+				return s.syncExternalUser(ctx, &u, u.Email, firstNonEmpty(u.DisplayName, username), role, tenant)
 			}
 			return s.provision(ctx, username, "", username, role, tenant, "radius")
 		}
@@ -418,6 +464,34 @@ func ldapConfig(s LDAPSettings) authn.LDAPConfig {
 		BaseDN: s.BaseDN, UserFilter: s.UserFilter, EmailAttr: s.EmailAttr, NameAttr: s.NameAttr, GroupAttr: s.GroupAttr}
 }
 
+var roleRank = map[string]int{RoleAdmin: 5, RoleOperator: 4, RoleTenantAdmin: 3, RoleViewer: 2, RoleTenantViewer: 1}
+
+// revokeAccess drops the user's sessions (and, with keys, their API keys).
+func (s *authService) revokeAccess(ctx context.Context, u *User, keys bool) {
+	_, _ = s.app.db.ExecContext(ctx, `DELETE FROM sessions WHERE user_id=?`, u.ID)
+	if keys {
+		_, _ = s.app.db.ExecContext(ctx, `DELETE FROM api_keys WHERE user_id=?`, u.ID)
+	}
+}
+
+// syncExternalUser makes the stored role and tenant of an LDAP, RADIUS, OIDC
+// or forward-auth account match what the directory and current mappings say right now. When
+// the role is lowered or the tenant changes, the user's existing sessions are
+// revoked; a tenant change also drops their API keys, which carry the old tenant.
+func (s *authService) syncExternalUser(ctx context.Context, u *User, email, name, role string, tenant int64) (*User, error) {
+	lowered := roleRank[role] < roleRank[u.Role] || tenant != u.TenantID
+	if _, err := s.app.db.ExecContext(ctx, `UPDATE users SET email=?, display_name=?, role=?, tenant_id=? WHERE id=?`,
+		truncateStr(email, 200), truncateStr(firstNonEmpty(name, u.Username), 100), role, tenant, u.ID); err != nil {
+		return nil, err
+	}
+	if lowered {
+		s.revokeAccess(ctx, u, tenant != u.TenantID)
+		s.app.audit(ctx, auditEntry{TenantID: u.TenantID, UserID: &u.ID, Actor: "system", Action: "user.role_synced", TargetType: "user", TargetID: itoa(u.ID),
+			Details: map[string]any{"username": u.Username, "from_role": u.Role, "to_role": role, "from_tenant": u.TenantID, "to_tenant": tenant}})
+	}
+	return s.app.getUser(ctx, u.ID)
+}
+
 // mapLDAPRole picks the most privileged mapped role.
 func mapLDAPRole(s LDAPSettings, groups []string) (string, int64, bool) {
 	return mapGroupRole(s.RoleMapping, s.DefaultRole, s.DefaultTenant, groups)
@@ -426,7 +500,7 @@ func mapLDAPRole(s LDAPSettings, groups []string) (string, int64, bool) {
 // mapGroupRole picks the most privileged role mapped from the user's groups,
 // falling back to the default role (empty default = deny).
 func mapGroupRole(mapping []LDAPRoleMapping, defRole string, defTenant int64, groups []string) (string, int64, bool) {
-	rank := map[string]int{RoleAdmin: 5, RoleOperator: 4, RoleTenantAdmin: 3, RoleViewer: 2, RoleTenantViewer: 1}
+	rank := roleRank
 	best, bestT, ok := "", int64(0), false
 	for _, m := range mapping {
 		for _, g := range groups {
@@ -591,6 +665,47 @@ func (s *authService) verifySecondFactorOrPassword(u *User, pw, code string) boo
 	return false
 }
 
+// consumeRecoveryCode atomically spends a recovery code. It reads the stored
+// list as raw text and writes the shortened list only if the column still has
+// exactly that text, so of any number of concurrent attempts with the same code
+// exactly one UPDATE matches a row. A lost race or an unknown code returns
+// (false, nil); a storage error returns it so the caller fails closed.
+func (s *authService) consumeRecoveryCode(ctx context.Context, userID int64, code string) (bool, error) {
+	var raw string
+	if err := s.app.db.GetContext(ctx, &raw, `SELECT recovery_codes FROM users WHERE id=?`, userID); err != nil {
+		return false, err
+	}
+	var codes StrList
+	if err := json.Unmarshal([]byte(raw), &codes); err != nil {
+		return false, nil
+	}
+	h := hashToken(code)
+	idx := -1
+	for i, rc := range codes {
+		if subtle.ConstantTimeCompare([]byte(rc), []byte(h)) == 1 {
+			idx = i
+		}
+	}
+	if idx < 0 {
+		return false, nil
+	}
+	rest := append(StrList{}, codes[:idx]...)
+	rest = append(rest, codes[idx+1:]...)
+	b, err := json.Marshal(rest)
+	if err != nil {
+		return false, err
+	}
+	res, err := s.app.db.ExecContext(ctx, `UPDATE users SET recovery_codes=? WHERE id=? AND recovery_codes=?`, string(b), userID, raw)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return n == 1, nil
+}
+
 // mfaTOTP completes login with a TOTP or recovery code.
 func (s *authService) mfaTOTP(c *Ctx) (any, error) {
 	if err := verifyAllowed(c.P); err != nil {
@@ -612,15 +727,13 @@ func (s *authService) mfaTOTP(c *Ctx) (any, error) {
 	ok := u.TOTPEnabled && totp.Validate(code, u.TOTPSecret)
 	method := "totp"
 	if !ok {
-		h := hashToken(code)
-		for i, rc := range u.RecoveryCodes {
-			if subtle.ConstantTimeCompare([]byte(rc), []byte(h)) == 1 {
-				rest := append(StrList{}, u.RecoveryCodes[:i]...)
-				rest = append(rest, u.RecoveryCodes[i+1:]...)
-				_, _ = s.app.db.ExecContext(c.ctx(), `UPDATE users SET recovery_codes=? WHERE id=?`, rest, u.ID)
-				ok, method = true, "recovery_code"
-				break
-			}
+		used, err := s.consumeRecoveryCode(c.ctx(), u.ID, code)
+		if err != nil {
+			// Fail closed: nothing was consumed, so nothing is accepted.
+			return nil, err
+		}
+		if used {
+			ok, method = true, "recovery_code"
 		}
 	}
 	if !ok {
@@ -698,11 +811,15 @@ func (s *authService) webAuthn(r *http.Request) (*webauthn.WebAuthn, error) {
 		if s.app.isHTTPS(r) {
 			scheme = "https"
 		}
+		if !validRequestHost(r.Host) {
+			return nil, badRequest("unrecognised host for passkeys; set the server URL in settings")
+		}
 		origin = scheme + "://" + r.Host
 	}
 	s.waMu.Lock()
 	defer s.waMu.Unlock()
 	if w, ok := s.waCache[origin]; ok {
+		s.touchWAOrigin(origin)
 		return w, nil
 	}
 	u, _ := url.Parse(origin)
@@ -710,8 +827,40 @@ func (s *authService) webAuthn(r *http.Request) (*webauthn.WebAuthn, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Bounded LRU: with no server URL the origin comes from the request, so
+	// the cache must not grow with attacker-chosen Host values.
+	for len(s.waCache) >= waCacheMax && len(s.waOrder) > 0 {
+		delete(s.waCache, s.waOrder[0])
+		s.waOrder = s.waOrder[1:]
+	}
 	s.waCache[origin] = w
+	s.waOrder = append(s.waOrder, origin)
 	return w, nil
+}
+
+const (
+	waCacheMax   = 16   // relying-party objects kept when the origin comes from the request
+	waPendingMax = 1000 // outstanding WebAuthn challenges
+)
+
+// touchWAOrigin marks origin most recently used. waMu must be held.
+func (s *authService) touchWAOrigin(origin string) {
+	for i, o := range s.waOrder {
+		if o == origin {
+			s.waOrder = append(append(s.waOrder[:i:i], s.waOrder[i+1:]...), origin)
+			return
+		}
+	}
+}
+
+// validRequestHost reports whether h is a plausible host[:port] to use as a
+// WebAuthn origin: no userinfo, path, query or odd characters, and bounded.
+func validRequestHost(h string) bool {
+	if h == "" || len(h) > 262 {
+		return false
+	}
+	u, err := url.Parse("https://" + h)
+	return err == nil && u.Host == h && u.Hostname() != "" && u.User == nil && u.Path == "" && u.RawQuery == "" && u.Fragment == ""
 }
 
 func (s *authService) putWA(p waPending) string {
@@ -723,6 +872,17 @@ func (s *authService) putWA(p waPending) string {
 		if now.After(v.expires) {
 			delete(s.waSess, k)
 		}
+	}
+	// Bounded: drop the soonest-to-expire challenge when full, so a flood of
+	// unauthenticated begin requests cannot grow memory without limit.
+	for len(s.waSess) >= waPendingMax {
+		oldest, oldestAt := "", time.Time{}
+		for k, v := range s.waSess {
+			if oldest == "" || v.expires.Before(oldestAt) {
+				oldest, oldestAt = k, v.expires
+			}
+		}
+		delete(s.waSess, oldest)
 	}
 	p.expires = now.Add(5 * time.Minute)
 	s.waSess[id] = p

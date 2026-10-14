@@ -7,7 +7,7 @@ import './index.css'
 import { AuthProvider, useAuth } from './lib/auth'
 import { ConfirmProvider, Loading, ToastProvider } from './components/ui'
 import { Layout } from './components/Layout'
-import { Login, MfaSetupRequired } from './pages/Login'
+import { Login, MfaSetupRequired, PasswordChangeRequired } from './pages/Login'
 import { Setup } from './pages/Setup'
 import { Dashboard } from './pages/Dashboard'
 import { Hosts } from './pages/Hosts'
@@ -45,6 +45,7 @@ function Guard({ children }: { children: ReactNode }) {
   if (info?.setup_required) return <Navigate to="/setup" replace />
   if (!me) return <Navigate to={`/login?next=${encodeURIComponent(loc.pathname + loc.search)}`} replace />
   if (me.mfa_pending) return <Navigate to="/login" replace />
+  if (me.password_change_required) return <PasswordChangeRequired />
   if (me.mfa_setup_required) return <MfaSetupRequired />
   return <>{children}</>
 }

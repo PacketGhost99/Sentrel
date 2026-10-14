@@ -21,9 +21,9 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Build and test only; publishing happens in the release job below.
     permissions:
-      contents: write   # needed to publish releases on tags
-      id-token: write   # keyless cosign signing (GitHub OIDC)
+      contents: read
     steps:
       - uses: actions/checkout@v7
         with:
@@ -50,8 +50,30 @@ jobs:
           VERSION="${GITHUB_REF_NAME}"
           if [ "${GITHUB_REF_TYPE}" != tag ]; then VERSION="0.0.0-${GITHUB_SHA::8}"; fi
           scripts/build.sh --skip-web --packages --version "$VERSION"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
+  release:
+    # Runs only for version tags, with the write and signing permissions the
+    # build job does not get.
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # create the GitHub release
+      id-token: write   # keyless cosign signing (GitHub OIDC)
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
       - name: Sign checksums
-        if: startsWith(github.ref, 'refs/tags/v')
         env:
           SENTREL_RELEASE_KEY: ${{ secrets.SENTREL_RELEASE_KEY }}
         run: |
@@ -61,33 +83,24 @@ jobs:
           fi
           go run ./cmd/sentrel-sign sign -key env:SENTREL_RELEASE_KEY dist/SHA256SUMS
       - name: Install cosign
-        if: startsWith(github.ref, 'refs/tags/v')
         uses: sigstore/cosign-installer@v4.1.2
         with:
           cosign-release: ${{ env.COSIGN_VERSION }}
       - name: Sign checksums with cosign (keyless)
-        if: startsWith(github.ref, 'refs/tags/v')
         run: |
           cosign sign-blob --yes \
             --bundle dist/SHA256SUMS.cosign.bundle \
             dist/SHA256SUMS
       - name: Install syft
-        if: startsWith(github.ref, 'refs/tags/v')
         uses: anchore/sbom-action/download-syft@v0
       - name: SBOMs (SPDX, one per binary)
-        if: startsWith(github.ref, 'refs/tags/v')
         run: |
           for f in dist/${AGENT_BIN}-* dist/${SERVER_BIN}-*; do
             case "$f" in *.deb|*.rpm|*.msi) continue ;; esac
             syft "file:$f" -o "spdx-json=$f.spdx.json"
           done
           ls dist/*.spdx.json
-      - uses: actions/upload-artifact@v7
-        with:
-          name: dist
-          path: dist/
       - name: Create release
-        if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

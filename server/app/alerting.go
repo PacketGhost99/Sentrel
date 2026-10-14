@@ -224,9 +224,20 @@ func (e *AlertEngine) apply(ctx context.Context, c condition) {
 	a := e.app
 	now := db.Now()
 	al := a.alerting()
+	// The host's current owner is authoritative: a condition computed from a
+	// cached check or sample batch may predate a tenant transfer.
+	if c.HostID != nil {
+		if h, ok := e.host(*c.HostID); ok {
+			c.TenantID = h.TenantID
+		}
+	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	cur := e.active[c.Key]
+	if cur != nil && cur.TenantID != c.TenantID && c.HostID != nil {
+		cur.TenantID = c.TenantID
+		_, _ = a.db.ExecContext(ctx, `UPDATE alerts SET tenant_id=? WHERE id=?`, c.TenantID, cur.ID)
+	}
 
 	if c.Severity == "ok" {
 		if cur == nil {
@@ -508,6 +519,28 @@ func (e *AlertEngine) forceResolve(ctx context.Context, key, msg, actor string) 
 		}
 	}
 	e.app.events.publish(Event{Type: "alert.changed", TenantID: cur.TenantID, ID: itoa(cur.ID)})
+}
+
+// transferHost moves a host's runtime state to a new owner: active alerts and
+// the cached host entry. Callers run it after the database move commits.
+func (e *AlertEngine) transferHost(hostID, tenant int64, name string) {
+	e.mu.Lock()
+	for _, al := range e.active {
+		if al.HostID != nil && *al.HostID == hostID {
+			al.TenantID = tenant
+		}
+	}
+	e.mu.Unlock()
+	e.hostsMu.Lock()
+	if h, ok := e.hosts[hostID]; ok {
+		h.TenantID, h.GroupID = tenant, 0
+		if name != "" {
+			h.Name = name
+		}
+		e.hosts[hostID] = h
+	}
+	e.hostsMu.Unlock()
+	hostTenantCache.Store(hostID, tenant)
 }
 
 // forgetHost drops in-memory state after a host is deleted.

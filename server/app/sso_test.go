@@ -79,6 +79,9 @@ func (f *fakeIdP) token(w http.ResponseWriter, r *http.Request) {
 	}
 	claims := map[string]any{"iss": f.srv.URL, "sub": "sub-" + fakeClientID, "aud": fakeClientID, "nonce": nonce,
 		"iat": time.Now().Unix(), "exp": time.Now().Add(time.Hour).Unix()}
+	if pu, ok := f.claims["preferred_username"].(string); ok {
+		claims["sub"] = "sub-" + pu // a distinct, stable subject per test user
+	}
 	for k, v := range f.claims {
 		claims[k] = v
 	}
@@ -192,10 +195,15 @@ func TestOIDCLogin(t *testing.T) {
 		if u == nil || u["username"] != "alice" || u["role"] != "admin" || u["auth_source"] != "oidc" || u["email"] != "alice@example.com" {
 			t.Fatalf("unexpected user: %v", u)
 		}
-		// Later logins re-map the role from the current groups.
+		// Later logins re-map the role from the current groups, and a lowered
+		// role ends the sessions that still carry the old one.
+		adminSession := cl
 		f.claims["groups"] = []string{"hb-viewers"}
 		if _, cl = f.signIn(e, nil); meUser(t, cl)["role"] != "viewer" {
 			t.Fatalf("role not updated: %v", meUser(t, cl))
+		}
+		if meUser(t, adminSession) != nil {
+			t.Fatal("session from before the role was lowered still works")
 		}
 	})
 

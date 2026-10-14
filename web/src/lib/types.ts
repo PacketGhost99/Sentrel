@@ -52,6 +52,7 @@ export interface Me {
   server_url: string
   version: string
   api_key: boolean
+  password_change_required: boolean
 }
 
 export interface HostSummary {

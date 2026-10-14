@@ -127,6 +127,17 @@ func (a *App) apiUpdateUser(c *Ctx) (any, error) {
 		return nil, err
 	}
 	ctx := c.ctx()
+
+	// Validate every field first; nothing is written until all of it passes.
+	if req.AuthSource != "" && req.AuthSource != u.AuthSource {
+		if req.AuthSource != "local" && req.AuthSource != "ldap" && req.AuthSource != "radius" {
+			return nil, badRequest("auth_source must be local, ldap or radius")
+		}
+		return nil, badRequest("the authentication source of an existing user cannot be changed")
+	}
+	if req.TenantID != 0 && req.TenantID != u.TenantID {
+		return nil, badRequest("users cannot be moved between tenants")
+	}
 	role := u.Role
 	if req.Role != "" && req.Role != u.Role {
 		if err := a.checkRoleAssignable(c, req.Role, u.TenantID); err != nil {
@@ -151,10 +162,7 @@ func (a *App) apiUpdateUser(c *Ctx) (any, error) {
 	if req.MustChangePW != nil {
 		mustChange = *req.MustChangePW
 	}
-	if _, err := a.db.ExecContext(ctx, `UPDATE users SET email=?, display_name=?, role=?, disabled=?, must_change_pw=? WHERE id=?`,
-		req.Email, firstNonEmpty(req.DisplayName, u.DisplayName), role, disabled, mustChange, u.ID); err != nil {
-		return nil, err
-	}
+	var newHash string
 	if req.Password != "" {
 		if u.AuthSource != "local" {
 			return nil, badRequest("password is managed by %s", u.AuthSource)
@@ -162,15 +170,34 @@ func (a *App) apiUpdateUser(c *Ctx) (any, error) {
 		if err := a.validatePassword(req.Password); err != nil {
 			return nil, err
 		}
-		h, err := authn.HashPassword(req.Password)
-		if err != nil {
+		if newHash, err = authn.HashPassword(req.Password); err != nil {
 			return nil, err
 		}
-		_, _ = a.db.ExecContext(ctx, `UPDATE users SET password_hash=? WHERE id=?`, h, u.ID)
-		_, _ = a.db.ExecContext(ctx, `DELETE FROM sessions WHERE user_id=?`, u.ID)
 	}
-	if disabled || role != u.Role {
-		_, _ = a.db.ExecContext(ctx, `DELETE FROM sessions WHERE user_id=?`, u.ID)
+
+	// Apply together, then audit and invalidate sessions after the commit.
+	tx, err := a.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx, `UPDATE users SET email=?, display_name=?, role=?, disabled=?, must_change_pw=? WHERE id=?`,
+		req.Email, firstNonEmpty(req.DisplayName, u.DisplayName), role, disabled, mustChange, u.ID); err != nil {
+		return nil, err
+	}
+	revoke := newHash != "" || disabled || role != u.Role
+	if newHash != "" {
+		if _, err := tx.ExecContext(ctx, `UPDATE users SET password_hash=? WHERE id=?`, newHash, u.ID); err != nil {
+			return nil, err
+		}
+	}
+	if revoke {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM sessions WHERE user_id=?`, u.ID); err != nil {
+			return nil, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
 	}
 	c.auditT(u.TenantID, "user.updated", "user", itoa(u.ID), map[string]any{"username": u.Username, "role": role, "disabled": disabled, "password_reset": req.Password != ""})
 	return a.getUser(ctx, u.ID)

@@ -250,7 +250,14 @@ func (a *Agent) session(ctx context.Context, marker *updateMarker) error {
 	if skew := time.Since(time.UnixMilli(w.ServerUnixMs)); skew > time.Minute || skew < -time.Minute {
 		a.log.Warn("clock differs from the server", "skew", skew.Round(time.Second))
 	}
-	_ = os.Remove(markerPath(a.cfg.StateDir)) // a successful connection confirms an update
+	if marker != nil {
+		// A successful connection confirms the update: close the privileged
+		// rollback window before dropping the agent-side marker.
+		if out, err := a.priv(ctx, time.Minute, "confirm-update"); err != nil {
+			a.log.Warn("could not clear the protected update marker", "err", err, "output", string(out))
+		}
+	}
+	_ = os.Remove(markerPath(a.cfg.StateDir))
 	_ = os.Remove(filepath.Join(a.cfg.StateDir, "REVOKED"))
 	a.log.Info("connected to server", "host_id", w.HostId, "server_version", w.ServerVersion)
 

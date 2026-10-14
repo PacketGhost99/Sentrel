@@ -154,6 +154,55 @@ func (n *Notifier) enqueue(al Alert, event string) {
 	}
 }
 
+// hostMoved re-homes queued notifications of a host that changed tenant:
+// notes bound for a channel of any other tenant are dropped, the rest are
+// re-labelled with the new owner.
+func (n *Notifier) hostMoved(ctx context.Context, hostID, tenant int64) {
+	chTenant := map[int64]int64{}
+	for _, ch := range n.channelList(ctx) {
+		chTenant[ch.ID] = ch.TenantID
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	for id, q := range n.queue {
+		kept := q[:0]
+		for _, note := range q {
+			if note.alert.HostID != nil && *note.alert.HostID == hostID {
+				if t, ok := chTenant[id]; !ok || (t != 0 && t != tenant) {
+					continue
+				}
+				note.alert.TenantID = tenant
+			}
+			kept = append(kept, note)
+		}
+		if len(kept) == 0 {
+			delete(n.queue, id)
+			delete(n.firstAt, id)
+		} else {
+			n.queue[id] = kept
+		}
+	}
+}
+
+// ownedBy drops queued notes whose host is no longer owned by the channel's
+// tenant. It is the last check before a message leaves the server.
+func (n *Notifier) ownedBy(ctx context.Context, ch NotificationChannel, q []queuedNote) []queuedNote {
+	if ch.TenantID == 0 {
+		return q
+	}
+	out := q[:0:0]
+	for _, note := range q {
+		if note.alert.HostID != nil {
+			var t int64
+			if err := n.app.db.GetContext(ctx, &t, `SELECT tenant_id FROM hosts WHERE id=?`, *note.alert.HostID); err != nil || t != ch.TenantID {
+				continue
+			}
+		}
+		out = append(out, note)
+	}
+	return out
+}
+
 func (n *Notifier) add(chID int64, al Alert, event string) {
 	if len(n.queue[chID]) == 0 {
 		n.firstAt[chID] = time.Now()
@@ -306,6 +355,9 @@ func (n *Notifier) smtpConfig() notify.SMTP {
 
 func (n *Notifier) deliver(ctx context.Context, ch NotificationChannel, q []queuedNote) {
 	a := n.app
+	if q = n.ownedBy(ctx, ch, q); len(q) == 0 {
+		return
+	}
 	msg := n.buildMessage(ctx, q)
 	var err error
 	for attempt := 0; attempt < 3; attempt++ {

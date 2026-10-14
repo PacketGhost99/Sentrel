@@ -95,7 +95,7 @@ Services named in `service` checks are always reported even when service collect
 sentrel-agent ALL=(root) NOPASSWD: /usr/local/bin/sentrel-agent priv *
 ```
 
-The helper validates its own arguments. Verbs: `pkg-refresh`, `pkg-upgrade`, `block-ip`, `unblock-ip`, `list-blocks`, `scan-sync`, `scan-list`, `scan-off`, `fail2ban-status`, `smart`, `disk-usage`, `disk-cleanup`, `install-update`, `rollback-update`. Package names and versions are matched against strict patterns, IPs must parse and not be loopback or unspecified, block durations are 1 to 129600 minutes, and update files must be regular files inside the agent state directory, verified against the root-owned key (`/etc/sentrel-agent/job.pub`). Package upgrades run in their own `systemd-run --scope` unit, so they are outside the agent's CPU and memory limits and survive an agent restart.
+The helper validates its own arguments. Verbs: `pkg-refresh`, `pkg-upgrade`, `block-ip`, `unblock-ip`, `list-blocks`, `scan-sync`, `scan-list`, `scan-off`, `fail2ban-status`, `smart`, `disk-usage`, `disk-cleanup`, `install-update`, `rollback-update`, `confirm-update`. Package names and versions are matched against strict patterns, IPs must parse and not be loopback or unspecified, block durations are 1 to 129600 minutes, and update files must be regular files inside the agent state directory, verified against the root-owned key (`/etc/sentrel-agent/job.pub`). Package upgrades run in their own `systemd-run --scope` unit, so they are outside the agent's CPU and memory limits and survive an agent restart.
 
 IP blocking uses an `inet sentrel` nftables table with timeout sets (and falls back to iptables/ip6tables rules tagged `sentrel-block:<expiry>`). Uninstalling removes the nftables table.
 
@@ -137,12 +137,14 @@ Linux: `curl -fsSL https://SERVER/install/agent.sh | sudo sh -s -- --server http
 1. On a trusted machine (not the server): `sentrel-sign keygen-operator -out operator.key`. This writes the private key (PKCS#8 PEM, mode 0600) and `operator.key.pub`, and prints the public key and its 16-character key id. Keep the private key safe and offline.
 2. Install agents with `--write-jobs operator --operator-key <public key>`. The host page shows an "Operator-signed jobs" badge and lists the key ids the agent reported.
 3. Start any WRITE action (upgrade, disk cleanup, IP block, agent update) as usual. The job is created with status `awaiting_signature` and is not sent. On a read-only host the server answers `403`.
-4. Sign it, either:
-   - on the command line: `sentrel-sign sign-job --key operator.key --spec <base64 spec>` (the spec is shown on the job page and returned by `GET /api/v1/jobs/{id}/spec`; `--spec` also accepts a file containing it), then paste the printed signature on the job page or `POST /api/v1/jobs/{id}/operator-signature` with `{"signature": "...", "key_id": ""}`; or
-   - in the browser: on the job page choose "Sign in browser" and pick `operator.key`. The file is read locally and the job bytes are signed with WebCrypto (Ed25519, needs a current browser); only the signature is sent.
+4. Sign it offline, on your own machine: run `sentrel-sign job -key operator.key -spec <base64 spec>` (the job page shows a copy-ready command; the spec is also returned by `GET /api/v1/jobs/{id}/spec`, and `-spec` accepts a file containing it). The tool decodes the exact bytes and prints the job id, agent id, job type, every parameter, dry-run flag, issued and expiry times and timeout, then asks you to type `yes`. Compare this with what you meant to run: the job page's summary comes from the server, the tool's output comes from the bytes being signed. It refuses malformed specs, unknown job types and expired specs. For scripts use `-yes`, and `-json` for machine-readable output. Then paste the printed signature on the job page, or `POST /api/v1/jobs/{id}/operator-signature` with `{"signature": "...", "key_id": ""}`.
+
+   Operator keys are never entered into the web UI: a compromised server could replace the page and capture the key.
 5. The server checks the signature against the keys the agent reported, queues the job and sends it with both signatures. Unsigned jobs expire (24 hours by default).
 
 The server's job signature is still required. Hosts on `operator` or `none` are skipped by automatic updates; update them with an explicit job.
+
+**Migrating from browser signing.** Earlier versions offered "Sign in browser", which read `operator.key` into the page served by the server. That option has been removed. Nothing changes for your agents or public keys, but if you ever selected the key file in that page, treat it as exposed to the server: run `sentrel-sign keygen-operator -out operator2.key`, reinstall or reconfigure the agents with the new `--operator-key` (keep the old key listed only while you transition), then discard the old key. From now on sign with `sentrel-sign job` (`sign-job` still works as an alias, but now shows the job and asks for `yes`; scripts need `-yes`).
 
 Config keys (`agent.yaml`): `write_jobs: server|operator|none` and `operator_keys: [base64 raw Ed25519 public keys]`.
 
@@ -169,10 +171,10 @@ Start an update from the host page or via the API (`POST /api/v1/hosts/{id}/upda
 
 1. downloads the binary over its normal TLS channel (system trust store plus the server CA received at registration), and checks the size, SHA-256 and signature;
 2. runs the new binary's `self-test`, which must authenticate against the server;
-3. hands it to the root helper (`priv install-update`), which copies it, verifies hash and signature again against the root-owned key, keeps the old binary as `sentrel-agent.old`, swaps the file and writes `update-pending.json`;
+3. hands it to the root helper (`priv install-update`), which takes an exclusive root-owned lock, copies it into a private uniquely named file in the root-only install directory, verifies hash and signature of that copy against the root-owned key, runs it once, keeps the old binary as `sentrel-agent.old`, swaps the file and writes `update-pending.json` plus a protected marker under `/var/lib/sentrel-agent-priv` (Linux);
 4. exits so systemd (or the Windows service manager's restart action) starts the new version.
 
-Rollback is automatic: the update marker counts start attempts, and if the new version starts more than three times, or has not connected to the server within three minutes, the helper restores `sentrel-agent.old` and the old version restarts. A successful connection clears the marker, and the server marks the job succeeded when the agent reconnects with the new version. The update, success and rollback events appear in the job output and audit log.
+Rollback is automatic: the update marker counts start attempts, and if the new version starts more than three times, or has not connected to the server within three minutes, the helper restores `sentrel-agent.old` and the old version restarts. `rollback-update` is refused unless the protected marker exists and is less than 15 minutes old, so it cannot be used to downgrade outside a failed update. A successful connection clears the markers (`confirm-update`), and the server marks the job succeeded when the agent reconnects with the new version. The update, success and rollback events appear in the job output and audit log.
 
 ## Uninstalling
 

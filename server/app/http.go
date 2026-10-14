@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"mime"
@@ -38,7 +39,15 @@ type httpServer struct {
 	servers []*http.Server
 	restart chan struct{}
 	mode    string
+	addr    string
 	lastErr error
+
+	lastGood       *listenCfg   // last configuration that started successfully
+	lastGoodStored *TLSSettings // the stored settings it came from (nil when forced to HTTP)
+
+	// Test hooks.
+	serverCert func(names []string) (*tls.Certificate, error)
+	failStart  func(lc listenCfg) error
 }
 
 func newHTTPServer(a *App) *httpServer {
@@ -68,22 +77,52 @@ func (s *httpServer) Mode() string {
 	return s.mode
 }
 
+// listenCfg is one complete, effective listener configuration.
+type listenCfg struct {
+	t    TLSSettings
+	mode string
+	addr string
+}
+
+// effective resolves the stored TLS settings and process flags into the
+// configuration to run. Plain HTTP is only ever chosen by the operator: the
+// stored "http" mode or the --force-http recovery flag.
+func (s *httpServer) effective() listenCfg {
+	t := s.a.settings.TLS()
+	mode := t.Mode
+	if s.a.cfg.ForceHTTP || mode == "" {
+		mode = "http"
+	}
+	return listenCfg{t: t, mode: mode, addr: s.listenAddr(t)}
+}
+
+// boot starts the listeners for the current configuration and remembers it as
+// the last known good one.
+func (s *httpServer) boot(errCh chan error) error {
+	lc := s.effective()
+	if err := s.start(errCh, lc); err != nil {
+		return err
+	}
+	s.markGood(lc)
+	return nil
+}
+
+func (s *httpServer) markGood(lc listenCfg) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.lastGood = &lc
+	if !s.a.cfg.ForceHTTP {
+		t := lc.t
+		s.lastGoodStored = &t
+	}
+}
+
 func (s *httpServer) run(ctx context.Context) error {
-	first := true
+	errCh := make(chan error, 4)
+	if err := s.boot(errCh); err != nil {
+		return err
+	}
 	for {
-		errCh := make(chan error, 2)
-		if err := s.start(errCh); err != nil {
-			if first {
-				return err
-			}
-			// A bad TLS setting must not lock the admin out: fall back to HTTP.
-			s.a.log.Error("listener start failed; falling back to plain HTTP", "err", err)
-			s.a.cfg.ForceHTTP = true
-			if err := s.start(errCh); err != nil {
-				return err
-			}
-		}
-		first = false
 		select {
 		case <-ctx.Done():
 			return nil
@@ -93,10 +132,119 @@ func (s *httpServer) run(ctx context.Context) error {
 			}
 		case <-s.restart:
 			s.a.log.Info("restarting listeners for new TLS settings")
-			s.stopServers()
-			s.a.cfg.ForceHTTP = false
+			errCh = make(chan error, 4)
+			if err := s.reconfigure(errCh); err != nil {
+				return err
+			}
 		}
 	}
+}
+
+// failReconfig records a rejected TLS change and puts the last working stored
+// settings back, so a later restart does not trip over the same error.
+func (s *httpServer) failReconfig(stage string, err error) {
+	s.a.log.Error("TLS reconfiguration failed; keeping the last working configuration", "stage", stage, "err", err)
+	s.a.audit(context.Background(), auditEntry{Actor: "system", Action: "settings.tls_reload_failed",
+		Details: map[string]any{"stage": stage, "error": err.Error()}})
+	s.mu.Lock()
+	prev := s.lastGoodStored
+	s.mu.Unlock()
+	if prev != nil {
+		if e := s.a.settings.Save(context.Background(), 0, keyTLS, prev); e != nil {
+			s.a.log.Error("could not restore the last working TLS settings", "err", e)
+		}
+	}
+}
+
+// reconfigure applies changed TLS settings. The replacement is validated
+// (certificate, key, bind) before the running listeners are touched; if it
+// still fails to start, the last working configuration is restored. A plain
+// HTTP listener is never substituted automatically. If even the restore fails
+// the error is returned and the server exits rather than serve unprotected;
+// the operator can recover with --force-http.
+func (s *httpServer) reconfigure(errCh chan error) error {
+	s.a.cfg.ForceHTTP = false
+	next := s.effective()
+	if err := s.validate(next); err != nil {
+		s.failReconfig("validate", err)
+		return nil
+	}
+	s.mu.Lock()
+	prev := s.lastGood
+	s.mu.Unlock()
+	s.stopServers()
+	if err := s.start(errCh, next); err != nil {
+		s.failReconfig("start", err)
+		if prev == nil {
+			return fmt.Errorf("TLS reconfiguration failed and there is no earlier configuration to restore: %w", err)
+		}
+		if err2 := s.start(errCh, *prev); err2 != nil {
+			s.a.audit(context.Background(), auditEntry{Actor: "system", Action: "settings.tls_restore_failed",
+				Details: map[string]any{"error": err2.Error()}})
+			return fmt.Errorf("TLS reconfiguration failed and the previous listener could not be restored (not falling back to plain HTTP; use --force-http to recover): %w", err2)
+		}
+		return nil
+	}
+	s.markGood(next)
+	return nil
+}
+
+// bindAddr is the address the listeners for lc really bind.
+func bindAddr(lc listenCfg) string {
+	if lc.mode == "acme" {
+		host, _, _ := net.SplitHostPort(lc.addr)
+		return net.JoinHostPort(host, "443")
+	}
+	return lc.addr
+}
+
+func (s *httpServer) selfSignedNames(lc listenCfg) []string {
+	names := append([]string{lc.t.Hostname}, lc.t.ExtraNames...)
+	if host, _, err := net.SplitHostPort(lc.addr); err == nil && host != "" && host != "0.0.0.0" && host != "::" {
+		names = append(names, host)
+	}
+	names = append(names, "localhost", "127.0.0.1")
+	names = append(names, localIPs()...)
+	return names
+}
+
+func (s *httpServer) serverCertificate(names []string) (*tls.Certificate, error) {
+	if s.serverCert != nil {
+		return s.serverCert(names)
+	}
+	return s.a.ca.ServerCertificate(names)
+}
+
+// validate checks a replacement configuration without disturbing the running
+// listeners: the certificate and key load, and a new address can be bound.
+func (s *httpServer) validate(lc listenCfg) error {
+	switch lc.mode {
+	case "http":
+	case "selfsigned":
+		if _, err := s.serverCertificate(s.selfSignedNames(lc)); err != nil {
+			return fmt.Errorf("certificate: %w", err)
+		}
+	case "acme":
+		if lc.t.Hostname == "" {
+			return errors.New("ACME mode needs a hostname")
+		}
+	default:
+		return errors.New("unknown TLS mode " + lc.mode)
+	}
+	s.mu.Lock()
+	cur := ""
+	if s.lastGood != nil {
+		cur = bindAddr(*s.lastGood)
+	}
+	s.mu.Unlock()
+	if addr := bindAddr(lc); addr != cur {
+		ln, err := net.Listen("tcp", addr)
+		if err != nil {
+			return fmt.Errorf("bind %s: %w", addr, err)
+		}
+		_ = ln.Close()
+	}
+	return nil
 }
 
 func (s *httpServer) shutdown() {
@@ -117,25 +265,25 @@ func (s *httpServer) stopServers() {
 	}
 }
 
-func (s *httpServer) listenAddr() string {
+func (s *httpServer) listenAddr(t TLSSettings) string {
 	if s.a.cfg.Listen != "" {
 		return s.a.cfg.Listen
 	}
-	l := s.a.settings.TLS().Listen
+	l := t.Listen
 	if l == "" {
 		l = "0.0.0.0:8080"
 	}
 	return l
 }
 
-func (s *httpServer) start(errCh chan error) error {
+func (s *httpServer) start(errCh chan error, lc listenCfg) error {
 	a := s.a
-	t := a.settings.TLS()
-	mode := t.Mode
-	if a.cfg.ForceHTTP || mode == "" {
-		mode = "http"
+	if s.failStart != nil {
+		if err := s.failStart(lc); err != nil {
+			return err
+		}
 	}
-	addr := s.listenAddr()
+	t, mode, addr := lc.t, lc.mode, lc.addr
 	clientCA := &tls.Config{
 		ClientAuth: tls.VerifyClientCertIfGiven,
 		ClientCAs:  a.ca.Pool(),
@@ -158,15 +306,8 @@ func (s *httpServer) start(errCh chan error) error {
 		go func() { errCh <- srv.Serve(ln) }()
 		srvs = append(srvs, srv)
 	case "selfsigned":
-		names := append([]string{t.Hostname}, t.ExtraNames...)
-		if host, _, err := net.SplitHostPort(addr); err == nil && host != "" && host != "0.0.0.0" && host != "::" {
-			names = append(names, host)
-		}
-		names = append(names, "localhost", "127.0.0.1")
-		for _, ip := range localIPs() {
-			names = append(names, ip)
-		}
-		if _, err := a.ca.ServerCertificate(names); err != nil {
+		names := s.selfSignedNames(lc)
+		if _, err := s.serverCertificate(names); err != nil {
 			return err
 		}
 		tc := clientCA.Clone()
@@ -219,6 +360,7 @@ func (s *httpServer) start(errCh chan error) error {
 	s.mu.Lock()
 	s.servers = srvs
 	s.mode = mode
+	s.addr = bindAddr(lc)
 	s.mu.Unlock()
 	a.log.Info("listening", "addr", addr, "tls_mode", mode)
 	return nil

@@ -2,7 +2,9 @@ package app
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -143,19 +145,67 @@ func (r *CheckRunner) tick(ctx context.Context) {
 	}
 }
 
-// RunNow executes a check immediately and returns the result.
-func (r *CheckRunner) RunNow(ctx context.Context, c *Check) probe.Result {
-	var res probe.Result
-	if c.Type == "push" {
-		return r.runPushNow(ctx, c)
+// RunNow executes a check immediately and returns the result. It shares the
+// scheduler's limits: a check that is already running (scheduled or manual) is
+// refused with a conflict, and the run waits for a slot in the same semaphore.
+func (r *CheckRunner) RunNow(ctx context.Context, c *Check) (probe.Result, error) {
+	r.mu.Lock()
+	if r.running[c.ID] {
+		r.mu.Unlock()
+		return probe.Result{}, conflict("this check is already running")
 	}
-	if agentCheckTypes[c.Type] {
+	r.running[c.ID] = true
+	r.mu.Unlock()
+	defer func() {
+		r.mu.Lock()
+		delete(r.running, c.ID)
+		r.mu.Unlock()
+	}()
+	select {
+	case r.sem <- struct{}{}:
+		defer func() { <-r.sem }()
+	case <-ctx.Done():
+		return probe.Result{}, ctx.Err()
+	}
+	var res probe.Result
+	switch {
+	case c.Type == "push":
+		return r.runPushNow(ctx, c), nil
+	case agentCheckTypes[c.Type]:
 		res = r.evaluateAgentCheck(ctx, c)
-	} else {
+	default:
 		res = r.execute(ctx, c)
 	}
 	r.record(ctx, c, res)
-	return res
+	return res, nil
+}
+
+// hostMoved drops cached copies of a host's checks after it changes tenant,
+// so no scheduled run uses the previous owner.
+func (r *CheckRunner) hostMoved(hostID, tenant int64) {
+	r.mu.Lock()
+	for i := range r.checks {
+		if r.checks[i].HostID != nil && *r.checks[i].HostID == hostID {
+			r.checks[i].TenantID = tenant
+		}
+	}
+	r.loaded = time.Time{}
+	r.mu.Unlock()
+}
+
+// refreshOwner re-reads who owns a check just before its result is stored, so
+// a run that started before a host transfer cannot publish to the old tenant.
+// It reports false when the check no longer exists.
+func (r *CheckRunner) refreshOwner(ctx context.Context, c *Check) bool {
+	var cur struct {
+		TenantID int64  `db:"tenant_id"`
+		HostID   *int64 `db:"host_id"`
+	}
+	if err := r.app.db.GetContext(ctx, &cur, `SELECT tenant_id, host_id FROM checks WHERE id=?`, c.ID); err != nil {
+		return !errors.Is(err, sql.ErrNoRows)
+	}
+	c.TenantID, c.HostID = cur.TenantID, cur.HostID
+	return true
 }
 
 func checkConfig(c *Check) CheckConfig {
@@ -227,6 +277,9 @@ func (r *CheckRunner) record(ctx context.Context, c *Check, res probe.Result) {
 // the up or down total (0 for none).
 func (r *CheckRunner) recordWith(ctx context.Context, c *Check, res probe.Result, uptime int) {
 	a := r.app
+	if !r.refreshOwner(ctx, c) {
+		return
+	}
 	now := db.Now()
 	cfg := checkConfig(c)
 	status := "up"

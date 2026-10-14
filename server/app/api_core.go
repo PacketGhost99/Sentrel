@@ -223,6 +223,9 @@ type MeResp struct {
 	ServerURL        string   `json:"server_url"`
 	Version          string   `json:"version"`
 	APIKey           bool     `json:"api_key"`
+	// PasswordChangeRequired is true while the session is restricted to
+	// changing the password (the UI shows the change-password screen).
+	PasswordChangeRequired bool `json:"password_change_required"`
 }
 
 func (a *App) apiMe(c *Ctx) (any, error) {
@@ -237,7 +240,7 @@ func (a *App) apiMe(c *Ctx) (any, error) {
 	_ = a.db.GetContext(c.ctx(), &t, `SELECT * FROM tenants WHERE id=?`, u.TenantID)
 	return MeResp{User: u, Permissions: c.P.Perms(), Tenant: &t, MFAPending: c.P.MFAPending && !c.P.MFAEnroll, MFASetupRequired: c.P.MFAEnroll,
 		MFAMethods: a.auth.mfaMethods(c.ctx(), u), CSRF: c.P.CSRF, Branding: a.settings.Branding(u.TenantID),
-		ServerURL: a.publicURL(c.R), Version: version.Version, APIKey: c.P.APIKeyID != 0}, nil
+		ServerURL: a.publicURL(c.R), Version: version.Version, APIKey: c.P.APIKeyID != 0, PasswordChangeRequired: c.P.MustChangePW}, nil
 }
 
 type profileReq struct {
@@ -266,6 +269,9 @@ type changePWReq struct {
 func (a *App) apiChangePassword(c *Ctx) (any, error) {
 	if c.P.MFAPending && !c.P.MFAEnroll {
 		return nil, &apiError{Status: 401, Code: "mfa_required", Msg: "second factor required"}
+	}
+	if c.P.SessionID == "" {
+		return nil, &apiError{Status: 403, Code: "interactive_session_required", Msg: "this action needs a signed-in browser session; API keys cannot do it"}
 	}
 	var req changePWReq
 	if err := c.Decode(&req); err != nil {
@@ -342,6 +348,11 @@ func (a *App) apiListSessions(c *Ctx) (any, error) {
 }
 
 func (a *App) apiRevokeOtherSessions(c *Ctx) (any, error) {
+	// Without a current session "everything but this one" would be every
+	// session of the owner, so an API-key caller must never get here.
+	if c.P.SessionID == "" {
+		return nil, &apiError{Status: 403, Code: "interactive_session_required", Msg: "this action needs a signed-in browser session; API keys cannot do it"}
+	}
 	_, err := a.db.ExecContext(c.ctx(), `DELETE FROM sessions WHERE user_id=? AND id_hash<>?`, *c.P.UserID, c.P.SessionID)
 	return nil, err
 }

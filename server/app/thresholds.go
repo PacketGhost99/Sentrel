@@ -152,7 +152,7 @@ func (rs *ruleSet) resolve(h hostRef, metric, labelValue string) *EffectiveRule 
 		}
 		base := -1
 		switch {
-		case r.Scope == "host" && r.ScopeID == h.ID:
+		case r.Scope == "host" && r.ScopeID == h.ID && r.TenantID == h.TenantID:
 			base = 0
 		case r.Scope == "group" && h.GroupID != 0 && r.ScopeID == h.GroupID:
 			base = 2
@@ -202,7 +202,7 @@ func (rs *ruleSet) merged(h hostRef) []MergedRule {
 			}
 			origin := ""
 			switch {
-			case r.Scope == "host" && r.ScopeID == h.ID:
+			case r.Scope == "host" && r.ScopeID == h.ID && r.TenantID == h.TenantID:
 				origin = "host"
 			case r.Scope == "group" && h.GroupID != 0 && r.ScopeID == h.GroupID:
 				origin = "group"

@@ -81,9 +81,9 @@ export function ChecksTable({ hostId, hostKind, tenantId, canCreate = true }: { 
                 <Td className="hidden max-w-sm truncate text-xs text-muted xl:table-cell" title={c.last_message}>{c.last_message}</Td>
                 <Td className="hidden text-xs text-muted lg:table-cell">{ago(c.last_checked_at)}</Td>
                 <Td className="whitespace-nowrap text-right">
-                  <Button size="sm" variant="ghost" icon={<Play className="size-3.5" />} title="Run now" onClick={async () => {
+                  {can('monitoring') && <Button size="sm" variant="ghost" icon={<Play className="size-3.5" />} title="Run now" onClick={async () => {
                     try { const r = await post<any>(`/checks/${c.id}/run`); toast(`${c.name}: ${r.up ? 'up' : 'down'} — ${r.message}`, r.up ? 'ok' : 'crit'); qc.invalidateQueries({ queryKey: ['checks'] }) } catch (e) { toast(errorMessage(e), 'crit') }
-                  }} />
+                  }} />}
                   {can('monitoring') && <Button size="sm" variant="ghost" icon={<Pencil className="size-3.5" />} onClick={() => setEditing(c)} />}
                 </Td>
               </tr>

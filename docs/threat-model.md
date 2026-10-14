@@ -66,19 +66,20 @@ Can, against agents on the default `server` write policy:
 - Everything the host-level opt-ins allow: package upgrades, IP blocks (loopback and unspecified refused), disk cleanup, and agent self-update to a binary the server signs. The opt-in flags live in the server database, so a compromised server can set them. **On these agents the server is fully trusted.** This is the default.
 
 Cannot, against agents on `operator` or read-only policy:
-- Run any WRITE job. `operator` agents also require an Ed25519 signature from an operator key over the exact job bytes; the private key is never on the server, and the agent re-checks the signature itself. Read-only agents refuse WRITE jobs outright. The policy is stored in the root-owned `agent.yaml` and the pushed agent configuration has no field that can change it.
+- Run any WRITE job. `operator` agents also require an Ed25519 signature from an operator key over the exact job bytes; the private key is never on the server, and the agent re-checks the signature itself. Operator signing is offline-only: the web UI never handles the key, because browser signing would let a compromised server serve modified page code that captures it (removed for that reason). The server can still show a false job summary, so sign with `sentrel-sign job`, which decodes and displays the exact bytes (agent, type, parameters, dry-run, expiry) and asks for confirmation; check that output, not the web page. Read-only agents refuse WRITE jobs outright. The policy is stored in the root-owned `agent.yaml` and the pushed agent configuration has no field that can change it.
 - Deliver a malicious agent binary: self-update is a WRITE job and the binary signature is verified again by the root helper.
 
 ### 4. Compromised agent process (Linux, runs as `sentrel-agent`)
 
 Can:
 - Send false metrics and state to its own host record, and try to open sudo calls.
-- Run the allowed `priv` verbs: `pkg-refresh`, `pkg-upgrade`, `block-ip`, `unblock-ip`, `list-blocks`, `fail2ban-status`, `disk-usage`, `disk-cleanup`, `install-update`, `rollback-update`.
+- Run the allowed `priv` verbs: `pkg-refresh`, `pkg-upgrade`, `block-ip`, `unblock-ip`, `list-blocks`, `fail2ban-status`, `disk-usage`, `disk-cleanup`, `install-update`, `rollback-update`, `confirm-update`.
 
 Cannot:
 - Make the helper run arbitrary commands. The only sudo rule is `sentrel-agent priv *`; verbs validate their own arguments against allowlists (package name and version patterns, parsed IPs, bounded block durations, a fixed set of cleanup tasks) and never use a shell.
 - Trick root into following symlinks. Root-side writes and chowns of state avoid following links, and cleanup and disk walks go through `os.Root` so a directory swapped for a symlink mid-operation does not escape the root.
-- Install an unsigned update: `install-update` operates on a root-owned copy and verifies hash and signature against `/etc/sentrel-agent/job.pub`, which the agent user cannot write.
+- Install an unsigned update: `install-update` takes a root-owned exclusive lock, copies the file into a unique staging file in the root-owned install directory, and verifies, tests and installs that same copy against `/etc/sentrel-agent/job.pub`, which the agent user cannot write. Concurrent invocations cannot interleave.
+- Downgrade at will: `rollback-update` only restores the previous binary while a protected pending-update marker (root-only directory, written by `install-update`, at most 15 minutes old) exists. A confirmed update clears it.
 - Impersonate other hosts: its certificate is bound to its own agent ID, and it never sees other agents' keys.
 - Reach other tenants: it is one host in one tenant.
 
@@ -119,7 +120,7 @@ One-click updates (systemd installs only, administrators only) cross a privilege
 | `http` behind a proxy that terminates TLS | TLS to the proxy; plain between proxy and server (keep it on loopback) | Yes; signed hello and signed jobs |
 | `http` direct | None | Jobs are signed and agents authenticate with a signed hello, so an on-path attacker cannot forge jobs. They can read all metrics, enrolment tokens, the session cookie and API keys |
 
-In self-signed mode the first agent connection pins the CA fingerprint given by the installer command. The agent binary download in the install command may use `--insecure-download` for the same reason, which means the downloaded binary is not authenticated by TLS; the server's signature on updates covers later updates, not the first install. Compare the fingerprint, or use a locally verified binary (`--binary`).
+In self-signed mode the first agent connection pins the CA fingerprint given by the installer command: the server certificate must verify (chain, host name or IP, validity, server-auth) against a trust pool holding only the pinned CA, and the CA returned at enrolment must match the pin. The agent binary download in the install command may use `--insecure-download` for the same reason, which means the downloaded binary is not authenticated by TLS; the server's signature on updates covers later updates, not the first install. Compare the fingerprint, or use a locally verified binary (`--binary`).
 
 ## Residual risks
 

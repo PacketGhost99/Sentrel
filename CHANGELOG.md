@@ -4,9 +4,37 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Security
+
+- Agent enrolment in self-signed mode now verifies the server certificate against a trust pool holding only the pinned CA (chain, host name or IP, validity and server-auth usage), instead of accepting any chain that merely contained the CA. The CA returned at enrolment must also match the pin.
+- A signed agent hello now updates the replay state only after the certificate chain, agent ID binding, revocation and host checks pass, so a forged hello can no longer make a legitimate reconnect look stale.
+- Linux agent self-update: the root helper holds an exclusive lock in a root-only directory from staging to rollback, stages into a unique `O_EXCL` file in the root-owned install directory, and verifies, tests and installs that same file. `rollback-update` only works while a protected pending-update marker (written by `install-update`, within 15 minutes) exists; the new `confirm-update` verb clears it once the new version has connected.
+- Operator signing no longer crosses the server trust boundary: the operator private key is never read by a page the server serves, so a compromised server cannot capture it. `sentrel-sign job` (alias `sign-job`) now decodes the job spec, prints the agent, job type, every parameter, dry-run flag, issue and expiry times and job id, rejects malformed, unknown-type and expired specs, requires typing `yes` (or `-yes`), and signs exactly the decoded bytes. `-json` gives machine-readable output.
+- SSO accounts are bound to the provider's stable identity (OIDC issuer and `sub`, or the forward-auth header name and value) in a new `external_identities` table, not to a mutable username. A different subject with the same or colliding username no longer reuses an account, and a changed issuer does not bind to old users. Usernames, emails and names are refreshed on login. Existing `oidc` and `proxy` accounts with no identity are linked once at their next login. Forward-auth requires a stable, unique username from the proxy (docs/sso.md).
+- A failed TLS reconfiguration no longer falls back to plain HTTP. The new certificate, key and bind are validated before listeners are swapped, a failure keeps or restores the last working configuration and is logged and audited, and if that fails too the server exits. `--force-http` remains the explicit recovery action.
+- Stored monitoring credentials no longer appear in API responses. Checks and notification channels share one response serialiser for list, get, create, update and token regeneration: the check `basic_password`, credential-bearing headers (Authorization, Proxy-Authorization, Cookie, X-Api-Key and any header with token, secret, key, password or auth in its name), URL passwords, secret query parameters (token, key, secret, password, sig, signature, auth) and the path of Discord, Slack and Teams webhook URLs are shown as `********`. Sending `********` or leaving a secret out on update keeps the stored value, and audit entries never contain them.
+- A check's own dependency now replaces its host's inherited parent instead of adding to it, matching the documentation.
+- Moving a host to another tenant now also moves live alerts, queued notifications and cached checks, so the former tenant no longer receives alert content, events or notifications for it, and moves host-scoped threshold rules with the host. Threshold resolution, the merged view, listing and deletion ignore a host rule whose tenant does not own the host. Dependencies, host-scoped maintenance windows and update schedules of the former tenant are removed on transfer.
+- A rejected host update (unauthorised or unknown tenant move, invalid field) no longer persists any other field; valid updates commit in one transaction and are audited once.
+- `POST /checks/{id}/run` now needs the monitoring permission, shares the scheduler's concurrency limit and returns 409 when the check is already running.
+- Disabled tenants no longer keep API access: one validity check (user enabled, tenant exists and is enabled, key not expired) now covers sessions, API keys and new logins. Re-enabling a tenant makes its keys work again. Scheduled checks and agents keep running during suspension (docs/security.md).
+- Account security needs an interactive session: profile and password changes, TOTP and passkey changes, session listing and revocation and API-key create/list/revoke refuse API keys (HTTP 403 `interactive_session_required`). `revoke-others` can no longer select every session when called with a key.
+- A forced password change is enforced: a flagged local account can only change its password, complete MFA, call `GET /auth/me` and log out (HTTP 403 `password_change_required`; the UI shows a change-password screen), and its API keys are rejected until the change.
+- Recovery codes are consumed atomically (exactly one winner under concurrency) and a storage error no longer lets the login through.
+- `PUT /users/{id}` validates every field (password, auth source, role, tenant) before writing, applies the change in one transaction, then audits and invalidates sessions.
+- External accounts follow the directory on every login: LDAP and RADIUS recompute and save role and tenant from the current mappings and refuse an unmapped user with no default role. For LDAP, RADIUS, OIDC and forward-auth alike, a lowered role revokes the user's existing sessions, and a tenant change or removed access also revokes their API keys.
+- API keys with an unknown prefix cost a SHA-256 comparison instead of a 64 MiB Argon2 hash, and over-long bearer tokens are rejected early.
+- WebAuthn state is bounded: at most 16 cached origins (request hosts must be plain `host[:port]`) and 1000 outstanding challenges.
+
+### Removed
+
+- "Sign in browser" for operator-signed jobs. Sign with `sentrel-sign job` and paste the signature. If you ever selected your operator key in the browser, rotate it (see docs/agents.md, "Migrating from browser signing"). `sign-job` scripts now need `-yes`.
+
 ### Changed
 
 - CI and release workflows use the current major versions of their GitHub Actions (Node 24 runtimes).
+- CI: the build and test job has read-only repository access; signing and publishing run in a separate release job, only for version tags.
+- Security reports go through GitHub private vulnerability reporting (SECURITY.md).
 
 ## [0.9.2] - 2026-10-14
 

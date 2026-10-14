@@ -40,7 +40,6 @@ type checkReq struct {
 	ParentID   *int64  `json:"parent_id"`
 }
 
-var checkSecrets = []string{"basic_password"}
 
 func (a *App) validateCheck(c *Ctx, req *checkReq) (int64, error) {
 	req.Name = strings.TrimSpace(req.Name)
@@ -196,15 +195,16 @@ func (a *App) apiListChecks(c *Ctx) (any, error) {
 			vv := v
 			out[i].Uptime24h = &vv
 		}
-		out[i].Config = JSON(mustJSON(redact(out[i].Config, checkSecrets)))
 		a.decorateCheck(c, &out[i])
 	}
 	return out, nil
 }
 
-// decorateCheck hides the push token from read-only users and adds the
-// check's parent.
+// decorateCheck is the single response serialiser for checks (list, get,
+// create, update and token regeneration). It masks stored credentials in the
+// config, hides the push token from read-only users and adds the parent.
 func (a *App) decorateCheck(c *Ctx, k *Check) {
+	k.Config = JSON(mustJSON(notify.RedactCheckConfig(k.Config)))
 	if !c.P.Has(PermMonitoring) {
 		k.PushToken = ""
 	}
@@ -282,7 +282,6 @@ func (a *App) apiGetCheck(c *Ctx) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	k.Config = JSON(mustJSON(redact(k.Config, checkSecrets)))
 	if k.HostID != nil {
 		k.HostName = a.hostNames(c.ctx())[*k.HostID]
 	}
@@ -306,7 +305,7 @@ func (a *App) apiUpdateCheck(c *Ctx) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	cfg := mergeSecrets(req.Config, k.Config, checkSecrets)
+	cfg := notify.MergeCheckConfig(req.Config, k.Config)
 	enabled := req.Enabled == nil || *req.Enabled
 	if tenant != k.TenantID {
 		// Dependencies never cross tenants.
@@ -378,7 +377,10 @@ func (a *App) apiRunCheck(c *Ctx) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	res := a.checks.RunNow(c.ctx(), k)
+	res, err := a.checks.RunNow(c.ctx(), k)
+	if err != nil {
+		return nil, err
+	}
 	return res, nil
 }
 
@@ -420,7 +422,8 @@ func (a *App) apiCheckHistory(c *Ctx) (any, error) {
 func (a *App) apiThresholdCatalog(c *Ctx) (any, error) { return metricCatalog, nil }
 
 func (a *App) apiListThresholds(c *Ctx) (any, error) {
-	q := `SELECT * FROM threshold_rules WHERE 1=1`
+	// A host rule only counts while its tenant owns the host.
+	q := `SELECT * FROM threshold_rules WHERE (scope<>'host' OR EXISTS (SELECT 1 FROM hosts h WHERE h.id=scope_id AND h.tenant_id=threshold_rules.tenant_id))`
 	var args []any
 	if c.P.TenantID != 0 {
 		q += ` AND (tenant_id=? OR (tenant_id=0 AND scope='global'))`
@@ -529,6 +532,13 @@ func (a *App) apiDeleteThreshold(c *Ctx) (any, error) {
 	}
 	if r.Scope == "global" && r.TenantID == 0 && r.LabelMatch == "" {
 		return nil, badRequest("provider defaults cannot be deleted; disable or edit them instead")
+	}
+	if r.Scope == "host" && !c.P.IsProvider() {
+		// A rule left behind by a host transfer is not the old tenant's to touch.
+		var ht int64
+		if err := a.db.GetContext(c.ctx(), &ht, `SELECT tenant_id FROM hosts WHERE id=?`, r.ScopeID); err != nil || ht != r.TenantID {
+			return nil, errNotFound
+		}
 	}
 	if _, err := a.db.ExecContext(c.ctx(), `DELETE FROM threshold_rules WHERE id=?`, r.ID); err != nil {
 		return nil, err
@@ -935,9 +945,16 @@ func (a *App) apiListChannels(c *Ctx) (any, error) {
 		return nil, err
 	}
 	for i := range out {
-		out[i].Config = JSON(mustJSON(redact(out[i].Config, notify.SecretFields)))
+		channelView(&out[i])
 	}
 	return out, nil
+}
+
+// channelView is the single response serialiser for notification channels
+// (list, create and update): stored credentials never leave the server.
+func channelView(ch *NotificationChannel) *NotificationChannel {
+	ch.Config = JSON(mustJSON(notify.RedactConfig(ch.Type, ch.Config)))
+	return ch
 }
 
 func (a *App) validateChannel(c *Ctx, req *channelReq, existing []byte) (int64, []byte, error) {
@@ -950,7 +967,7 @@ func (a *App) validateChannel(c *Ctx, req *channelReq, existing []byte) (int64, 
 	}
 	cfg := []byte(req.Config)
 	if existing != nil {
-		cfg = mergeSecrets(cfg, existing, notify.SecretFields)
+		cfg = notify.MergeConfig(req.Type, cfg, existing)
 	}
 	if err := notify.Validate(req.Type, cfg); err != nil {
 		return 0, nil, badRequest("%v", err)
@@ -988,7 +1005,11 @@ func (a *App) apiCreateChannel(c *Ctx) (any, error) {
 	id, _ := res.LastInsertId()
 	a.notifier.Invalidate()
 	c.auditT(tenant, "channel.created", "channel", itoa(id), map[string]any{"name": req.Name, "type": req.Type})
-	return created{map[string]int64{"id": id}}, nil
+	nc, err := a.visibleChannel(c, id)
+	if err != nil {
+		return nil, err
+	}
+	return created{channelView(nc)}, nil
 }
 
 func (a *App) visibleChannel(c *Ctx, id int64) (*NotificationChannel, error) {
@@ -1023,9 +1044,16 @@ func (a *App) apiUpdateChannel(c *Ctx) (any, error) {
 	_, err = a.db.ExecContext(c.ctx(), `UPDATE notification_channels SET name=?, type=?, config=?, min_severity=?, send_resolved=?, repeat_minutes=?, filter_groups=?,
 		filter_tags=?, filter_hosts=?, enabled=? WHERE id=?`, req.Name, req.Type, string(cfg), req.MinSeverity, boolOr(req.SendResolved, true), repeat,
 		IntList(req.FilterGroups), StrList(req.FilterTags), IntList(req.FilterHosts), boolOr(req.Enabled, true), ch.ID)
+	if err != nil {
+		return nil, err
+	}
 	a.notifier.Invalidate()
 	c.auditT(ch.TenantID, "channel.updated", "channel", itoa(ch.ID), map[string]any{"name": req.Name})
-	return nil, err
+	nc, err := a.visibleChannel(c, ch.ID)
+	if err != nil {
+		return nil, err
+	}
+	return channelView(nc), nil
 }
 
 func (a *App) apiDeleteChannel(c *Ctx) (any, error) {

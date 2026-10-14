@@ -186,3 +186,50 @@ export function MfaSetupRequired() {
     </AuthShell>
   )
 }
+
+/** Shown while the account is flagged to change its password: the server allows nothing else. */
+export function PasswordChangeRequired() {
+  const { me, refresh, logout } = useAuth()
+  const [pw, setPw] = useState({ current_password: '', new_password: '', confirm: '' })
+  const [err, setErr] = useState<unknown>(null)
+  const [busy, setBusy] = useState(false)
+  const mismatch = !!pw.confirm && pw.confirm !== pw.new_password
+  return (
+    <AuthShell>
+      <Card title="Change your password">
+        <form
+          className="space-y-3"
+          onSubmit={async (e) => {
+            e.preventDefault()
+            setErr(null)
+            setBusy(true)
+            try {
+              await post('/auth/password', { current_password: pw.current_password, new_password: pw.new_password })
+              await refresh()
+            } catch (x) {
+              setErr(x)
+            } finally {
+              setBusy(false)
+            }
+          }}
+        >
+          <Note tone="warn">
+            {me?.user.auth_source === 'local'
+              ? 'You must choose a new password before you can continue.'
+              : 'Your password is managed elsewhere. Ask an administrator to clear this requirement.'}
+          </Note>
+          {me?.user.auth_source === 'local' && (
+            <>
+              <Field label="Current password"><Input type="password" autoComplete="current-password" value={pw.current_password} onChange={(e) => setPw({ ...pw, current_password: e.target.value })} /></Field>
+              <Field label="New password"><Input type="password" autoComplete="new-password" value={pw.new_password} onChange={(e) => setPw({ ...pw, new_password: e.target.value })} /></Field>
+              <Field label="Confirm" error={mismatch ? 'Does not match' : undefined}><Input type="password" autoComplete="new-password" value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} /></Field>
+              <ErrorBox error={err} />
+              <Button type="submit" variant="primary" disabled={busy || !pw.new_password || mismatch}>Change password</Button>
+            </>
+          )}
+          <Button type="button" variant="ghost" onClick={logout}>Log out</Button>
+        </form>
+      </Card>
+    </AuthShell>
+  )
+}

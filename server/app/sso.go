@@ -19,6 +19,8 @@ import (
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
+
+	"sentrel/server/db"
 )
 
 // Single sign-on: OpenID Connect (authorization code + PKCE) and forward-auth
@@ -154,16 +156,45 @@ func cleanSSOUsername(v string) string {
 	return out
 }
 
+// ssoIdentity is the stable key of an externally authenticated user. For OIDC
+// it is the issuer and "sub"; forward-auth has no stable subject, so it is the
+// header name and the username the proxy supplies (which must therefore be
+// stable and unique).
+type ssoIdentity struct{ Provider, Issuer, Subject string }
+
 // ssoUser finds or provisions the local user for an externally authenticated
-// identity. An existing account is only ever reused when it was created by the
-// same source, so an identity claim can never take over a local account.
-func (s *authService) ssoUser(ctx context.Context, source, username, email, name string, role string, tenant int64, mapped, allowProvision bool) (*User, error) {
+// identity. The account is found by its stable identity, never by username
+// alone: username, email and name are mutable attributes refreshed on login.
+// A pre-existing account is auto-linked only once, when it was created by the
+// same source and has no identity linked at all (accounts from before
+// identities were recorded). Anything else that matches by username is refused.
+func (s *authService) ssoUser(ctx context.Context, source string, id ssoIdentity, username, email, name string, role string, tenant int64, mapped, allowProvision bool) (*User, error) {
 	if len(username) < 2 {
 		return nil, &ssoDenied{"the identity provider did not supply a usable username"}
 	}
+	if id.Subject == "" {
+		return nil, &ssoDenied{"the identity provider did not supply a stable subject"}
+	}
 	a := s.app
+	email = truncateStr(email, 200)
+	name = truncateStr(firstNonEmpty(name, username), 100)
+
+	var linked int64
+	err := a.db.GetContext(ctx, &linked, `SELECT user_id FROM external_identities WHERE provider=? AND issuer=? AND subject=?`,
+		id.Provider, id.Issuer, id.Subject)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
+	if err == nil {
+		u, err := a.getUser(ctx, linked)
+		if err != nil {
+			return nil, err
+		}
+		return s.ssoRefresh(ctx, u, source, username, email, name, role, tenant, mapped, true)
+	}
+
 	var u User
-	err := a.db.GetContext(ctx, &u, `SELECT * FROM users WHERE username=?`, username)
+	err = a.db.GetContext(ctx, &u, `SELECT * FROM users WHERE username=?`, username)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
 	}
@@ -171,17 +202,31 @@ func (s *authService) ssoUser(ctx context.Context, source, username, email, name
 		if u.AuthSource != source {
 			return nil, &ssoDenied{"an account named " + username + " already exists and is managed elsewhere"}
 		}
+		var n int
+		if err := a.db.GetContext(ctx, &n, `SELECT COUNT(*) FROM external_identities WHERE user_id=?`, u.ID); err != nil {
+			return nil, err
+		}
+		if n > 0 {
+			a.log.Warn("sso login refused: username already linked to a different identity", "username", username, "provider", id.Provider, "issuer", id.Issuer)
+			return nil, &ssoDenied{"username already linked to a different identity"}
+		}
+		// One-time upgrade path for accounts created before identities were recorded.
 		if u.Disabled {
 			return nil, &ssoDenied{"this account is disabled"}
 		}
 		if !mapped {
 			return nil, &ssoDenied{"none of your groups map to a role"}
 		}
-		if _, err := a.db.ExecContext(ctx, `UPDATE users SET email=?, display_name=?, role=?, tenant_id=? WHERE id=?`,
-			truncateStr(email, 200), truncateStr(firstNonEmpty(name, username), 100), role, tenant, u.ID); err != nil {
+		if err := s.linkIdentity(ctx, u.ID, u.TenantID, id); err != nil {
 			return nil, err
 		}
-		return a.getUser(ctx, u.ID)
+		a.audit(ctx, auditEntry{TenantID: u.TenantID, Actor: "system", Action: "user.identity_linked", TargetType: "user", TargetID: itoa(u.ID),
+			Details: map[string]any{"username": username, "provider": id.Provider, "issuer": id.Issuer, "migration": true}})
+		cur, err := a.getUser(ctx, u.ID)
+		if err != nil {
+			return nil, err
+		}
+		return s.ssoRefresh(ctx, cur, source, username, email, name, role, tenant, mapped, false)
 	}
 	if !mapped {
 		return nil, &ssoDenied{"none of your groups map to a role"}
@@ -189,7 +234,61 @@ func (s *authService) ssoUser(ctx context.Context, source, username, email, name
 	if !allowProvision {
 		return nil, &ssoDenied{"automatic account creation is disabled; ask an administrator to add you"}
 	}
-	return s.provision(ctx, username, truncateStr(email, 200), truncateStr(firstNonEmpty(name, username), 100), role, tenant, source)
+	nu, err := s.provision(ctx, username, email, name, role, tenant, source)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.linkIdentity(ctx, nu.ID, nu.TenantID, id); err != nil {
+		_, _ = a.db.ExecContext(ctx, `DELETE FROM users WHERE id=?`, nu.ID)
+		return nil, err
+	}
+	return nu, nil
+}
+
+func (s *authService) linkIdentity(ctx context.Context, userID, tenant int64, id ssoIdentity) error {
+	_, err := s.app.db.ExecContext(ctx, `INSERT INTO external_identities (tenant_id, user_id, provider, issuer, subject, created_at) VALUES (?,?,?,?,?,?)`,
+		tenant, userID, id.Provider, id.Issuer, id.Subject, db.Now())
+	return err
+}
+
+// ssoRefresh applies the current attributes to a user resolved by identity.
+// renameOK lets the username follow the identity provider when it is free.
+func (s *authService) ssoRefresh(ctx context.Context, u *User, source, username, email, name, role string, tenant int64, mapped, renameOK bool) (*User, error) {
+	a := s.app
+	if u.AuthSource != source {
+		return nil, &ssoDenied{"an account named " + u.Username + " already exists and is managed elsewhere"}
+	}
+	if u.Disabled {
+		return nil, &ssoDenied{"this account is disabled"}
+	}
+	if !mapped {
+		// Access was removed at the identity provider: end what is left of it here.
+		s.revokeAccess(ctx, u, true)
+		return nil, &ssoDenied{"none of your groups map to a role"}
+	}
+	if renameOK && username != u.Username {
+		var other int64
+		err := a.db.GetContext(ctx, &other, `SELECT id FROM users WHERE username=? AND id<>?`, username, u.ID)
+		if errors.Is(err, sql.ErrNoRows) {
+			if _, err := a.db.ExecContext(ctx, `UPDATE users SET username=? WHERE id=?`, username, u.ID); err != nil {
+				return nil, err
+			}
+			a.audit(ctx, auditEntry{TenantID: u.TenantID, Actor: "system", Action: "user.renamed", TargetType: "user", TargetID: itoa(u.ID),
+				Details: map[string]any{"from": u.Username, "to": username, "source": source}})
+		} else if err == nil {
+			a.log.Warn("sso username changed but the new name belongs to another account; keeping the old name", "user", u.Username)
+		} else {
+			return nil, err
+		}
+	}
+	// Same rule as LDAP and RADIUS: a lowered role or a tenant change revokes
+	// the user's existing sessions (and API keys on a tenant change).
+	nu, err := s.syncExternalUser(ctx, u, email, name, role, tenant)
+	if err != nil {
+		return nil, err
+	}
+	_, _ = a.db.ExecContext(ctx, `UPDATE external_identities SET tenant_id=? WHERE user_id=?`, tenant, u.ID)
+	return nu, nil
 }
 
 func (s *authService) ssoFailed(r *http.Request, method, who string, err error) {
@@ -411,7 +510,7 @@ func (s *authService) oidcLogin(c *Ctx) (*User, error) {
 	username := cleanSSOUsername(firstNonEmpty(claimString(claimPath(claims, cfg.UsernameClaim)), email, idt.Subject))
 	name := claimString(claims["name"])
 	role, tenant, mapped := mapGroupRole(cfg.GroupRoleMap, cfg.DefaultRole, cfg.DefaultTenant, claimStrings(claimPath(claims, cfg.GroupsClaim)))
-	u, err := s.ssoUser(r.Context(), "oidc", username, email, name, role, tenant, mapped, cfg.AllowProvision)
+	u, err := s.ssoUser(r.Context(), "oidc", ssoIdentity{"oidc", idt.Issuer, idt.Subject}, username, email, name, role, tenant, mapped, cfg.AllowProvision)
 	if err != nil {
 		return nil, err
 	}
@@ -508,7 +607,7 @@ func (s *authService) proxyPrincipal(w http.ResponseWriter, r *http.Request) *Pr
 	}
 	role, tenant, mapped := mapGroupRole(cfg.GroupRoleMap, cfg.DefaultRole, cfg.DefaultTenant, groups)
 	username := cleanSSOUsername(raw)
-	u, err := s.ssoUser(r.Context(), "proxy", username, email, name, role, tenant, mapped, cfg.AllowProvision)
+	u, err := s.ssoUser(r.Context(), "proxy", ssoIdentity{"proxy", strings.ToLower(cfg.UserHeader), username}, username, email, name, role, tenant, mapped, cfg.AllowProvision)
 	if err != nil {
 		s.ssoFailed(r, "proxy", username, err)
 		return nil

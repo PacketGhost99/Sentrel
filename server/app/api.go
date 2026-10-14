@@ -83,7 +83,10 @@ type Principal struct {
 	SessionID  string
 	MFAPending bool // a second factor must be verified or enrolled
 	MFAEnroll  bool // policy requires enrolling a second factor (vs verifying one)
-	CSRF       string
+	// MustChangePW restricts the session to changing the password (see
+	// routeDef.PWOK). API keys of such a user are rejected outright.
+	MustChangePW bool
+	CSRF         string
 	perms      map[Perm]bool
 }
 
@@ -268,7 +271,12 @@ type routeDef struct {
 	Perm    Perm
 	Public  bool // no authentication
 	MFAOK   bool // allowed while MFA is pending
-	Req     any
+	// PWOK allows the route while a forced password change is outstanding.
+	PWOK bool
+	// Interactive restricts the route to an interactive cookie session: API
+	// keys are refused whatever their scope. Used for account security.
+	Interactive bool
+	Req         any
 	Resp    any
 	Query   []string
 }
@@ -286,6 +294,14 @@ func (r *apiRouter) add(d routeDef, h handlerFunc) {
 		if !d.Public {
 			if p == nil {
 				writeError(w, unauthorized("authentication required"))
+				return
+			}
+			if p.MustChangePW && !d.PWOK {
+				writeError(w, &apiError{Status: 403, Code: "password_change_required", Msg: "you must change your password before continuing"})
+				return
+			}
+			if d.Interactive && p.APIKeyID != 0 {
+				writeError(w, &apiError{Status: 403, Code: "interactive_session_required", Msg: "this action needs a signed-in browser session; API keys cannot do it"})
 				return
 			}
 			if p.MFAPending && !d.MFAOK {

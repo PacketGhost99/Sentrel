@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,7 +26,8 @@ import (
 	pb "sentrel/gen/sentrelv1"
 )
 
-const installedBinary = "/usr/local/bin/sentrel-agent"
+// installedBinary is a variable only so tests can point it elsewhere.
+var installedBinary = "/usr/local/bin/sentrel-agent"
 
 // newPrivRunner returns a runner that invokes this binary's `priv` verbs
 // through sudo (or directly when already root).
@@ -139,6 +141,8 @@ func PrivMain(args []string) error {
 		return installUpdate(rest[0], rest[1], rest[2], rest[3])
 	case "rollback-update":
 		return rollbackUpdate()
+	case "confirm-update":
+		return confirmUpdate()
 	}
 	return fmt.Errorf("unknown priv verb %q", verb)
 }
@@ -490,6 +494,176 @@ func fail2banStatus(ctx context.Context) *pb.Fail2Ban {
 
 // --- self-update (root side) ---
 
+var (
+	// privDir is a root-only directory (0700) holding the update lock and the
+	// protected pending-update marker. The agent user cannot read or write it.
+	privDir = "/var/lib/sentrel-agent-priv"
+	// privOwnerUID is the uid that must own privDir and the staging directory.
+	privOwnerUID = 0
+	// lockWait bounds how long a verb waits for another update/rollback.
+	lockWait = 2 * time.Minute
+)
+
+const (
+	maxUpdateSize = 256 << 20
+	stagePrefix   = ".sentrel-agent.new."
+)
+
+func rootMarkerPath() string { return filepath.Join(privDir, "update-pending.json") }
+
+// checkDirTrusted verifies dir is owned by privOwnerUID and not writable by
+// anyone else (strict: not accessible to group/other at all). follow resolves
+// a final symlink; privDir itself must never be one.
+func checkDirTrusted(dir string, strict, follow bool) error {
+	stat := os.Lstat
+	if follow {
+		stat = os.Stat
+	}
+	fi, err := stat(dir)
+	if err != nil {
+		return err
+	}
+	if !fi.IsDir() {
+		return fmt.Errorf("%s is not a directory", dir)
+	}
+	st, ok := fi.Sys().(*syscall.Stat_t)
+	if !ok || int(st.Uid) != privOwnerUID {
+		return fmt.Errorf("%s must be owned by root", dir)
+	}
+	mask := os.FileMode(0o022)
+	if strict {
+		mask = 0o077
+	}
+	if fi.Mode().Perm()&mask != 0 {
+		return fmt.Errorf("%s has unsafe permissions %o", dir, fi.Mode().Perm())
+	}
+	return nil
+}
+
+func ensurePrivDir() error {
+	if err := os.MkdirAll(privDir, 0o700); err != nil {
+		return err
+	}
+	return checkDirTrusted(privDir, true, false)
+}
+
+// lockUpdates takes the root-owned exclusive update lock. flock locks belong
+// to the open file description, so concurrent verbs (and goroutines) exclude
+// each other. The lock is held across stage, verify, exec test, swap and
+// rollback.
+func lockUpdates() (func(), error) {
+	if err := ensurePrivDir(); err != nil {
+		return nil, fmt.Errorf("update lock directory: %w", err)
+	}
+	f, err := os.OpenFile(filepath.Join(privDir, "update.lock"), os.O_RDWR|os.O_CREATE|syscall.O_NOFOLLOW, 0o600)
+	if err != nil {
+		return nil, err
+	}
+	deadline := time.Now().Add(lockWait)
+	for {
+		err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+		if err == nil {
+			break
+		}
+		if !errors.Is(err, syscall.EWOULDBLOCK) && !errors.Is(err, syscall.EINTR) {
+			f.Close()
+			return nil, err
+		}
+		if time.Now().After(deadline) {
+			f.Close()
+			return nil, errors.New("another update or rollback is in progress")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	return func() {
+		_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+		f.Close()
+	}, nil
+}
+
+// stageCopy copies src into a new, uniquely named file created with O_EXCL in
+// dir (a root-only directory). Nothing else can hold or predict that name.
+func stageCopy(src io.Reader, dir string) (string, os.FileInfo, error) {
+	var f *os.File
+	var name string
+	for i := 0; ; i++ {
+		var rnd [8]byte
+		_, _ = rand.Read(rnd[:])
+		name = filepath.Join(dir, fmt.Sprintf("%s%x", stagePrefix, rnd))
+		var err error
+		f, err = os.OpenFile(name, os.O_RDWR|os.O_CREATE|os.O_EXCL|syscall.O_NOFOLLOW, 0o700)
+		if err == nil {
+			break
+		}
+		if !errors.Is(err, os.ErrExist) || i >= 5 {
+			return "", nil, err
+		}
+	}
+	fail := func(err error) (string, os.FileInfo, error) {
+		f.Close()
+		os.Remove(name)
+		return "", nil, err
+	}
+	n, err := io.Copy(f, io.LimitReader(src, maxUpdateSize+1))
+	if err != nil {
+		return fail(err)
+	}
+	if n > maxUpdateSize {
+		return fail(errors.New("update file is too large"))
+	}
+	if err := f.Sync(); err != nil {
+		return fail(err)
+	}
+	fi, err := f.Stat()
+	if err != nil {
+		return fail(err)
+	}
+	// Close before exec: a file open for writing cannot be executed.
+	if err := f.Close(); err != nil {
+		os.Remove(name)
+		return "", nil, err
+	}
+	return name, fi, nil
+}
+
+// stillStaged confirms path is still the regular file stageCopy created.
+func stillStaged(path string, want os.FileInfo) error {
+	fi, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	if !fi.Mode().IsRegular() || !os.SameFile(fi, want) {
+		return errors.New("staged update changed unexpectedly")
+	}
+	return nil
+}
+
+func cleanStaleStaging(dir string) {
+	matches, _ := filepath.Glob(filepath.Join(dir, stagePrefix+"*"))
+	for _, m := range matches {
+		if fi, err := os.Lstat(m); err == nil && fi.Mode().IsRegular() {
+			os.Remove(m)
+		}
+	}
+}
+
+func readRootMarker() (*updateMarker, error) {
+	b, err := os.ReadFile(rootMarkerPath())
+	if err != nil {
+		return nil, err
+	}
+	var m updateMarker
+	if err := json.Unmarshal(b, &m); err != nil {
+		return nil, err
+	}
+	return &m, nil
+}
+
+func writeRootMarker(m *updateMarker) error {
+	b, _ := json.Marshal(m)
+	return safeWriteFile(rootMarkerPath(), b, 0o600, -1, -1)
+}
+
 func installUpdate(path, sha, version, sig string) error {
 	state := DefaultStateDir()
 	abs, err := filepath.Abs(path)
@@ -517,34 +691,55 @@ func installUpdate(path, sha, version, sig string) error {
 	if err != nil {
 		return err
 	}
-	// Copy first so the agent user cannot swap the file after verification.
-	staged := installedBinary + ".new"
-	// Staged 0700 until verified so unverified content is never world-readable.
-	if err := copyReader(src, staged, 0o700); err != nil {
+	// One update or rollback at a time, from staging to rollback.
+	unlock, err := lockUpdates()
+	if err != nil {
 		return err
 	}
+	defer unlock()
+	dir := filepath.Dir(installedBinary)
+	if err := checkDirTrusted(dir, false, true); err != nil {
+		return fmt.Errorf("staging directory: %w", err)
+	}
+	cleanStaleStaging(dir)
+	// Copy the agent-supplied file into a private, uniquely named file in the
+	// root-only install directory, then verify, test and install that copy.
+	staged, want, err := stageCopy(src, dir)
+	if err != nil {
+		return err
+	}
+	defer os.Remove(staged) // a no-op once renamed into place
 	if err := verifyUpdateFile(staged, sha, version, sig, pub, runtime.GOOS, runtime.GOARCH); err != nil {
-		os.Remove(staged)
+		return err
+	}
+	if err := stillStaged(staged, want); err != nil {
 		return err
 	}
 	if err := exec.Command(staged, "version").Run(); err != nil {
-		os.Remove(staged)
 		return fmt.Errorf("new binary does not run: %w", err)
 	}
 	cur, _ := exec.Command(installedBinary, "version", "--short").Output()
 	if err := copyFile(installedBinary, installedBinary+".old", 0o755); err != nil {
-		os.Remove(staged)
 		return err
 	}
 	if err := os.Chmod(staged, 0o755); err != nil {
-		os.Remove(staged)
+		return err
+	}
+	if err := stillStaged(staged, want); err != nil {
+		return err
+	}
+	// The protected marker is written before the swap so a crash in between
+	// still leaves recovery possible.
+	m := &updateMarker{From: strings.TrimSpace(string(cur)), To: version, At: time.Now().Unix()}
+	if err := writeRootMarker(m); err != nil {
 		return err
 	}
 	if err := os.Rename(staged, installedBinary); err != nil {
+		_ = os.Remove(rootMarkerPath())
 		return err
 	}
-	m := &updateMarker{From: strings.TrimSpace(string(cur)), To: version, At: time.Now().Unix()}
 	if err := writeUpdateMarker(state, m); err != nil {
+		_ = rollbackLocked()
 		return err
 	}
 	fmt.Printf("installed agent %s (previous kept as %s.old)\n", version, installedBinary)
@@ -566,7 +761,28 @@ func writeUpdateMarker(state string, m *updateMarker) error {
 	return writeMarkerOwned(state, m, uid, gid)
 }
 
+// rollbackUpdate restores the previous binary, but only while the protected
+// pending-update marker written by install-update exists and is inside the
+// recovery window. Call it without the lock held.
 func rollbackUpdate() error {
+	unlock, err := lockUpdates()
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	m, err := readRootMarker()
+	if err != nil {
+		return errors.New("rollback refused: no pending update")
+	}
+	if err := checkRecoveryWindow(m, time.Now()); err != nil {
+		_ = os.Remove(rootMarkerPath()) // expired: no longer recoverable
+		return err
+	}
+	return rollbackLocked()
+}
+
+// rollbackLocked swaps the previous binary back; the caller holds the lock.
+func rollbackLocked() error {
 	old := installedBinary + ".old"
 	if _, err := os.Stat(old); err != nil {
 		return errors.New("no previous binary to roll back to")
@@ -574,7 +790,22 @@ func rollbackUpdate() error {
 	if err := os.Rename(old, installedBinary); err != nil {
 		return err
 	}
+	_ = os.Remove(rootMarkerPath())
 	_ = os.Remove(markerPath(DefaultStateDir()))
 	fmt.Println("rolled back to the previous agent binary")
+	return nil
+}
+
+// confirmUpdate clears the protected marker once the new version has
+// connected, closing the rollback window.
+func confirmUpdate() error {
+	unlock, err := lockUpdates()
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	if err := os.Remove(rootMarkerPath()); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
 	return nil
 }

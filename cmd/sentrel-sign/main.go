@@ -5,27 +5,42 @@
 //	sentrel-sign sign -key <file|env:NAME> FILE  write FILE.sig (base64 signature)
 //	sentrel-sign verify -pub <file> FILE SIG     exit 0 when the signature is valid
 //	sentrel-sign keygen-operator [-out op.key]   write an operator key pair for job signing
-//	sentrel-sign sign-job --key op.key --spec <base64|file>
-//	                                        print a base64 operator signature for a job spec
+//	sentrel-sign job -key op.key -spec <base64|file> [-yes] [-json]
+//	                                        decode and show a job spec, ask for "yes",
+//	                                        then print a base64 operator signature
+//	                                        (sign-job is an alias)
 //
 // The key argument is a file path, or "env:NAME" to read the base64 key
 // from an environment variable (default for sign: env:SENTREL_RELEASE_KEY).
 package main
 
 import (
+	"bufio"
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"strings"
+	"time"
 
 	"sentrel/internal/jobpolicy"
+	"sentrel/internal/jobspec"
 	"sentrel/internal/release"
+)
+
+// Overridable in tests.
+var (
+	stdin  io.Reader = os.Stdin
+	stdout io.Writer = os.Stdout
+	stderr io.Writer = os.Stderr
+	now              = time.Now
 )
 
 func main() {
@@ -37,7 +52,7 @@ func main() {
 
 func run(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: sentrel-sign keygen | sign -key <file|env:NAME> FILE | verify -pub <file> FILE SIG | keygen-operator [-out FILE] | sign-job --key FILE --spec <base64|file>")
+		return errors.New("usage: sentrel-sign keygen | sign -key <file|env:NAME> FILE | verify -pub <file> FILE SIG | keygen-operator [-out FILE] | job -key FILE -spec <base64|file> [-yes] [-json]")
 	}
 	switch args[0] {
 	case "keygen":
@@ -59,22 +74,19 @@ func run(args []string) error {
 			return err
 		}
 		return keygenOperator(*out)
-	case "sign-job":
-		fs := flag.NewFlagSet("sign-job", flag.ContinueOnError)
+	case "job", "sign-job":
+		fs := flag.NewFlagSet("job", flag.ContinueOnError)
 		key := fs.String("key", "", "operator private key file (from keygen-operator)")
 		spec := fs.String("spec", "", "job spec: base64 text, or a file containing it")
+		yes := fs.Bool("yes", false, "sign without asking for confirmation (for scripts)")
+		asJSON := fs.Bool("json", false, "print the decoded job and signature as JSON")
 		if err := fs.Parse(args[1:]); err != nil {
 			return err
 		}
 		if *key == "" || *spec == "" {
-			return errors.New("sign-job: --key and --spec are required")
+			return errors.New("job: -key and -spec are required")
 		}
-		sig, err := signJob(*key, *spec)
-		if err != nil {
-			return err
-		}
-		fmt.Println(sig)
-		return nil
+		return signJobCmd(*key, *spec, *yes, *asJSON)
 	case "verify":
 		fs := flag.NewFlagSet("verify", flag.ContinueOnError)
 		pub := fs.String("pub", "", "public key file, or env:NAME")
@@ -171,7 +183,7 @@ func verify(pubRef, file, sigFile string) error {
 }
 
 // keygenOperator writes an Ed25519 operator key pair. The private key is a
-// PKCS#8 PEM file (also readable by the browser signer); the public key is
+// PKCS#8 PEM file (for use with "sentrel-sign job" only); the public key is
 // printed as raw base64 for the agent's --operator-key / operator_keys.
 func keygenOperator(out string) error {
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
@@ -222,19 +234,83 @@ func loadOperatorKey(path string) (ed25519.PrivateKey, error) {
 	return priv, nil
 }
 
-// signJob signs the exact spec bytes and returns the base64 signature.
-func signJob(keyFile, spec string) (string, error) {
-	priv, err := loadOperatorKey(keyFile)
-	if err != nil {
-		return "", err
-	}
+// readSpec accepts base64 text or a file containing it and returns the raw bytes.
+func readSpec(spec string) ([]byte, error) {
 	text := spec
 	if b, err := os.ReadFile(spec); err == nil {
 		text = string(b)
 	}
 	raw, err := base64.StdEncoding.DecodeString(strings.TrimSpace(text))
 	if err != nil || len(raw) == 0 {
-		return "", errors.New("spec must be base64 (as returned by GET /jobs/{id}/spec) or a file containing it")
+		return nil, errors.New("spec must be base64 (as shown on the job page or returned by GET /jobs/{id}/spec) or a file containing it")
 	}
-	return base64.StdEncoding.EncodeToString(ed25519.Sign(priv, raw)), nil
+	return raw, nil
+}
+
+func ts(unix int64) string {
+	if unix <= 0 {
+		return "none"
+	}
+	return fmt.Sprintf("%s (%d)", time.Unix(unix, 0).UTC().Format(time.RFC3339), unix)
+}
+
+// printSummary writes every authorisation-relevant field. Values are quoted
+// so control characters and look-alike text cannot hide in them.
+func printSummary(w io.Writer, s *jobspec.Summary) {
+	fmt.Fprintln(w, "Job to be signed (decoded from the exact bytes that will be signed):")
+	fmt.Fprintf(w, "  job id:     %q\n", s.JobID)
+	fmt.Fprintf(w, "  agent id:   %q\n", s.AgentID)
+	class := "read-only (safe)"
+	if s.WriteClass {
+		class = "WRITE: changes the host"
+	}
+	fmt.Fprintf(w, "  type:       %q  [%s]\n", s.Type, class)
+	fmt.Fprintf(w, "  dry run:    %v\n", s.DryRun)
+	fmt.Fprintf(w, "  issued:     %s\n", ts(s.IssuedUnix))
+	fmt.Fprintf(w, "  expires:    %s\n", ts(s.ExpiresUnix))
+	fmt.Fprintf(w, "  timeout:    %d s\n", s.TimeoutSeconds)
+	if len(s.Params) == 0 {
+		fmt.Fprintln(w, "  parameters: (none)")
+	}
+	for i, p := range s.Params {
+		lead := "              "
+		if i == 0 {
+			lead = "  parameters: "
+		}
+		fmt.Fprintf(w, "%s%q = %q\n", lead, p.Key, p.Value)
+	}
+}
+
+// signJobCmd decodes, shows and (after confirmation) signs the exact spec bytes.
+func signJobCmd(keyFile, spec string, yes, asJSON bool) error {
+	raw, err := readSpec(spec)
+	if err != nil {
+		return err
+	}
+	sum, err := jobspec.Decode(raw, now())
+	if err != nil {
+		return err
+	}
+	priv, err := loadOperatorKey(keyFile)
+	if err != nil {
+		return err
+	}
+	printSummary(stderr, sum)
+	if !yes {
+		fmt.Fprint(stderr, "Sign this job? Type yes to confirm: ")
+		line, _ := bufio.NewReader(stdin).ReadString('\n')
+		if strings.TrimSpace(line) != "yes" {
+			return errors.New("not confirmed; nothing signed")
+		}
+	}
+	sig := base64.StdEncoding.EncodeToString(ed25519.Sign(priv, raw))
+	if asJSON {
+		return json.NewEncoder(stdout).Encode(struct {
+			*jobspec.Summary
+			KeyID     string `json:"key_id"`
+			Signature string `json:"signature"`
+		}{sum, jobpolicy.KeyID(priv.Public().(ed25519.PublicKey)), sig})
+	}
+	fmt.Fprintln(stdout, sig)
+	return nil
 }

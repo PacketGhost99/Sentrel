@@ -16,6 +16,15 @@ Users created by SSO have `auth_source` of `oidc` or `proxy`. They cannot sign i
 3. The provider redirects back to `/api/v1/auth/oidc/callback`. Sentrel checks the state, exchanges the code with the PKCE verifier, verifies the ID token signature, issuer, audience and nonce, and reads the claims. Groups missing from the ID token are read from the userinfo endpoint.
 4. The user is created or updated, the role is mapped from their groups, and a normal session is issued.
 
+### Stable identities
+
+An account is bound to the provider's stable identity, the pair of issuer and `sub`, not to its username. The binding is stored in `external_identities` and is deleted with the user. Username, email and display name are attributes refreshed on every login, so a renamed user keeps the same account (if the new username is already taken by another account, the old one is kept).
+
+- A new subject whose username is unused is provisioned (when `allow_provision` is on) and linked.
+- A new subject whose username matches an existing account is refused, with an audit entry "username already linked to a different identity", unless the account is a pre-0.9.3 upgrade (below). A different subject therefore never reuses an account, even when usernames collide after normalisation.
+- Changing the issuer URL does not bind new logins to old users: the old accounts stay linked to the old issuer. To move users to a new provider, delete or disable the old accounts, or have users sign in to new accounts.
+- Upgrade path: an account with `auth_source` `oidc` that has no identity linked at all (created before identities were recorded) is linked automatically at its next login, by username, once. After that the link is fixed. Local, LDAP and RADIUS accounts are never linked.
+
 ### Redirect URI
 
 Register this exact URL with the provider:
@@ -95,6 +104,7 @@ Behaviour:
 - A GET or HEAD request with no session and the user header present from a trusted peer creates a session (`auth_source` `proxy`) and sets the normal session cookie. Writes are never authenticated by headers alone; the UI loads the session first.
 - A request with a valid session or API key ignores the headers.
 - Headers from other peers are ignored entirely.
+- Proxies send no stable subject, so the identity is the configured user header name plus its value (the username). **The proxy must provide a stable, unique username**: if your identity provider can reuse or change usernames, anyone given a past user's name takes over that account. Changing `user_header` starts a new identity namespace; existing proxy accounts are refused until they are removed. Proxy accounts created before 0.9.3 are linked once, at their next login.
 - Proxy sign-in is treated as fully authenticated: Sentrel does not ask for a second factor, because the proxy is responsible for it.
 
 Settings (`proxy_auth`): `enabled`, `user_header` (default `Remote-User`), `email_header`, `name_header`, `groups_header` (comma separated), `group_role_map`, `default_role`, `default_tenant`, `allow_provision`.

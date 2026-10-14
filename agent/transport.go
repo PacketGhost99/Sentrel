@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/hex"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"net"
@@ -45,19 +46,67 @@ func serverTarget(raw string) (target string, useTLS bool, host string, err erro
 	return net.JoinHostPort(host, port), useTLS, host, nil
 }
 
-// pinVerifier accepts a server chain containing a certificate with the
-// pinned SHA-256 fingerprint (the internal CA in self-signed mode).
-func pinVerifier(pin string) func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
+func normalisePin(pin string) string {
 	pin = strings.ToLower(strings.TrimPrefix(strings.TrimSpace(pin), "sha256:"))
-	pin = strings.ReplaceAll(pin, ":", "")
+	return strings.ReplaceAll(pin, ":", "")
+}
+
+func certMatchesPin(der []byte, pin string) bool {
+	s := sha256.Sum256(der)
+	return hex.EncodeToString(s[:]) == pin
+}
+
+// caPEMMatchesPin reports whether the first certificate in caPEM has the
+// pinned SHA-256 fingerprint.
+func caPEMMatchesPin(caPEM []byte, pin string) bool {
+	b, _ := pem.Decode(caPEM)
+	return b != nil && b.Type == "CERTIFICATE" && certMatchesPin(b.Bytes, normalisePin(pin))
+}
+
+// pinVerifier verifies the server chain against a trust pool that holds only
+// the certificate with the pinned SHA-256 fingerprint (the internal CA in
+// self-signed mode). The presence of the CA in the chain proves nothing: the
+// leaf must verify against it, for host (a name or an IP literal), with the
+// server-auth usage and the current time.
+func pinVerifier(pin, host string) func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
+	pin = normalisePin(pin)
 	return func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
-		for _, c := range rawCerts {
-			s := sha256.Sum256(c)
-			if hex.EncodeToString(s[:]) == pin {
-				return nil
+		if len(rawCerts) == 0 {
+			return errors.New("server presented no certificate")
+		}
+		certs := make([]*x509.Certificate, 0, len(rawCerts))
+		for _, raw := range rawCerts {
+			c, err := x509.ParseCertificate(raw)
+			if err != nil {
+				return fmt.Errorf("parse server certificate: %w", err)
+			}
+			certs = append(certs, c)
+		}
+		roots := x509.NewCertPool()
+		pinned := false
+		inter := x509.NewCertPool()
+		for _, c := range certs {
+			if certMatchesPin(c.Raw, pin) {
+				roots.AddCert(c)
+				pinned = true
+			} else {
+				inter.AddCert(c)
 			}
 		}
-		return errors.New("server certificate chain does not contain the pinned CA (--ca-fingerprint)")
+		if !pinned {
+			return errors.New("server certificate chain does not contain the pinned CA (--ca-fingerprint)")
+		}
+		_, err := certs[0].Verify(x509.VerifyOptions{
+			Roots:         roots,
+			Intermediates: inter,
+			DNSName:       host,
+			CurrentTime:   time.Now(),
+			KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		})
+		if err != nil {
+			return fmt.Errorf("server certificate does not verify against the pinned CA: %w", err)
+		}
+		return nil
 	}
 }
 
@@ -79,7 +128,7 @@ func tlsConfig(host string, caPEM []byte, clientCert *tls.Certificate, pin strin
 		// Registration with a pinned self-signed CA: normal verification would
 		// fail, so verify the pin instead.
 		cfg.InsecureSkipVerify = true
-		cfg.VerifyPeerCertificate = pinVerifier(pin)
+		cfg.VerifyPeerCertificate = pinVerifier(pin, host)
 	}
 	return cfg, nil
 }

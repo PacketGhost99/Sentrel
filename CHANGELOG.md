@@ -4,6 +4,16 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [0.9.5] - 2026-10-14
+
+### Fixed
+
+- Agent self-update on Linux failed with "staged update changed unexpectedly" on agents running 0.9.3 or 0.9.4. The installer's own `chmod` of the staged binary was mistaken for a replaced file.
+
+### Upgrade notes
+
+- Linux agents on 0.9.3 or 0.9.4 cannot update themselves to this release, because the update runs inside the installed agent. Update them once by upgrading the package (`apt install ./sentrel-agent_*.deb` or `dnf upgrade ./sentrel-agent-*.rpm`) or by re-running the install command from the Agents page. Later updates work from the UI again. Agents on 0.9.2 or earlier, and Windows agents, update normally.
+
 ## [0.9.4] - 2026-10-14
 
 ### Added

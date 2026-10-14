@@ -639,6 +639,20 @@ func stillStaged(path string, want os.FileInfo) error {
 	return nil
 }
 
+// afterChmod confirms path is still the staged file after our own chmod,
+// which changes only the mode and the change time, and returns its new
+// metadata.
+func afterChmod(path string, want os.FileInfo) (os.FileInfo, error) {
+	fi, err := os.Lstat(path)
+	if err != nil {
+		return nil, err
+	}
+	if !fi.Mode().IsRegular() || !os.SameFile(fi, want) || fi.Size() != want.Size() || !fi.ModTime().Equal(want.ModTime()) {
+		return nil, errors.New("staged update changed unexpectedly")
+	}
+	return fi, nil
+}
+
 // changeTime is the inode change time. Device and inode alone are not enough
 // to recognise a file: a deleted inode number can be reused at once by a new
 // file, which then gets a fresh change time.
@@ -736,7 +750,9 @@ func installUpdate(path, sha, version, sig string) error {
 	if err := os.Chmod(staged, 0o755); err != nil {
 		return err
 	}
-	if err := stillStaged(staged, want); err != nil {
+	// chmod updates the change time, so recheck without it and continue from
+	// the file's new metadata.
+	if want, err = afterChmod(staged, want); err != nil {
 		return err
 	}
 	// The protected marker is written before the swap so a crash in between

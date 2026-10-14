@@ -101,11 +101,22 @@ func TestStageCopyUniqueExclusiveAndPrivate(t *testing.T) {
 		if err := stillStaged(name, fi); err != nil {
 			t.Fatal(err)
 		}
+		// The installer makes the file executable before swapping it in; that
+		// chmod changes the change time but must not look like a replacement.
+		if err := os.Chmod(name, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := afterChmod(name, fi); err != nil {
+			t.Fatalf("own chmod rejected: %v", err)
+		}
 		// Swapping the file for another one is detected.
 		_ = os.Remove(name)
 		_ = os.WriteFile(name, []byte("evil"), 0o700)
 		if err := stillStaged(name, fi); err == nil {
 			t.Fatal("replaced staged file not detected")
+		}
+		if _, err := afterChmod(name, fi); err == nil {
+			t.Fatal("replaced staged file not detected after chmod")
 		}
 	}
 	if b, _ := os.ReadFile(victim); string(b) != "keep" {

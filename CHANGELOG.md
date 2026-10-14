@@ -4,6 +4,12 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [0.9.4] - 2026-10-14
+
+### Added
+
+- [Roadmap](ROADMAP.md).
+
 ### Changed
 
 - The project moved to https://github.com/XEDigital/Sentrel and the container image to `ghcr.io/xedigital/sentrel`. Old GitHub links redirect, and servers on 0.9.3 keep receiving updates. Docker users should switch the image name (see docs/install.md); `ghcr.io/packetghost99/sentrel` receives no further updates.

@@ -78,6 +78,7 @@ Packages (`.deb`, `.rpm`), Compose, TLS and upgrades are covered in [Installing]
 - [Checks and alerting](docs/alerting.md), [vulnerabilities](docs/vulnerabilities.md), [SSO](docs/sso.md)
 - [Security](docs/security.md) and [threat model](docs/threat-model.md)
 - [API](docs/api.md), [comparison with other tools](docs/comparison.md), [FAQ](docs/faq.md)
+- [Roadmap](ROADMAP.md) and [changelog](CHANGELOG.md)
 - [All documentation](docs/README.md)
 
 ## Community & support

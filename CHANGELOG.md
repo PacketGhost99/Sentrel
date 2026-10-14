@@ -4,6 +4,10 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [0.9.3] - 2026-10-14
+
+Security release: fixes from an external review. Upgrading is recommended for every installation. Operator-signing users: see Removed.
+
 ### Security
 
 - Agent enrolment in self-signed mode now verifies the server certificate against a trust pool holding only the pinned CA (chain, host name or IP, validity and server-auth usage), instead of accepting any chain that merely contained the CA. The CA returned at enrolment must also match the pin.

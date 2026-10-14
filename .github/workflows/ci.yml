@@ -106,7 +106,13 @@ jobs:
         run: |
           PRE=""
           case "$GITHUB_REF_NAME" in *-*) PRE="--prerelease" ;; esac
-          gh release create "$GITHUB_REF_NAME" --title "Sentrel $GITHUB_REF_NAME" --generate-notes $PRE dist/*
+          # Release notes are this version's CHANGELOG section.
+          awk -v v="${GITHUB_REF_NAME#v}" '
+            index($0, "## [" v "]") == 1 { on = 1; next }
+            on && /^## \[/ { exit }
+            on { print }' CHANGELOG.md > notes.md
+          if [ -s notes.md ]; then NOTES="--notes-file notes.md"; else NOTES="--generate-notes"; fi
+          gh release create "$GITHUB_REF_NAME" --title "Sentrel $GITHUB_REF_NAME" $NOTES $PRE dist/*
 
   docker:
     runs-on: ubuntu-latest

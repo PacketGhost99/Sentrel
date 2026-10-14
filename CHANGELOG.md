@@ -4,6 +4,10 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Changed
+
+- CI and release workflows use the current major versions of their GitHub Actions (Node 24 runtimes).
+
 ## [0.9.2] - 2026-10-14
 
 ### Added

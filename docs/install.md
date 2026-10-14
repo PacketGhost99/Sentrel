@@ -83,7 +83,7 @@ docker run -d --name sentrel --cap-add NET_RAW -p 8080:8080 -v sentrel-data:/dat
 
 In the compose file, replace the `build:` section with `image: ghcr.io/xedigital/sentrel:latest`.
 
-Releases up to 0.9.3 were published as `ghcr.io/packetghost99/sentrel`, which receives no further updates. If your compose file or `docker run` command uses that name, change it to `ghcr.io/xedigital/sentrel` and pull again; the data volume is unaffected.
+Releases up to 0.9.3 were published as `ghcr.io/packetghost99/sentrel`. That name no longer resolves, and all versions, including the older ones, are available as `ghcr.io/xedigital/sentrel`. If your compose file or `docker run` command uses the old name, change it to the new one and pull again; running containers and the data volume are unaffected.
 
 ## Verifying downloads
 

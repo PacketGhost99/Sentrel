@@ -62,7 +62,7 @@ jobs:
           go run ./cmd/sentrel-sign sign -key env:SENTREL_RELEASE_KEY dist/SHA256SUMS
       - name: Install cosign
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: sigstore/cosign-installer@v4
+        uses: sigstore/cosign-installer@v4.1.2
         with:
           cosign-release: ${{ env.COSIGN_VERSION }}
       - name: Sign checksums with cosign (keyless)
@@ -142,7 +142,7 @@ jobs:
           cache-to: type=gha,mode=max
       - name: Install cosign
         if: env.PUSH == 'true'
-        uses: sigstore/cosign-installer@v4
+        uses: sigstore/cosign-installer@v4.1.2
         with:
           cosign-release: ${{ env.COSIGN_VERSION }}
       - name: Sign the image (keyless)

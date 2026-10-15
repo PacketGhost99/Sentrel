@@ -214,37 +214,37 @@ function Overview({ host, alerts }: { host: HD; alerts: Alert[] }) {
         <UptimeCard hostId={host.id} />
         <Card title="Details">
           {host.kind === 'agent' ? (
-            <KV items={[
-              ['Hostname', hi.hostname],
+            <KV stacked items={[
+              ['Hostname', hi.hostname, 'wide'],
               ['OS', osLabel(hi)],
               ['Kernel', hi.kernel_version],
               ['Architecture', hi.arch],
-              ['CPU', hi.cpu_model ? `${hi.cpu_model} (${hi.cpu_cores} cores)` : hi.cpu_cores],
-              ['Memory', hi.memory_total ? bytes(hi.memory_total) : undefined],
               ['Virtualization', hi.virtualization || 'none'],
-              ['IP addresses', (hi.ip_addresses || []).slice(0, 6).join(', ')],
-              ['Booted', hi.boot_time ? dateTime(num(hi.boot_time)) : undefined],
-              ['Agent', <span key="a">{host.agent_version}{host.latest_agent_version && host.latest_agent_version !== host.agent_version && <Badge tone="warn" className="ml-1">{host.latest_agent_version} available</Badge>}</span>],
-              ['Connection', host.connection ? <span key="c" className="text-ok">connected from {host.connection.remote} {host.connection.mtls ? '(mTLS)' : '(signed hello)'} since {ago(host.connection.since)}</span> : <span key="c" className="text-muted">offline · last seen {ago(host.last_seen_at)}</span>],
+              ['Memory', hi.memory_total ? bytes(hi.memory_total) : undefined],
               ['Interval', `${host.agent_config?.interval_seconds ?? 30}s`],
+              ['Agent', <span key="a">{host.agent_version}{host.latest_agent_version && host.latest_agent_version !== host.agent_version && <Badge tone="warn" className="ml-1">{host.latest_agent_version} available</Badge>}</span>],
               ['Metric storage', host.storage_bytes ? bytes(host.storage_bytes) : 'computed nightly'],
+              ['CPU', hi.cpu_model ? `${hi.cpu_model} (${hi.cpu_cores} cores)` : hi.cpu_cores, 'wide'],
+              ['IP addresses', (hi.ip_addresses || []).slice(0, 6).join(', '), 'wide'],
+              ['Booted', hi.boot_time ? dateTime(num(hi.boot_time)) : undefined],
               ['Enrolled', dateTime(host.created_at)],
+              ['Connection', host.connection ? <span key="c" className="text-ok">connected from {host.connection.remote} {host.connection.mtls ? '(mTLS)' : '(signed hello)'} since {ago(host.connection.since)}</span> : <span key="c" className="text-muted">offline · last seen {ago(host.last_seen_at)}</span>, 'wide'],
             ]} />
           ) : host.kind === 'snmp' ? (
-            <KV items={[
+            <KV stacked items={[
               ['sysName', host.snmp_info?.system?.name],
-              ['Description', host.snmp_info?.system?.descr],
-              ['Object ID', <span key="o" className="mono text-xs">{host.snmp_info?.system?.object_id}</span>],
+              ['Description', host.snmp_info?.system?.descr, 'wide'],
+              ['Object ID', <span key="o" className="mono text-xs">{host.snmp_info?.system?.object_id}</span>, 'wide'],
               ['Location', host.snmp_info?.system?.location],
               ['Contact', host.snmp_info?.system?.contact],
               ['Uptime', host.snmp_info?.system?.uptime_seconds ? duration(host.snmp_info.system.uptime_seconds) : undefined],
               ['Profile', host.snmp_info?.profile],
               ['SNMP', `v${host.snmp_config?.version ?? '2c'} · every ${host.snmp_config?.interval_seconds ?? 60}s`],
-              ['Last poll', host.snmp_info?.last_poll ? `${ago(host.snmp_info.last_poll)} (${(host.snmp_info.duration_ms ?? 0).toFixed(0)} ms)` : 'never'],
-              ['Last error', host.snmp_info?.last_error ? <span key="e" className="text-crit">{host.snmp_info.last_error}</span> : undefined],
+              ['Last poll', host.snmp_info?.last_poll ? `${ago(host.snmp_info.last_poll)} (${(host.snmp_info.duration_ms ?? 0).toFixed(0)} ms)` : 'never', 'wide'],
+              ['Last error', host.snmp_info?.last_error ? <span key="e" className="text-crit">{host.snmp_info.last_error}</span> : undefined, 'wide'],
             ]} />
           ) : (
-            <KV items={[['Address', host.address], ['Type', 'Agentless target (checks only)'], ['Created', dateTime(host.created_at)]]} />
+            <KV stacked items={[['Address', host.address], ['Type', 'Agentless target (checks only)', 'wide'], ['Created', dateTime(host.created_at), 'wide']]} />
           )}
         </Card>
         {host.reboot_required && (

@@ -605,7 +605,20 @@ export function useSort<T>(rows: T[], initial: { key: string; dir: 'asc' | 'desc
 
 // ---------- Misc ----------
 
-export function KV({ items, className }: { items: [ReactNode, ReactNode][]; className?: string }) {
+export function KV({ items, className, stacked }: { items: ([ReactNode, ReactNode] | [ReactNode, ReactNode, 'wide'])[]; className?: string; stacked?: boolean }) {
+  if (stacked) {
+    // Label above value, two per row; items marked 'wide' take the full row.
+    return (
+      <dl className={cx('grid grid-cols-2 gap-x-4 gap-y-3 text-sm', className)}>
+        {items.map(([k, v, w], i) => (
+          <div key={i} className={cx('min-w-0', w === 'wide' && 'col-span-2')}>
+            <dt className="text-xs font-medium text-muted">{k}</dt>
+            <dd className="mt-0.5 min-w-0 break-words">{v ?? '–'}</dd>
+          </div>
+        ))}
+      </dl>
+    )
+  }
   return (
     <dl className={cx('grid grid-cols-[minmax(110px,max-content)_1fr] gap-x-4 gap-y-2 text-sm', className)}>
       {items.map(([k, v], i) => (

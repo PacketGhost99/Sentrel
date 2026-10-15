@@ -4,6 +4,16 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [0.9.7] - 2026-10-15
+
+### Fixed
+
+- Up-to-date agents showed "update available" and the Update agent button had no effect: release builds labelled the bundled agent `v0.9.6` while agents report `0.9.6`, so the versions never matched. With automatic agent updates on, this also queued a needless update job every hour. The bundled agent version is now read without the leading `v`.
+
+### Changed
+
+- Host Details: each label sits above its value. Short values share a row, and long ones such as CPU, IP addresses and connection use the full width.
+
 ## [0.9.6] - 2026-10-14
 
 ### Changed

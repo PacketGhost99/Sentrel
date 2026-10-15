@@ -111,7 +111,9 @@ func readVersion(fsys fs.FS) string {
 	if err != nil {
 		return "unknown"
 	}
-	return strings.TrimSpace(string(b))
+	// Release builds write the tag ("v0.9.6"); agents report the version
+	// without the "v" ("0.9.6"). Use the agents' form so the two compare equal.
+	return strings.TrimPrefix(strings.TrimSpace(string(b)), "v")
 }
 
 func fileHash(p string) (string, error) {
